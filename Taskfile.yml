@@ -1,0 +1,21 @@
+version: "3"
+
+vars:
+  FLOCI: http://localhost:4588
+  PROJECT: demo
+  REGION: us-central1
+  JOB: my-agent-job
+  IMAGE: agent-jobs-agent:latest
+  AGENT_MESSAGE: hello
+  JOB_BODY: >-
+    {"template":{"template":{"containers":[{"image":{{.IMAGE | toJson}},"env":[{"name":"AGENT_MESSAGE","value":{{.AGENT_MESSAGE | toJson}}}]}]}}}
+
+tasks:
+  create-job:
+    desc: Create the agent Cloud Run job in Floci (override with e.g. JOB=my-job AGENT_MESSAGE="hi")
+    cmds:
+      - >-
+        curl -fsS -X POST
+        "{{.FLOCI}}/v2/projects/{{.PROJECT}}/locations/{{.REGION}}/jobs?jobId={{.JOB}}"
+        -H 'content-type: application/json'
+        -d {{.JOB_BODY | shellQuote}}

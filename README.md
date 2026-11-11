@@ -27,7 +27,9 @@ docker compose up -d --build   # start (builds the service image)
 docker compose down            # stop
 ```
 
-- `service` (`Dockerfile.service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `POST /chat`, `POST /jobs/:name/run`. It uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`). Set `GEMINI_API_KEY` (and optionally `AGENT_MODEL`, `GCP_PROJECT`, `GCP_REGION`) in your shell before `docker compose up`. Running Cloud Run jobs needs real GCP credentials, which this setup does not provide.
+- Configuration lives in `.env` (gitignored; Bun and `docker compose` both read it). Put your `GEMINI_API_KEY` there; the file lists every other variable the project uses.
+- `service` (`Dockerfile.service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `POST /chat`, `POST /jobs/:name/run`. In compose it uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`) and for Cloud Run jobs (`CLOUD_RUN_EMULATOR_HOST=floci-gcp:4588`, REST without credentials). Without `CLOUD_RUN_EMULATOR_HOST` the service uses the real Cloud Run API and needs Application Default Credentials.
+- With the stack up, `task create-job` (needs [go-task](https://taskfile.dev)) creates the agent's Cloud Run job in Floci. Override with e.g. `task create-job JOB=my-job AGENT_MESSAGE="hi"`; it fails if the job already exists. Floci supports the Cloud Run v2 REST API only, not `gcloud run jobs`.
 - The agent job image is built from `Dockerfile.agent` (`docker build -f Dockerfile.agent -t agent-jobs-agent .`).
 
 - [Floci GCP](https://floci.io/floci-gcp/getting-started/quick-start/) listens on `localhost:4588` and emulates Firestore, among other GCP services.
