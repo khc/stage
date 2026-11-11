@@ -8,37 +8,33 @@ const reply = (text: string) =>
 const setup = (runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>) => {
   const sessionService = {
     createSession: mock(async () => ({ id: "s1" })),
-    deleteSession: mock(async () => {}),
   };
   const run = createRunAgent({ sessionService, runAsync } as never);
   return { run, sessionService };
 };
 
-test("returns the final response text and deletes the session", async () => {
+test("creates a session, returns the final response text and keeps the session", async () => {
   const { run, sessionService } = setup(async function* () {
     yield reply("hello ");
   });
 
   expect(await run("hi")).toBe("hello");
-  expect(sessionService.deleteSession).toHaveBeenCalledWith({
+  expect(sessionService.createSession).toHaveBeenCalledWith({
     appName: "agent-jobs",
     userId: "user",
-    sessionId: "s1",
   });
 });
 
-test("throws when no final response is produced, still deleting the session", async () => {
-  const { run, sessionService } = setup(async function* () {});
+test("throws when no final response is produced", async () => {
+  const { run } = setup(async function* () {});
 
   await expect(run("hi")).rejects.toThrow("no final response");
-  expect(sessionService.deleteSession).toHaveBeenCalledTimes(1);
 });
 
-test("deletes the session when the run fails", async () => {
-  const { run, sessionService } = setup(async function* () {
+test("propagates a failed run", async () => {
+  const { run } = setup(async function* () {
     throw new Error("boom");
   });
 
   await expect(run("hi")).rejects.toThrow("boom");
-  expect(sessionService.deleteSession).toHaveBeenCalledTimes(1);
 });
