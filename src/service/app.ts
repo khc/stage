@@ -1,28 +1,19 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { z } from "zod";
+import { Scalar } from "@scalar/hono-api-reference";
+import { openApiDocument } from "./openapi";
+import {
+  chatSchema,
+  jobNameSchema,
+  taskSchema,
+  taskParamSchema,
+  sessionParamSchema,
+} from "./schemas";
 import type { RunAgent } from "../agent";
 import type { ListJobs, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
-
-const MAX_MESSAGE_LENGTH = 10_000;
-const message = z.string().trim().min(1).max(MAX_MESSAGE_LENGTH);
-
-const chatSchema = z.object({ message });
-const jobNameSchema = z
-  .string()
-  .regex(/^[a-z]([-a-z0-9]*[a-z0-9])?$/)
-  .max(63);
-const taskSchema = z.object({ prompt: message, jobName: jobNameSchema });
-const taskParamSchema = z.object({
-  taskId: z.uuid().transform((id) => id.toLowerCase()),
-});
-
-const sessionParamSchema = taskParamSchema.extend({
-  sessionId: z.string().min(1).max(1500),
-});
 
 export const createApp = (
   run: RunAgent,
@@ -34,6 +25,8 @@ export const createApp = (
   sessions: TaskSessions,
 ) =>
   new Hono()
+    .get("/openapi.json", (c) => c.json(openApiDocument))
+    .get("/docs", Scalar({ url: "/openapi.json", pageTitle: "Agent Jobs API" }))
     .get("/health", (c) => c.json({ status: "ok" }))
     .get("/jobs", async (c) => {
       try {

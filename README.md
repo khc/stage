@@ -106,3 +106,15 @@ curl "localhost:3000/tasks/$TASK_ID/sessions/$SESSION_ID"
 `GET /tasks/:taskId/sessions` returns HTTP 200 `{ "sessions": [...] }` with summaries containing `id`, `taskId`, `appName`, `userId`, and `lastUpdateTime`. The list includes only sessions linked to that task, is unpaginated with unspecified order, and returns `{ "sessions": [] }` when the task has no sessions. It does not load session state or events.
 
 `GET /tasks/:taskId/sessions/:sessionId` returns HTTP 200 with the full ADK session, including `state`, ordered `events`, and `taskId`. Session IDs are matched exactly (including case), supporting custom ADK IDs. Both routes validate and normalize the task UUID. Invalid parameters return 400; missing tasks return 404 `{ "error": "task_not_found" }`; an absent session or a session belonging to another task returns 404 `{ "error": "session_not_found" }`. Storage failures return 502 `{ "error": "session_error" }`. Existing sessions require a stored `taskId` link to appear, including those linked by the migration above.
+
+## API reference
+
+Open [Scalar API docs](http://localhost:3000/docs) while the service is running. The OpenAPI 3.1 document is available at [openapi.json](http://localhost:3000/openapi.json), covering health, chat, jobs, tasks, task execution, and task sessions. Request schemas are generated from the same Zod validators used by the routes. The documentation UI loads Scalar's browser bundle from its CDN.
+
+## Web dashboard
+
+Run `bun dev` (or `bun start`) and open [the dashboard](http://localhost:3000/web). The root URL `/` also serves the dashboard. The React/Tailwind dashboard is bundled by Bun's HTML routes and shares the service origin, so no separate frontend server or API URL is needed.
+
+The dashboard lists tasks and Cloud Run jobs, saves new tasks, submits task executions, and shows session summaries, state, and ordered events. Tasks, jobs, and visible sessions refresh every 15 seconds. Execution notices indicate submission only; they do not claim agent completion. Search tasks by prompt/job/ID, or use `/` to focus search. New-task creation saves without executing. API documentation remains at `/docs`.
+
+The original `src/web/dash.html` is retained as an unused design reference. The app entrypoint is `src/web/index.html` with `dashboard.tsx`. `bunfig.toml` enables the Tailwind plugin; the service Docker image includes this configuration and the frontend source. Deploy/rebuild the service image to make dashboard changes available in Docker.

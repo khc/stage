@@ -1,0 +1,1215 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Activity,
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Box,
+  Check,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  Copy,
+  Database,
+  FileText,
+  Layers3,
+  LayoutDashboard,
+  Loader2,
+  Menu,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Server,
+  Sparkles,
+  Terminal,
+  Workflow,
+  X,
+} from "lucide-react";
+import {
+  api,
+  formatTime,
+  shortJobName,
+  type Job,
+  type SessionEvent,
+  type Task,
+} from "./api";
+import { Button } from "./components/ui/button";
+
+type View = "overview" | "tasks" | "jobs";
+type Notice = {
+  title: string;
+  message?: string;
+  error?: boolean;
+  taskId?: string;
+};
+const captions = {
+  overview: ["Control room", "A clear view of your agent workspace."],
+  tasks: ["Tasks", "Save a prompt. Choose a job. Put your agents to work."],
+  jobs: ["Jobs", "The workers behind your tasks."],
+};
+
+function Loading({ label = "Loading workspace…" }: { label?: string }) {
+  return (
+    <div className="loading">
+      <Loader2 size={19} className="animate-spin" />
+      <span>{label}</span>
+    </div>
+  );
+}
+function ErrorBox({
+  error,
+  retry,
+}: {
+  error: Error | null;
+  retry?: () => void;
+}) {
+  return (
+    <div className="error-box" role="alert">
+      <CircleAlert size={18} />
+      <div>
+        <strong>Something went wrong</strong>
+        <p>{error?.message ?? "The request could not be completed."}</p>
+        {retry && (
+          <button onClick={retry}>
+            Try again <ArrowRight size={12} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+function Empty({
+  icon,
+  title,
+  children,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="empty">
+      <div className="empty-icon">{icon}</div>
+      <h3>{title}</h3>
+      <p>{children}</p>
+      {action}
+    </div>
+  );
+}
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!copied && !failed) return;
+    const timer = setTimeout(() => {
+      setCopied(false);
+      setFailed(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [copied, failed]);
+  return (
+    <button
+      className="copy-button"
+      title={failed ? "Could not copy" : copied ? "Copied" : "Copy ID"}
+      aria-label={failed ? "Could not copy" : copied ? "Copied" : "Copy ID"}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+        } catch {
+          setFailed(true);
+        }
+      }}
+    >
+      {failed ? (
+        <CircleAlert size={13} />
+      ) : copied ? (
+        <Check size={13} />
+      ) : (
+        <Copy size={13} />
+      )}
+    </button>
+  );
+}
+
+export function Dashboard() {
+  const client = useQueryClient();
+  const [view, setView] = useState<View>("overview");
+  const [search, setSearch] = useState("");
+  const [mobileNav, setMobileNav] = useState(false);
+  const [selected, setSelected] = useState<string | null>(() =>
+    new URLSearchParams(location.search).get("task"),
+  );
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [newJob, setNewJob] = useState("");
+  const createDialog = useRef<HTMLDialogElement>(null);
+  const tasksQuery = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
+  const jobsQuery = useQuery({ queryKey: ["jobs"], queryFn: api.jobs });
+  const health = useQuery({
+    queryKey: ["health"],
+    queryFn: api.health,
+    retry: false,
+  });
+  const tasks = tasksQuery.data?.tasks ?? [];
+  const jobs = jobsQuery.data?.jobs ?? [];
+  const runTask = useMutation({
+    mutationFn: api.run,
+    onSuccess: (result, taskId) => {
+      setNotice({
+        title: "Execution submitted",
+        taskId,
+        message: `Cloud Run accepted the request. New sessions will appear when the agent starts. Operation: ${result.operation || "accepted"}`,
+      });
+      setSelected(taskId);
+      void client.invalidateQueries({ queryKey: ["sessions", taskId] });
+    },
+    onError: (error, taskId) =>
+      setNotice({
+        title: "Could not start task",
+        taskId,
+        message: error.message,
+        error: true,
+      }),
+  });
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 12000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (selected) url.searchParams.set("task", selected);
+    else url.searchParams.delete("task");
+    history.replaceState(null, "", url);
+  }, [selected]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        event.key !== "/" ||
+        target?.matches("input, textarea, select, [contenteditable=true]") ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      const search = document.querySelector<HTMLInputElement>(
+        ".search-field input",
+      );
+      if (search) {
+        event.preventDefault();
+        search.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+  const openCreate = (jobName = "") => {
+    setNewJob(jobName);
+    createDialog.current?.showModal();
+  };
+  const navigate = (next: View) => {
+    setView(next);
+    setSearch("");
+    setMobileNav(false);
+  };
+  const filtered = tasks.filter((task) =>
+    `${task.prompt} ${task.jobName} ${task.taskId}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const filteredJobs = jobs.filter((job) =>
+    `${job.name} ${job.description ?? ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: ["tasks"] });
+    void client.invalidateQueries({ queryKey: ["jobs"] });
+    void client.invalidateQueries({ queryKey: ["health"] });
+  };
+
+  return (
+    <div className="app-shell">
+      {mobileNav && (
+        <button
+          className="nav-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+      <aside className={`sidebar ${mobileNav ? "is-open" : ""}`}>
+        <a className="brand" href="/" aria-label="Agent Jobs home">
+          <span className="brand-symbol">
+            <Workflow size={22} />
+          </span>
+          <span>
+            Agent Jobs<span className="brand-caption">WORKSPACE</span>
+          </span>
+        </a>
+        <div className="workspace-select">
+          <span className="workspace-avatar">A</span>
+          <div>
+            Agent workspace<span>Task orchestration</span>
+          </div>
+          <ChevronRight size={14} />
+        </div>
+        <p className="nav-label">WORKSPACE</p>
+        <nav aria-label="Main navigation">
+          {(
+            [
+              { id: "overview", label: "Overview", icon: LayoutDashboard },
+              { id: "tasks", label: "Tasks", icon: Layers3 },
+              { id: "jobs", label: "Jobs", icon: Server },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${view === item.id ? "active" : ""}`}
+              onClick={() => navigate(item.id)}
+              aria-current={view === item.id ? "page" : undefined}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+              {item.id === "tasks" && tasksQuery.data && (
+                <span className="nav-count">{tasks.length}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-guide">
+          <span className="guide-icon">
+            <Sparkles size={17} />
+          </span>
+          <h3>From prompt to progress.</h3>
+          <p>Create a task, run your job, and follow the conversation.</p>
+          <button onClick={() => openCreate()}>
+            Create your next task <ArrowRight size={14} />
+          </button>
+        </div>
+        <div className="sidebar-bottom">
+          <a href="/docs" target="_blank" rel="noreferrer" className="nav-item">
+            <BookOpen size={17} />
+            <span>API reference</span>
+            <ArrowDownLeft size={14} className="rotate-180" />
+          </a>
+          <div className="workspace-footer">
+            <span
+              className={`status-dot ${health.isError ? "offline" : health.isPending ? "pending" : ""}`}
+            />
+            <span>
+              {health.isError
+                ? "Service unavailable"
+                : health.isPending
+                  ? "Connecting…"
+                  : "Service connected"}
+            </span>
+            <span className="version">v1.0</span>
+          </div>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <div className="breadcrumb">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mobile-menu"
+              onClick={() => setMobileNav(true)}
+              aria-label="Open navigation"
+            >
+              <Menu size={18} />
+            </Button>
+            <span>Workspace</span>
+            <ChevronRight size={13} />
+            <strong>
+              {view === "overview"
+                ? "Overview"
+                : view === "tasks"
+                  ? "Tasks"
+                  : "Jobs"}
+            </strong>
+          </div>
+          <div className="topbar-right">
+            <span className="environment-badge">
+              <span
+                className={`status-dot ${health.isError ? "offline" : health.isPending ? "pending" : ""}`}
+              />
+              {health.isError
+                ? "Disconnected"
+                : health.isPending
+                  ? "Connecting"
+                  : "Connected"}
+            </span>
+            <a
+              href="/docs"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open API reference"
+            >
+              <BookOpen size={17} />
+            </a>
+          </div>
+        </header>
+        <main className="main-content">
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">
+                <span className="tiny-line" />
+                AGENT OPERATIONS
+              </div>
+              <h1>{captions[view][0]}</h1>
+              <p>{captions[view][1]}</p>
+            </div>
+            <div className="heading-actions">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refresh}
+                disabled={refreshing}
+                aria-label="Refresh workspace"
+              >
+                <RefreshCw
+                  size={16}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+              </Button>
+              <Button onClick={() => openCreate()}>
+                <Plus size={16} />
+                New task
+              </Button>
+            </div>
+          </div>
+          {view === "overview" && (
+            <>
+              <section className="stats-grid" aria-label="Workspace summary">
+                <div className="stat-card">
+                  <span className="stat-icon violet">
+                    <Layers3 size={18} />
+                  </span>
+                  <span className="stat-label">Saved tasks</span>
+                  <strong>{tasksQuery.data ? tasks.length : "—"}</strong>
+                  <span className="stat-note">
+                    Ready for your next execution
+                  </span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-icon blue">
+                    <Server size={18} />
+                  </span>
+                  <span className="stat-label">Cloud Run jobs</span>
+                  <strong>{jobsQuery.data ? jobs.length : "—"}</strong>
+                  <span className="stat-note">
+                    Configured workers in your workspace
+                  </span>
+                </div>
+                <div className="stat-card">
+                  <span
+                    className={`stat-icon ${health.isError ? "amber" : "green"}`}
+                  >
+                    <Activity size={18} />
+                  </span>
+                  <span className="stat-label">API connection</span>
+                  <strong className="status-value">
+                    {health.isError
+                      ? "Unavailable"
+                      : health.isPending
+                        ? "Connecting"
+                        : "Healthy"}
+                  </strong>
+                  <span className="stat-note">
+                    {health.dataUpdatedAt
+                      ? `Checked ${new Date(health.dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                      : "Waiting for the service"}
+                  </span>
+                </div>
+              </section>
+              <section className="workflow-banner">
+                <div className="workflow-banner-icon">
+                  <Workflow size={25} />
+                </div>
+                <div>
+                  <h2>One task. Every conversation in view.</h2>
+                  <p>
+                    Give an agent a prompt, then inspect its work through
+                    execution sessions.
+                  </p>
+                </div>
+                <div className="workflow-steps">
+                  <span>
+                    <FileText size={13} />
+                    Save
+                  </span>
+                  <ChevronRight size={12} />
+                  <span>
+                    <Play size={12} />
+                    Run
+                  </span>
+                  <ChevronRight size={12} />
+                  <span>
+                    <Terminal size={13} />
+                    Inspect
+                  </span>
+                </div>
+              </section>
+            </>
+          )}
+          {view !== "jobs" ? (
+            <section className="panel task-panel">
+              <div className="panel-header">
+                <div className="panel-title">
+                  <Layers3 size={17} />
+                  <h2>{view === "overview" ? "Saved tasks" : "All tasks"}</h2>
+                  {tasksQuery.data && (
+                    <span className="count-badge">{tasks.length}</span>
+                  )}
+                </div>
+                <label className="search-field">
+                  <Search size={15} />
+                  <input
+                    aria-label="Search tasks"
+                    placeholder="Search tasks…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <kbd>/</kbd>
+                </label>
+              </div>
+              {tasksQuery.isPending ? (
+                <Loading label="Loading tasks…" />
+              ) : tasksQuery.isError ? (
+                <ErrorBox
+                  error={tasksQuery.error}
+                  retry={() => void tasksQuery.refetch()}
+                />
+              ) : !tasks.length ? (
+                <Empty
+                  icon={<Layers3 size={27} />}
+                  title="Your next idea starts here"
+                  action={
+                    <Button size="sm" onClick={() => openCreate()}>
+                      <Plus size={14} />
+                      Create a task
+                    </Button>
+                  }
+                >
+                  Save a prompt and choose a job to get started.
+                </Empty>
+              ) : !filtered.length ? (
+                <Empty icon={<Search size={26} />} title="No matching tasks">
+                  Try another prompt, job name, or task ID.
+                </Empty>
+              ) : (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Task / prompt</th>
+                        <th>Job</th>
+                        <th>Contract</th>
+                        <th className="text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((task) => (
+                        <tr key={task.taskId}>
+                          <td>
+                            <button
+                              className="task-link"
+                              onClick={() => setSelected(task.taskId)}
+                            >
+                              <span className="task-row-icon">
+                                <FileText size={16} />
+                              </span>
+                              <span>
+                                <strong>{task.prompt}</strong>
+                                <small>
+                                  {task.taskId.slice(0, 8)}
+                                  <span className="id-ellipsis">
+                                    …{task.taskId.slice(-6)}
+                                  </span>
+                                </small>
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <span className="job-chip">
+                              <Box size={12} />
+                              {task.jobName ?? "Unassigned"}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${task.jobName ? "neutral" : "warning"}`}
+                            >
+                              <span className="mini-dot" />
+                              {task.jobName ? "Saved" : "Needs job"}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="row-actions">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelected(task.taskId)}
+                              >
+                                Details
+                                <ChevronRight size={13} />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!task.jobName || runTask.isPending}
+                                onClick={() => runTask.mutate(task.taskId)}
+                                aria-label={`Run task ${task.taskId}`}
+                              >
+                                {runTask.isPending &&
+                                runTask.variables === task.taskId ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <Play size={12} />
+                                )}
+                                Run
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="panel-footer">
+                <span>
+                  {tasksQuery.data
+                    ? `${filtered.length} task${filtered.length === 1 ? "" : "s"}`
+                    : "Task workspace"}
+                </span>
+                <span>
+                  <RefreshCw size={11} />
+                  Refreshes every 15 seconds
+                </span>
+              </div>
+            </section>
+          ) : (
+            <section className="panel">
+              <div className="panel-header">
+                <div className="panel-title">
+                  <Server size={17} />
+                  <h2>Cloud Run jobs</h2>
+                  <span className="count-badge">{jobs.length}</span>
+                </div>
+                <label className="search-field">
+                  <Search size={15} />
+                  <input
+                    aria-label="Search jobs"
+                    placeholder="Search jobs…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </label>
+              </div>
+              {jobsQuery.isPending ? (
+                <Loading label="Loading jobs…" />
+              ) : jobsQuery.isError ? (
+                <ErrorBox
+                  error={jobsQuery.error}
+                  retry={() => void jobsQuery.refetch()}
+                />
+              ) : !jobs.length ? (
+                <Empty icon={<Server size={27} />} title="No jobs configured">
+                  Create a Cloud Run job in the configured project and region,
+                  then refresh this workspace.
+                </Empty>
+              ) : !filteredJobs.length ? (
+                <Empty icon={<Search size={26} />} title="No matching jobs">
+                  Try another job name.
+                </Empty>
+              ) : (
+                <div className="jobs-grid">
+                  {filteredJobs.map((job, i) => (
+                    <JobCard
+                      key={job.name ?? i}
+                      job={job}
+                      onCreate={() => openCreate(shortJobName(job))}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          {view === "overview" && (
+            <div className="bottom-note">
+              <Database size={13} />
+              <span>
+                Tasks define the work. Jobs execute it. Sessions tell the story.
+              </span>
+              <a href="/docs" target="_blank" rel="noreferrer">
+                Explore the API <ArrowRight size={12} />
+              </a>
+            </div>
+          )}
+        </main>
+        <footer className="page-footer">
+          <span>
+            AGENT JOBS<span className="footer-dot">·</span>YOUR AGENT WORKSPACE
+          </span>
+          <span>
+            <span className="mini-dot" />
+            Powered by your jobs
+          </span>
+        </footer>
+      </div>
+      <NewTask
+        dialogRef={createDialog}
+        jobs={jobs}
+        initialJob={newJob}
+        onCreated={(task) => {
+          createDialog.current?.close();
+          void client.invalidateQueries({ queryKey: ["tasks"] });
+          setSelected(task.taskId);
+          setNotice({
+            title: "Task created",
+            taskId: task.taskId,
+            message: "Your prompt is saved. Run it when you’re ready.",
+          });
+        }}
+      />
+      {selected && (
+        <TaskInspector
+          taskId={selected}
+          onClose={() => setSelected(null)}
+          onRun={() => runTask.mutate(selected)}
+          running={runTask.isPending}
+          notice={notice?.taskId === selected ? notice : null}
+          onDismissNotice={() => setNotice(null)}
+        />
+      )}
+      {notice && !selected && (
+        <div
+          className={`toast ${notice.error ? "toast-error" : ""}`}
+          role={notice.error ? "alert" : "status"}
+        >
+          <span className="toast-icon">
+            {notice.error ? <CircleAlert size={18} /> : <Check size={18} />}
+          </span>
+          <div>
+            <strong>{notice.title}</strong>
+            {notice.message && <p>{notice.message}</p>}
+          </div>
+          <button
+            aria-label="Dismiss notification"
+            onClick={() => setNotice(null)}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
+  const location = job.name?.split("/locations/")[1]?.split("/")[0];
+  return (
+    <article className="job-card">
+      <div className="job-card-top">
+        <span className="job-card-icon">
+          <Server size={21} />
+        </span>
+        <span className="badge neutral">Configured</span>
+      </div>
+      <h3>{shortJobName(job)}</h3>
+      <p>
+        {job.description || "An agent worker available for task execution."}
+      </p>
+      <div className="job-card-meta">
+        <span>
+          <Box size={12} />
+          {location ?? "Cloud Run"}
+        </span>
+        {job.template?.taskCount != null && (
+          <span>
+            {job.template.taskCount} task
+            {job.template.taskCount === 1 ? "" : "s"} per execution
+          </span>
+        )}
+      </div>
+      <div className="job-resource">
+        <code>{job.name ?? "Resource name unavailable"}</code>
+        {job.name && <CopyButton value={job.name} />}
+      </div>
+      <Button variant="outline" className="w-full" onClick={onCreate}>
+        <Plus size={14} />
+        Create task for this job
+      </Button>
+    </article>
+  );
+}
+
+function NewTask({
+  dialogRef,
+  jobs,
+  initialJob,
+  onCreated,
+}: {
+  dialogRef: React.RefObject<HTMLDialogElement | null>;
+  jobs: Job[];
+  initialJob: string;
+  onCreated: (task: Task) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [jobName, setJobName] = useState("");
+  const mutation = useMutation({
+    mutationFn: api.create,
+    onSuccess: (task) => {
+      setPrompt("");
+      setJobName("");
+      onCreated(task);
+    },
+  });
+  useEffect(() => {
+    setJobName(initialJob);
+    mutation.reset();
+  }, [initialJob]);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    mutation.mutate({ prompt: prompt.trim(), jobName });
+  };
+  return (
+    <dialog
+      ref={dialogRef}
+      className="create-dialog"
+      aria-labelledby="new-task-title"
+      onClose={() => mutation.reset()}
+    >
+      <form onSubmit={submit}>
+        <div className="dialog-heading">
+          <span className="stat-icon violet">
+            <Layers3 size={20} />
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Close new task"
+            onClick={() => dialogRef.current?.close()}
+          >
+            <X size={18} />
+          </Button>
+        </div>
+        <h2 id="new-task-title">Create a task</h2>
+        <p className="dialog-description">
+          A prompt, a worker, and room to do great work.
+        </p>
+        <label className="form-label" htmlFor="job-name">
+          Cloud Run job<span>Required</span>
+        </label>
+        <input
+          id="job-name"
+          className="form-input"
+          list="job-options"
+          placeholder="my-agent-job"
+          value={jobName}
+          onChange={(e) => setJobName(e.target.value)}
+          required
+          maxLength={63}
+          pattern="[a-z]([-a-z0-9]*[a-z0-9])?"
+          autoComplete="off"
+        />
+        <datalist id="job-options">
+          {jobs.map((job) => (
+            <option key={job.name} value={shortJobName(job)} />
+          ))}
+        </datalist>
+        <p className="field-note">
+          Choose a configured job or enter its short name.
+        </p>
+        <label className="form-label prompt-label" htmlFor="task-prompt">
+          Prompt<span>Required</span>
+        </label>
+        <textarea
+          id="task-prompt"
+          className="form-input prompt-input"
+          placeholder="What would you like your agent to work on?"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          required
+          maxLength={10_000}
+          rows={7}
+        />
+        <div className="prompt-counter">
+          {prompt.length.toLocaleString()} / 10,000
+        </div>
+        {mutation.isError && <ErrorBox error={mutation.error} />}
+        <div className="create-hint">
+          <FileText size={15} />
+          <p>Creating a task saves it. You choose when to run it.</p>
+        </div>
+        <div className="dialog-actions">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={mutation.isPending}
+            onClick={() => dialogRef.current?.close()}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={!prompt.trim() || !jobName || mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Plus size={15} />
+            )}
+            Create task
+          </Button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+function TaskInspector({
+  taskId,
+  onClose,
+  onRun,
+  running,
+  notice,
+  onDismissNotice,
+}: {
+  taskId: string;
+  onClose: () => void;
+  onRun: () => void;
+  running: boolean;
+  notice: Notice | null;
+  onDismissNotice: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [tab, setTab] = useState<"sessions" | "prompt">("sessions");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const task = useQuery({
+    queryKey: ["task", taskId],
+    queryFn: () => api.task(taskId),
+  });
+  const sessions = useQuery({
+    queryKey: ["sessions", taskId],
+    queryFn: () => api.sessions(taskId),
+    enabled: !!task.data,
+  });
+  const detail = useQuery({
+    queryKey: ["session", taskId, sessionId],
+    queryFn: () => api.session(taskId, sessionId!),
+    enabled: !!sessionId,
+  });
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  useEffect(() => {
+    setSessionId(null);
+    setTab("sessions");
+  }, [taskId]);
+  const list = [...(sessions.data?.sessions ?? [])].sort(
+    (a, b) => b.lastUpdateTime - a.lastUpdateTime,
+  );
+  return (
+    <dialog
+      ref={ref}
+      className="inspector"
+      aria-labelledby="inspector-title"
+      onClose={onClose}
+    >
+      <div className="inspector-top">
+        <span className="eyebrow">TASK DETAILS</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close task details"
+          onClick={() => ref.current?.close()}
+        >
+          <X size={19} />
+        </Button>
+      </div>
+      {task.isPending ? (
+        <Loading label="Loading task…" />
+      ) : task.isError ? (
+        <ErrorBox error={task.error} retry={() => void task.refetch()} />
+      ) : (
+        <>
+          <div className="inspector-heading">
+            <span className="task-detail-icon">
+              <FileText size={24} />
+            </span>
+            <h2 id="inspector-title">{task.data.prompt}</h2>
+            <div className="task-id">
+              <code>{taskId}</code>
+              <CopyButton value={taskId} />
+            </div>
+            <div className="task-detail-meta">
+              <span className="job-chip">
+                <Box size={12} />
+                {task.data.jobName ?? "Unassigned job"}
+              </span>
+              <Button
+                size="sm"
+                onClick={onRun}
+                disabled={!task.data.jobName || running}
+              >
+                {running ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Play size={13} />
+                )}
+                Run task
+              </Button>
+            </div>
+          </div>
+          <div
+            className="inspector-tabs"
+            role="tablist"
+            aria-label="Task detail sections"
+          >
+            <button
+              role="tab"
+              aria-selected={tab === "sessions"}
+              onClick={() => setTab("sessions")}
+            >
+              <Terminal size={15} />
+              Sessions<span>{list.length}</span>
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "prompt"}
+              onClick={() => setTab("prompt")}
+            >
+              <FileText size={15} />
+              Prompt
+            </button>
+          </div>
+          <div className="inspector-body" role="tabpanel">
+            {notice && (
+              <div
+                className={`inspector-notice ${notice.error ? "notice-error" : ""}`}
+                role={notice.error ? "alert" : "status"}
+              >
+                {notice.error ? <CircleAlert size={17} /> : <Check size={17} />}
+                <div>
+                  <strong>{notice.title}</strong>
+                  <p>{notice.message}</p>
+                </div>
+                <button
+                  aria-label="Dismiss notification"
+                  onClick={onDismissNotice}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            {tab === "prompt" ? (
+              <>
+                <p className="section-overline">SAVED PROMPT</p>
+                <div className="prompt-preview">{task.data.prompt}</div>
+              </>
+            ) : sessionId ? (
+              <>
+                <button
+                  className="back-link"
+                  onClick={() => setSessionId(null)}
+                >
+                  <ArrowLeft size={14} />
+                  All sessions
+                </button>
+                {detail.isPending ? (
+                  <Loading label="Loading session…" />
+                ) : detail.isError ? (
+                  <ErrorBox
+                    error={detail.error}
+                    retry={() => void detail.refetch()}
+                  />
+                ) : (
+                  <>
+                    <div className="session-detail-title">
+                      <h3>Session activity</h3>
+                      <span>{detail.data.events.length} events</span>
+                    </div>
+                    <div className="task-id session-id">
+                      <code>{detail.data.id}</code>
+                      <CopyButton value={detail.data.id} />
+                    </div>
+                    <p className="session-time">
+                      <Clock3 size={12} />
+                      Updated {formatTime(detail.data.lastUpdateTime)}
+                    </p>
+                    <details className="state-box">
+                      <summary>
+                        <Database size={14} />
+                        Session state
+                        <span>
+                          {Object.keys(detail.data.state).length} keys
+                        </span>
+                      </summary>
+                      <pre>{JSON.stringify(detail.data.state, null, 2)}</pre>
+                    </details>
+                    {detail.data.events.length ? (
+                      <div className="event-timeline">
+                        {detail.data.events.map((event, i) => (
+                          <EventCard
+                            key={event.id ?? i}
+                            event={event}
+                            index={i}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <Empty
+                        icon={<Terminal size={25} />}
+                        title="No events yet"
+                      >
+                        Events will appear here as the agent works.
+                      </Empty>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="sessions-heading">
+                  <div>
+                    <p className="section-overline">EXECUTION SESSIONS</p>
+                    <p>Each attempt has its own conversation.</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => void sessions.refetch()}
+                    aria-label="Refresh sessions"
+                    disabled={sessions.isFetching}
+                  >
+                    <RefreshCw
+                      size={15}
+                      className={sessions.isFetching ? "animate-spin" : ""}
+                    />
+                  </Button>
+                </div>
+                {sessions.isPending ? (
+                  <Loading label="Loading sessions…" />
+                ) : sessions.isError ? (
+                  <ErrorBox
+                    error={sessions.error}
+                    retry={() => void sessions.refetch()}
+                  />
+                ) : !list.length ? (
+                  <Empty
+                    icon={<Terminal size={27} />}
+                    title="The conversation starts with a run"
+                  >
+                    Run this task to create a session. New sessions appear
+                    automatically when the agent starts.
+                  </Empty>
+                ) : (
+                  <div className="sessions-list">
+                    {list.map((session, i) => (
+                      <button
+                        key={session.id}
+                        className="session-list-item"
+                        onClick={() => setSessionId(session.id)}
+                      >
+                        <span className="session-icon">
+                          <Terminal size={17} />
+                        </span>
+                        <span>
+                          <strong>Session {session.id.slice(0, 8)}</strong>
+                          <small>{formatTime(session.lastUpdateTime)}</small>
+                        </span>
+                        {i === 0 && (
+                          <span className="badge violet-badge">Latest</span>
+                        )}
+                        <ChevronRight size={16} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </dialog>
+  );
+}
+
+function EventCard({ event, index }: { event: SessionEvent; index: number }) {
+  const parts = event.content?.parts ?? [];
+  return (
+    <article
+      className={`event-card ${event.errorMessage ? "event-error" : ""}`}
+    >
+      <div className="event-marker">
+        <span>
+          {event.author === "user" ? (
+            <ArrowRight size={12} />
+          ) : (
+            <Sparkles size={12} />
+          )}
+        </span>
+      </div>
+      <div className="event-header">
+        <strong>{event.author ?? event.content?.role ?? "Event"}</strong>
+        <span>
+          {event.timestamp ? formatTime(event.timestamp) : `Event ${index + 1}`}
+        </span>
+      </div>
+      {event.errorMessage && (
+        <p className="event-error-message">{event.errorMessage}</p>
+      )}
+      {parts.map((part, i) => (
+        <div key={i}>
+          {part.text != null && (
+            <div
+              className={`event-text ${part.thought ? "event-thought" : ""}`}
+            >
+              {part.thought && <span className="thought-label">Reasoning</span>}
+              {part.text}
+            </div>
+          )}
+          {part.functionCall && (
+            <details className="tool-event" open>
+              <summary>
+                <Workflow size={13} />
+                {part.functionCall.name ?? "Tool call"}
+              </summary>
+              <pre>{JSON.stringify(part.functionCall.args ?? {}, null, 2)}</pre>
+            </details>
+          )}
+          {part.functionResponse && (
+            <details className="tool-event">
+              <summary>
+                <Check size={13} />
+                {part.functionResponse.name ?? "Tool response"}
+              </summary>
+              <pre>
+                {JSON.stringify(part.functionResponse.response ?? {}, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      ))}
+      <details className="raw-event">
+        <summary>Raw event</summary>
+        <pre>{JSON.stringify(event, null, 2)}</pre>
+      </details>
+    </article>
+  );
+}

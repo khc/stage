@@ -1,3 +1,4 @@
+import dashboard from "../web/index.html";
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 import { runAgent } from "../agent";
@@ -32,5 +33,7 @@ const app = createApp(
 
 export default {
   port: Number(process.env.PORT ?? 3000),
+  routes: { "/": dashboard, "/web": dashboard, "/web/": dashboard },
+  development: process.env.NODE_ENV !== "production",
   fetch: app.fetch,
 };

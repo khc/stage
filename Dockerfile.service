@@ -14,10 +14,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.json bunfig.toml ./
 COPY src/task-contract.ts ./src/task-contract.ts
 COPY src/agent ./src/agent
 COPY src/service ./src/service
+COPY src/web ./src/web
 
 USER bun
 EXPOSE 3000

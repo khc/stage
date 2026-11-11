@@ -20,24 +20,24 @@ services:
     environment:
       FLOCI_GCP_ENDPOINT: http://floci-gcp:4588
 
-  service:
-    build:
-      context: .
-      dockerfile: Dockerfile.service
-    ports:
-      - "127.0.0.1:3000:3000"
-    depends_on:
-      floci-gcp:
-        condition: service_healthy
-    environment:
-      GCP_PROJECT: ${GCP_PROJECT:-floci-local}
-      GCP_REGION: ${GCP_REGION:-us-central1}
-      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-floci-local}
-      FIRESTORE_EMULATOR_HOST: floci-gcp:4588
-      CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
-      GEMINI_API_KEY:
-      AGENT_MODEL:
-      GOOGLE_GENAI_USE_VERTEXAI:
+  # service:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.service
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
+  #   depends_on:
+  #     floci-gcp:
+  #       condition: service_healthy
+  #   environment:
+  #     GCP_PROJECT: ${GCP_PROJECT:-floci-local}
+  #     GCP_REGION: ${GCP_REGION:-us-central1}
+  #     GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-floci-local}
+  #     FIRESTORE_EMULATOR_HOST: floci-gcp:4588
+  #     CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
+  #     GEMINI_API_KEY:
+  #     AGENT_MODEL:
+  #     GOOGLE_GENAI_USE_VERTEXAI:
 
 volumes:
   floci-gcp-data:

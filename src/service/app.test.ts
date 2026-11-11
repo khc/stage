@@ -3,6 +3,7 @@ import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
 import type { RunAgent } from "../agent";
 import { createApp } from "./app";
+import type { openApiDocument } from "./openapi";
 import type { ListJobs, RunJob } from "./jobs";
 
 const noJob: RunJob = async () => "";
@@ -564,4 +565,51 @@ test("GET task session returns 404 for absent or non-owned sessions", async () =
   );
   expect(response.status).toBe(404);
   expect(await response.json()).toEqual({ error: "session_not_found" });
+});
+
+test("GET /docs serves Scalar configured for the local OpenAPI document", async () => {
+  const response = await appWith(async () => "").request("/docs");
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("text/html");
+  const html = await response.text();
+  expect(html).toContain("scalar");
+  expect(html).toContain("/openapi.json");
+});
+
+test("GET /openapi.json describes every API operation and its task input", async () => {
+  const app = appWith(async () => "");
+  const response = await app.request("/openapi.json");
+  expect(response.status).toBe(200);
+  const document = (await response.json()) as typeof openApiDocument;
+  expect(document.openapi).toBe("3.1.0");
+  const actual = [
+    ...new Set(
+      app.routes
+        .filter((r) => !["/docs", "/openapi.json"].includes(r.path))
+        .map(
+          (r) =>
+            `${r.method.toLowerCase()} ${r.path.replace(/:([^/]+)/g, "{$1}")}`,
+        ),
+    ),
+  ].sort();
+  const described = Object.entries(document.paths)
+    .flatMap(([path, operations]) =>
+      Object.keys(operations as object)
+        .filter((method) => ["get", "post"].includes(method))
+        .map((method) => `${method} ${path}`),
+    )
+    .sort();
+  expect(described).toEqual(actual);
+  const input =
+    document.paths["/tasks"].post.requestBody.content["application/json"]
+      .schema;
+  expect(input.required).toEqual(["prompt", "jobName"]);
+  expect(input.properties?.prompt).toMatchObject({ maxLength: 10_000 });
+  expect(input.properties?.jobName).toMatchObject({ maxLength: 63 });
+  expect(document.paths["/tasks/{taskId}/run"].post).not.toHaveProperty(
+    "requestBody",
+  );
+  expect(
+    document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"],
+  ).toBeDefined();
 });
