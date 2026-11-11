@@ -1,10 +1,11 @@
 import { expect, mock, test } from "bun:test";
 import type { RunAgent } from "../agent";
 import { createApp } from "./app";
-import type { RunJob } from "./jobs";
+import type { ListJobs, RunJob } from "./jobs";
 
 const noJob: RunJob = async () => "";
-const appWith = (run: RunAgent) => createApp(run, noJob);
+const noJobs: ListJobs = async () => [];
+const appWith = (run: RunAgent) => createApp(run, noJob, noJobs);
 
 const post = (body: unknown) => ({
   method: "POST",
@@ -61,7 +62,7 @@ test("POST /chat rejects a missing or empty message", async () => {
 
 test("POST /jobs/:name/run starts the job and returns 202", async () => {
   const runJob = mock(async (_job: string) => "op-1");
-  const res = await createApp(async () => "", runJob).request(
+  const res = await createApp(async () => "", runJob, noJobs).request(
     "/jobs/my-job/run",
     { method: "POST" },
   );
@@ -73,7 +74,7 @@ test("POST /jobs/:name/run starts the job and returns 202", async () => {
 
 test("POST /jobs/:name/run passes an optional message to the job", async () => {
   const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const res = await createApp(async () => "", runJob).request(
+  const res = await createApp(async () => "", runJob, noJobs).request(
     "/jobs/my-job/run",
     post({ message: "hi there" }),
   );
@@ -84,17 +85,23 @@ test("POST /jobs/:name/run passes an optional message to the job", async () => {
 
 test("POST /jobs/:name/run rejects an empty or non-string message", async () => {
   const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const app = createApp(async () => "", runJob);
+  const app = createApp(async () => "", runJob, noJobs);
 
-  expect((await app.request("/jobs/my-job/run", post({ message: "" }))).status).toBe(400);
-  expect((await app.request("/jobs/my-job/run", post({ message: 5 }))).status).toBe(400);
-  expect((await app.request("/jobs/my-job/run", post({ message: "   " }))).status).toBe(400);
+  expect(
+    (await app.request("/jobs/my-job/run", post({ message: "" }))).status,
+  ).toBe(400);
+  expect(
+    (await app.request("/jobs/my-job/run", post({ message: 5 }))).status,
+  ).toBe(400);
+  expect(
+    (await app.request("/jobs/my-job/run", post({ message: "   " }))).status,
+  ).toBe(400);
   expect(runJob).not.toHaveBeenCalled();
 });
 
 test("POST /jobs/:name/run passes the trimmed message", async () => {
   const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const res = await createApp(async () => "", runJob).request(
+  const res = await createApp(async () => "", runJob, noJobs).request(
     "/jobs/my-job/run",
     post({ message: "  hi  " }),
   );
@@ -106,21 +113,31 @@ test("POST /jobs/:name/run passes the trimmed message", async () => {
 test("POST /jobs/:name/run and /chat reject an oversized message", async () => {
   const run = mock(async (_message: string) => "reply");
   const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const app = createApp(run, runJob);
+  const app = createApp(run, runJob, noJobs);
   const tooLong = "x".repeat(10_001);
 
-  expect((await app.request("/jobs/my-job/run", post({ message: tooLong }))).status).toBe(400);
-  expect((await app.request("/chat", post({ message: tooLong }))).status).toBe(400);
-  expect((await app.request("/chat", post({ message: "x".repeat(10_000) }))).status).toBe(200);
+  expect(
+    (await app.request("/jobs/my-job/run", post({ message: tooLong }))).status,
+  ).toBe(400);
+  expect((await app.request("/chat", post({ message: tooLong }))).status).toBe(
+    400,
+  );
+  expect(
+    (await app.request("/chat", post({ message: "x".repeat(10_000) }))).status,
+  ).toBe(200);
   expect(runJob).not.toHaveBeenCalled();
 });
 
 test("POST /jobs/:name/run rejects an invalid job name", async () => {
   const runJob = mock(async (_job: string) => "op-1");
-  const app = createApp(async () => "", runJob);
+  const app = createApp(async () => "", runJob, noJobs);
 
-  expect((await app.request("/jobs/My_Job/run", { method: "POST" })).status).toBe(400);
-  expect((await app.request("/jobs/-bad/run", { method: "POST" })).status).toBe(400);
+  expect(
+    (await app.request("/jobs/My_Job/run", { method: "POST" })).status,
+  ).toBe(400);
+  expect((await app.request("/jobs/-bad/run", { method: "POST" })).status).toBe(
+    400,
+  );
   expect(runJob).not.toHaveBeenCalled();
 });
 
@@ -128,10 +145,40 @@ test("POST /jobs/:name/run returns 502 job_error when the job fails to start", a
   const runJob = mock(async (_job: string): Promise<string> => {
     throw new Error("secret gcp detail");
   });
-  const res = await createApp(async () => "", runJob).request(
+  const res = await createApp(async () => "", runJob, noJobs).request(
     "/jobs/my-job/run",
     { method: "POST" },
   );
+
+  expect(res.status).toBe(502);
+  expect(await res.json()).toEqual({ error: "job_error" });
+});
+
+test("GET /jobs returns all listed job resources", async () => {
+  const jobs = [
+    { name: "projects/p/locations/l/jobs/first", labels: { team: "agent" } },
+    { name: "projects/p/locations/l/jobs/second" },
+  ];
+  const listJobs = mock(async () => jobs);
+  const res = await createApp(async () => "", noJob, listJobs).request("/jobs");
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ jobs });
+  expect(listJobs).toHaveBeenCalledTimes(1);
+});
+
+test("GET /jobs returns an empty jobs array", async () => {
+  const res = await createApp(async () => "", noJob, noJobs).request("/jobs");
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ jobs: [] });
+});
+
+test("GET /jobs returns 502 job_error without upstream details", async () => {
+  const listJobs = mock(async (): ReturnType<ListJobs> => {
+    throw new Error("secret listing detail");
+  });
+  const res = await createApp(async () => "", noJob, listJobs).request("/jobs");
 
   expect(res.status).toBe(502);
   expect(await res.json()).toEqual({ error: "job_error" });

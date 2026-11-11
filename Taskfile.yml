@@ -9,18 +9,25 @@ vars:
   AGENT_MESSAGE: hello
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
   JOB_URL: "{{.JOBS_URL}}/{{.JOB | urlquery}}"
-  JOB_BODY: >-
-    {"template":{"template":{"containers":[{"image":{{.IMAGE | toJson}},"env":[{"name":"AGENT_MESSAGE","value":{{.AGENT_MESSAGE | toJson}}}]}]}}}
+
+env:
+  JOB_PROJECT: "{{.PROJECT}}"
+  JOB_REGION: "{{.REGION}}"
+  JOB_NAME: "{{.JOB}}"
+  JOB_IMAGE: "{{.IMAGE}}"
+  JOB_MESSAGE: "{{.AGENT_MESSAGE}}"
+  JOB_FLOCI: "{{.FLOCI}}"
 
 tasks:
   create-job:
     desc: Create the agent Cloud Run job in Floci (override with e.g. JOB=my-job AGENT_MESSAGE="hi")
     cmds:
-      - >-
-        curl -fsS -X POST
-        "{{.FLOCI}}/v2/projects/{{.PROJECT}}/locations/{{.REGION}}/jobs?jobId={{.JOB}}"
-        -H 'content-type: application/json'
-        -d {{.JOB_BODY | shellQuote}}
+      - bun scripts/cloud-run-job.ts create
+
+  update-job:
+    desc: Update the agent job image and environment in Floci from .env
+    cmds:
+      - bun scripts/cloud-run-job.ts update
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
