@@ -11,6 +11,11 @@ export const jobEnvironment = (env: Env, project: string) => {
       name: "FIRESTORE_EMULATOR_HOST",
       value: env.JOB_FIRESTORE_EMULATOR_HOST || "floci-gcp:4588",
     },
+    {
+      name: "PUBSUB_EMULATOR_HOST",
+      value: env.JOB_PUBSUB_EMULATOR_HOST || "floci-gcp:4588",
+    },
+    { name: "PUBSUB_TOPIC", value: env.PUBSUB_TOPIC || "agent-events" },
     { name: "GEMINI_API_KEY", value: env.GEMINI_API_KEY },
     ...["AGENT_MODEL", "GOOGLE_GENAI_USE_VERTEXAI"].flatMap((name) =>
       env[name] ? [{ name, value: env[name] }] : [],

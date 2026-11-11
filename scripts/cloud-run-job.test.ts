@@ -14,6 +14,8 @@ test("supplies the job with Firestore configuration and model credentials", () =
   ).toEqual([
     { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
     { name: "FIRESTORE_EMULATOR_HOST", value: "floci-gcp:4588" },
+    { name: "PUBSUB_EMULATOR_HOST", value: "floci-gcp:4588" },
+    { name: "PUBSUB_TOPIC", value: "agent-events" },
     { name: "GEMINI_API_KEY", value: "test-key" },
     { name: "AGENT_MODEL", value: "test-model" },
     { name: "GOOGLE_GENAI_USE_VERTEXAI", value: "true" },
@@ -32,6 +34,8 @@ test("supports a custom job-visible emulator host and omits absent optional sett
   ).toEqual([
     { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
     { name: "FIRESTORE_EMULATOR_HOST", value: "emulator:4588" },
+    { name: "PUBSUB_EMULATOR_HOST", value: "floci-gcp:4588" },
+    { name: "PUBSUB_TOPIC", value: "agent-events" },
     { name: "GEMINI_API_KEY", value: "test-key" },
   ]);
 });
@@ -192,6 +196,8 @@ test("update preserves the existing template and merges the agent environment", 
               { name: "CUSTOM_SETTING", value: "keep" },
               { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
               { name: "FIRESTORE_EMULATOR_HOST", value: "floci-gcp:4588" },
+    { name: "PUBSUB_EMULATOR_HOST", value: "floci-gcp:4588" },
+    { name: "PUBSUB_TOPIC", value: "agent-events" },
               { name: "GEMINI_API_KEY", value: "new-key" },
             ],
           },

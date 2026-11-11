@@ -2,6 +2,7 @@ import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
 import { rootAgent } from "./agent";
 import { FirestoreSessionService } from "./session-service";
+import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 
 export { FirestoreSessionService } from "./session-service";
 export {
@@ -34,7 +35,7 @@ const resumeSession = async (
 };
 
 export const createTaskAgent =
-  (runner: RunnerLike): RunAgent =>
+  (runner: RunnerLike, publish?: PublishEvent): RunAgent =>
   async (message, taskId, sessionId) => {
     const session = sessionId
       ? await resumeSession(runner.sessionService, sessionId, taskId)
@@ -50,6 +51,9 @@ export const createTaskAgent =
       sessionId: session.id,
       newMessage: { role: "user", parts: [{ text: message }] },
     })) {
+      await publish?.(event, { sessionId: session.id, taskId }).catch((err) =>
+        console.error("Failed to publish event", err),
+      );
       if (isFinalResponse(event) && event.content?.parts?.length) {
         reply = stringifyContent(event).trim();
       }
@@ -65,4 +69,5 @@ export const runAgent = createTaskAgent(
     agent: rootAgent,
     sessionService: new FirestoreSessionService(new Firestore()),
   }),
+  publisherFromEnv(process.env),
 );

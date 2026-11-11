@@ -1,5 +1,5 @@
 import { createEvent } from "@google/adk";
-import { expect, mock, test } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
 import { createTaskAgent } from "./index";
 
 const reply = (text: string) =>
@@ -88,4 +88,25 @@ test("refuses to resume a missing session or one linked to another task", async 
     );
     expect(runAsync).not.toHaveBeenCalled();
   }
+});
+
+test("publishes every yielded event and survives a publish failure", async () => {
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })) };
+  const runAsync = async function* () {
+    yield reply("a");
+    yield reply("b");
+  };
+  const publish = mock(async () => {
+    throw new Error("pubsub down");
+  });
+  const spy = spyOn(console, "error").mockImplementation(() => {});
+  const run = createTaskAgent({ sessionService, runAsync } as never, publish);
+
+  expect(await run("hi", "t1")).toBe("b");
+  expect(publish).toHaveBeenCalledTimes(2);
+  expect(publish).toHaveBeenCalledWith(expect.anything(), {
+    sessionId: "s1",
+    taskId: "t1",
+  });
+  spy.mockRestore();
 });
