@@ -1,6 +1,5 @@
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
-import { runAgent } from "@agent-jobs/agent";
 import { createApp } from "./app";
 import { createTaskSessions } from "./sessions";
 import { createJobsClient } from "./cloud-run";
@@ -21,7 +20,6 @@ const listJobs = createListJobs(client, config);
 
 const db = new Firestore();
 const app = createApp(
-  runAgent,
   runJob,
   listJobs,
   createCreateTask(db),

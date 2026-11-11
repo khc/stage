@@ -10,8 +10,9 @@ const buttonVariants = cva(
       variant: {
         default: "bg-violet-500 text-white shadow-sm hover:bg-violet-400",
         outline:
-          "border border-white/10 bg-white/[0.025] text-slate-200 hover:bg-white/[0.07]",
-        ghost: "text-slate-400 hover:bg-white/[0.06] hover:text-white",
+          "border border-[var(--button-border)] bg-[var(--button-bg)] text-[var(--button-text)] hover:bg-[var(--button-hover)]",
+        ghost:
+          "text-[var(--button-muted)] hover:bg-[var(--button-hover)] hover:text-[var(--button-text)]",
       },
       size: { default: "h-10 px-4", sm: "h-8 px-3 text-xs", icon: "size-9" },
     },

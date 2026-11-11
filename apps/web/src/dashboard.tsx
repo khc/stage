@@ -1,3 +1,4 @@
+import { ThemeSwitch } from "./theme-switch";
 import {
   useEffect,
   useRef,
@@ -341,6 +342,7 @@ export function Dashboard() {
             </strong>
           </div>
           <div className="topbar-right">
+            <ThemeSwitch />
             <span className="environment-badge">
               <span
                 className={`status-dot ${health.isError ? "offline" : health.isPending ? "pending" : ""}`}

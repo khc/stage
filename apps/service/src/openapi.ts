@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  chatSchema,
   taskSchema,
   taskParamSchema,
   sessionParamSchema,
@@ -77,18 +76,6 @@ export const openApiDocument = {
             "Healthy",
             schema(z.object({ status: z.literal("ok") })),
           ),
-        },
-      },
-    },
-    "/chat": {
-      post: {
-        operationId: "chat",
-        summary: "Send a message to the agent",
-        requestBody: body(chatSchema),
-        responses: {
-          200: response("Agent reply", schema(z.object({ reply: z.string() }))),
-          400: invalid,
-          502: response("Agent failure", error("agent_error")),
         },
       },
     },

@@ -4,19 +4,16 @@ import { HTTPException } from "hono/http-exception";
 import { Scalar } from "@scalar/hono-api-reference";
 import { openApiDocument } from "./openapi";
 import {
-  chatSchema,
   jobNameSchema,
   taskSchema,
   taskParamSchema,
   sessionParamSchema,
 } from "./schemas";
-import type { RunAgent } from "@agent-jobs/agent";
 import type { ListJobs, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
 
 export const createApp = (
-  run: RunAgent,
   runJob: RunJob,
   listJobs: ListJobs,
   createTask: CreateTask,
@@ -105,9 +102,6 @@ export const createApp = (
           });
         }
       },
-    )
-    .post("/chat", zValidator("json", chatSchema), async (c) =>
-      c.json({ reply: await run(c.req.valid("json").message) }),
     )
     .post(
       "/tasks/:taskId/run",

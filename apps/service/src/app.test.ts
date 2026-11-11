@@ -1,7 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
-import type { RunAgent } from "@agent-jobs/agent";
 import { createApp } from "./app";
 import type { openApiDocument } from "./openapi";
 import type { ListJobs, RunJob } from "./jobs";
@@ -18,8 +17,8 @@ const noSessions: TaskSessions = {
   list: async () => [],
   get: async () => undefined,
 };
-const appWith = (run: RunAgent) =>
-  createApp(run, noJob, noJobs, noCreate, noTasks, noTask, noSessions);
+const makeApp = () =>
+  createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
 
 const post = (body: unknown) => ({
   method: "POST",
@@ -28,62 +27,10 @@ const post = (body: unknown) => ({
 });
 
 test("GET /health returns ok", async () => {
-  const res = await appWith(mock(async () => "")).request("/health");
+  const res = await makeApp().request("/health");
 
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ status: "ok" });
-});
-
-test("POST /chat returns the agent reply", async () => {
-  const run = mock(async (message: string) => `echo: ${message}`);
-  const res = await appWith(run).request("/chat", post({ message: "hi" }));
-
-  expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ reply: "echo: hi" });
-  expect(run).toHaveBeenCalledWith("hi");
-});
-
-test("POST /chat returns 502 when the agent run fails", async () => {
-  const run = mock(async () => {
-    throw new Error("boom");
-  });
-  const res = await appWith(run).request("/chat", post({ message: "hi" }));
-
-  expect(res.status).toBe(502);
-  expect(await res.json()).toEqual({ error: "agent_error" });
-});
-
-test("POST /chat returns 400 for a malformed JSON body", async () => {
-  const run = mock(async () => "");
-  const res = await appWith(run).request("/chat", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{not json",
-  });
-
-  expect(res.status).toBe(400);
-  expect(run).not.toHaveBeenCalled();
-});
-
-test("POST /chat rejects a missing or empty message", async () => {
-  const run = mock(async () => "");
-  const app = appWith(run);
-
-  expect((await app.request("/chat", post({}))).status).toBe(400);
-  expect((await app.request("/chat", post({ message: "" }))).status).toBe(400);
-  expect(run).not.toHaveBeenCalled();
-});
-
-test("POST /chat validates its maximum message length", async () => {
-  const run = mock(async () => "reply");
-  const app = appWith(run);
-  expect(
-    (await app.request("/chat", post({ message: "x".repeat(10_001) }))).status,
-  ).toBe(400);
-  expect(run).not.toHaveBeenCalled();
-  expect(
-    (await app.request("/chat", post({ message: "x".repeat(10_000) }))).status,
-  ).toBe(200);
 });
 
 test("GET /jobs returns all listed job resources", async () => {
@@ -93,7 +40,6 @@ test("GET /jobs returns all listed job resources", async () => {
   ];
   const listJobs = mock(async () => jobs);
   const res = await createApp(
-    async () => "",
     noJob,
     listJobs,
     noCreate,
@@ -109,7 +55,6 @@ test("GET /jobs returns all listed job resources", async () => {
 
 test("GET /jobs returns an empty jobs array", async () => {
   const res = await createApp(
-    async () => "",
     noJob,
     noJobs,
     noCreate,
@@ -127,7 +72,6 @@ test("GET /jobs returns 502 job_error without upstream details", async () => {
     throw new Error("secret listing detail");
   });
   const res = await createApp(
-    async () => "",
     noJob,
     listJobs,
     noCreate,
@@ -146,7 +90,6 @@ const savedTask = {
   jobName: "my-job",
 };
 const taskApp = () => {
-  const agent = mock(async () => "");
   const job = mock(async (_jobName: string, _taskId: string) => "op-1");
   const create = mock(async (input: { prompt: string; jobName: string }) => ({
     ...savedTask,
@@ -157,8 +100,7 @@ const taskApp = () => {
     async (_id: string) => savedTask as TaskContract | undefined,
   );
   return {
-    app: createApp(agent, job, noJobs, create, list, get, noSessions),
-    agent,
+    app: createApp(job, noJobs, create, list, get, noSessions),
     job,
     create,
     list,
@@ -167,7 +109,7 @@ const taskApp = () => {
 };
 
 test("POST /tasks saves a trimmed prompt and returns 201 without executing", async () => {
-  const { app, create, agent, job } = taskApp();
+  const { app, create, job } = taskApp();
   const response = await app.request(
     "/tasks",
     post({
@@ -181,7 +123,6 @@ test("POST /tasks saves a trimmed prompt and returns 201 without executing", asy
   expect(await response.json()).toEqual(savedTask);
   expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName: "my-job" });
   expect(create).toHaveBeenCalledTimes(1);
-  expect(agent).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
 });
 
@@ -230,20 +171,18 @@ test("POST /tasks rejects invalid bodies without saving", async () => {
 });
 
 test("GET /tasks returns a collection without executing or creating", async () => {
-  const { app, list, get, create, agent, job } = taskApp();
+  const { app, list, get, create, job } = taskApp();
   const response = await app.request("/tasks");
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ tasks: [savedTask] });
   expect(list).toHaveBeenCalledTimes(1);
   expect(get).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
-  expect(agent).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
 });
 
 test("GET /tasks returns an empty collection", async () => {
   const response = await createApp(
-    async () => "",
     noJob,
     noJobs,
     noCreate,
@@ -256,7 +195,7 @@ test("GET /tasks returns an empty collection", async () => {
 });
 
 test("GET /tasks/:taskId returns a contract and normalizes uppercase UUIDs", async () => {
-  const { app, get, create, agent, job, list } = taskApp();
+  const { app, get, create, job, list } = taskApp();
   for (const id of [savedTask.taskId, savedTask.taskId.toUpperCase()]) {
     const response = await app.request(`/tasks/${id}`);
     expect(response.status).toBe(200);
@@ -264,7 +203,6 @@ test("GET /tasks/:taskId returns a contract and normalizes uppercase UUIDs", asy
     expect(get).toHaveBeenLastCalledWith(savedTask.taskId);
   }
   expect(create).not.toHaveBeenCalled();
-  expect(agent).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
   expect(list).not.toHaveBeenCalled();
 });
@@ -329,7 +267,7 @@ test("creation accepts a 63-character job name", async () => {
 
 const runPath = `/tasks/${savedTask.taskId}/run`;
 test("run reads the contract before submitting only stored jobName and normalized UUID", async () => {
-  const { app, get, job, agent, create } = taskApp();
+  const { app, get, job, create } = taskApp();
   const deferred = Promise.withResolvers<TaskContract>();
   get.mockImplementation(() => deferred.promise);
   const pending = app.request(`/tasks/${savedTask.taskId.toUpperCase()}/run`, {
@@ -343,7 +281,6 @@ test("run reads the contract before submitting only stored jobName and normalize
   expect(await response.json()).toEqual({ operation: "op-1" });
   expect(get).toHaveBeenCalledWith(savedTask.taskId);
   expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId);
-  expect(agent).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
 });
 
@@ -475,7 +412,7 @@ const sessionsApp = () => {
     ): Promise<typeof session | undefined> => session,
   );
   return {
-    app: createApp(async () => "", noJob, noJobs, noCreate, noTasks, getTask, {
+    app: createApp(noJob, noJobs, noCreate, noTasks, getTask, {
       list,
       get,
     }),
@@ -568,7 +505,7 @@ test("GET task session returns 404 for absent or non-owned sessions", async () =
 });
 
 test("GET /docs serves Scalar configured for the local OpenAPI document", async () => {
-  const response = await appWith(async () => "").request("/docs");
+  const response = await makeApp().request("/docs");
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toContain("text/html");
   const html = await response.text();
@@ -577,7 +514,7 @@ test("GET /docs serves Scalar configured for the local OpenAPI document", async 
 });
 
 test("GET /openapi.json describes every API operation and its task input", async () => {
-  const app = appWith(async () => "");
+  const app = makeApp();
   const response = await app.request("/openapi.json");
   expect(response.status).toBe(200);
   const document = (await response.json()) as typeof openApiDocument;
