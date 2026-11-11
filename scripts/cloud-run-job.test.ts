@@ -10,10 +10,8 @@ test("supplies the job with Firestore configuration and model credentials", () =
         GOOGLE_GENAI_USE_VERTEXAI: "true",
       },
       "p",
-      "hello",
     ),
   ).toEqual([
-    { name: "AGENT_MESSAGE", value: "hello" },
     { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
     { name: "FIRESTORE_EMULATOR_HOST", value: "floci-gcp:4588" },
     { name: "GEMINI_API_KEY", value: "test-key" },
@@ -30,10 +28,8 @@ test("supports a custom job-visible emulator host and omits absent optional sett
         JOB_FIRESTORE_EMULATOR_HOST: "emulator:4588",
       },
       "p",
-      "hi",
     ),
   ).toEqual([
-    { name: "AGENT_MESSAGE", value: "hi" },
     { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
     { name: "FIRESTORE_EMULATOR_HOST", value: "emulator:4588" },
     { name: "GEMINI_API_KEY", value: "test-key" },
@@ -41,9 +37,7 @@ test("supports a custom job-visible emulator host and omits absent optional sett
 });
 
 test("rejects missing credentials before sending a job request", () => {
-  expect(() => jobEnvironment({}, "p", "hi")).toThrow(
-    "GEMINI_API_KEY is required",
-  );
+  expect(() => jobEnvironment({}, "p")).toThrow("GEMINI_API_KEY is required");
 });
 
 test("create and update send configured job resources without printing credentials", async () => {
@@ -99,10 +93,11 @@ test("create and update send configured job resources without printing credentia
         name: "GEMINI_API_KEY",
         value: key,
       });
-      expect(container.env).toContainEqual({
-        name: "AGENT_MESSAGE",
-        value: 'hello "world"\nnext line',
-      });
+      expect(
+        container.env.some((entry: { name: string }) =>
+          ["AGENT_MESSAGE", "RUN_ID"].includes(entry.name),
+        ),
+      ).toBe(false);
     }
   } finally {
     server.stop(true);
@@ -129,6 +124,8 @@ test("update preserves the existing template and merges the agent environment", 
           volumeMounts: [{ name: "scratch", mountPath: "/scratch" }],
           env: [
             { name: "CUSTOM_SETTING", value: "keep" },
+            { name: "AGENT_MESSAGE", value: "legacy message" },
+            { name: "RUN_ID", value: "legacy-id" },
             {
               name: "GEMINI_API_KEY",
               valueSource: {
@@ -192,7 +189,6 @@ test("update preserves the existing template and merges the agent environment", 
             image: "new-image",
             env: [
               { name: "CUSTOM_SETTING", value: "keep" },
-              { name: "AGENT_MESSAGE", value: "new message" },
               { name: "GOOGLE_CLOUD_PROJECT", value: "p" },
               { name: "FIRESTORE_EMULATOR_HOST", value: "floci-gcp:4588" },
               { name: "GEMINI_API_KEY", value: "new-key" },

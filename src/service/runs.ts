@@ -1,34 +1,33 @@
 import type { Firestore } from "@google-cloud/firestore";
+import type { RunContract } from "../run-contract";
 
-export type RunContract = { runId: string; prompt: string };
-export type CreateRun = (prompt: string) => Promise<RunContract>;
+export type { RunContract, GetRun } from "../run-contract";
+export { createGetRun } from "../run-contract";
+
+export type CreateRun = (input: {
+  prompt: string;
+  jobName: string;
+}) => Promise<RunContract & { jobName: string }>;
+export type ListRuns = () => Promise<RunContract[]>;
 
 export const createCreateRun =
   (db: Pick<Firestore, "collection">): CreateRun =>
-  async (prompt) => {
-    const contract = { runId: crypto.randomUUID(), prompt };
+  async ({ prompt, jobName }) => {
+    const contract = { runId: crypto.randomUUID(), prompt, jobName };
     await db.collection("runs").doc(contract.runId).create(contract);
     return contract;
   };
-
-export type ListRuns = () => Promise<RunContract[]>;
-export type GetRun = (runId: string) => Promise<RunContract | undefined>;
 
 export const createListRuns =
   (db: Pick<Firestore, "collection">): ListRuns =>
   async () => {
     const snapshot = await db.collection("runs").get();
-    return snapshot.docs.map((doc) => ({
-      runId: doc.id,
-      prompt: doc.get("prompt"),
-    }));
-  };
-
-export const createGetRun =
-  (db: Pick<Firestore, "collection">): GetRun =>
-  async (runId) => {
-    const doc = await db.collection("runs").doc(runId).get();
-    return doc.exists
-      ? { runId: doc.id, prompt: doc.get("prompt") }
-      : undefined;
+    return snapshot.docs.map((doc) => {
+      const jobName = doc.get("jobName");
+      return {
+        runId: doc.id,
+        prompt: doc.get("prompt"),
+        ...(jobName !== undefined && { jobName }),
+      };
+    });
   };

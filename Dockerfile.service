@@ -15,6 +15,7 @@ ENV NODE_ENV=production
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
+COPY src/run-contract.ts ./src/run-contract.ts
 COPY src/agent ./src/agent
 COPY src/service ./src/service
 

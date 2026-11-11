@@ -6,7 +6,6 @@ vars:
   REGION: us-central1
   JOB: my-agent-job
   IMAGE: agent-jobs-agent:latest
-  AGENT_MESSAGE: hello
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
   JOB_URL: "{{.JOBS_URL}}/{{.JOB | urlquery}}"
 
@@ -15,12 +14,11 @@ env:
   JOB_REGION: "{{.REGION}}"
   JOB_NAME: "{{.JOB}}"
   JOB_IMAGE: "{{.IMAGE}}"
-  JOB_MESSAGE: "{{.AGENT_MESSAGE}}"
   JOB_FLOCI: "{{.FLOCI}}"
 
 tasks:
   create-job:
-    desc: Create the agent Cloud Run job in Floci (override with e.g. JOB=my-job AGENT_MESSAGE="hi")
+    desc: Create the agent Cloud Run job in Floci (override with e.g. JOB=my-job)
     cmds:
       - bun scripts/cloud-run-job.ts create
 

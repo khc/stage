@@ -2,11 +2,10 @@ import type { protos } from "@google-cloud/run";
 
 type Env = Record<string, string | undefined>;
 
-export const jobEnvironment = (env: Env, project: string, message: string) => {
+export const jobEnvironment = (env: Env, project: string) => {
   if (!env.GEMINI_API_KEY)
     throw new Error("GEMINI_API_KEY is required (set it in .env)");
   return [
-    { name: "AGENT_MESSAGE", value: message },
     { name: "GOOGLE_CLOUD_PROJECT", value: project },
     {
       name: "FIRESTORE_EMULATOR_HOST",
@@ -47,7 +46,7 @@ if (import.meta.main) {
           containers: [
             {
               image: env.JOB_IMAGE || "agent-jobs-agent:latest",
-              env: jobEnvironment(env, project, env.JOB_MESSAGE || "hello"),
+              env: jobEnvironment(env, project),
             },
           ],
         },
@@ -64,12 +63,12 @@ if (import.meta.main) {
       if (!template?.template || !containers?.length)
         throw new Error("Existing job has no container to update");
       const [agent, ...others] = containers;
-      const requiredEnv = jobEnvironment(
-        env,
-        project,
-        env.JOB_MESSAGE || "hello",
-      );
-      const replacedNames = new Set(requiredEnv.map(({ name }) => name));
+      const requiredEnv = jobEnvironment(env, project);
+      const replacedNames = new Set([
+        "AGENT_MESSAGE",
+        "RUN_ID",
+        ...requiredEnv.map(({ name }) => name),
+      ]);
       body.template = {
         ...template,
         template: {

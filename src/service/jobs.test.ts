@@ -11,25 +11,40 @@ test("runs the job by its full resource name and returns the operation name", as
   ]);
   const run = createRunJob({ jobPath, runJob } as never, config);
 
-  expect(await run("my-job")).toBe("operations/op-1");
+  expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
+    "operations/op-1",
+  );
   expect(runJob).toHaveBeenCalledWith({
     name: "projects/p/locations/l/jobs/my-job",
+    overrides: {
+      containerOverrides: [
+        {
+          env: [
+            { name: "RUN_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
+          ],
+        },
+      ],
+    },
   });
 });
 
-test("passes the message as a per-execution AGENT_MESSAGE override", async () => {
+test("passes the run ID as a per-execution RUN_ID override", async () => {
   const runJob = mock(async (_request: unknown) => [
     { name: "operations/op-1" },
   ]);
   const run = createRunJob({ jobPath, runJob } as never, config);
 
-  await run("my-job", "hi there");
+  await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8");
 
   expect(runJob).toHaveBeenCalledWith({
     name: "projects/p/locations/l/jobs/my-job",
     overrides: {
       containerOverrides: [
-        { env: [{ name: "AGENT_MESSAGE", value: "hi there" }] },
+        {
+          env: [
+            { name: "RUN_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
+          ],
+        },
       ],
     },
   });
@@ -41,7 +56,9 @@ test("propagates a runJob failure", async () => {
   });
   const run = createRunJob({ jobPath, runJob } as never, config);
 
-  await expect(run("my-job")).rejects.toThrow("boom");
+  await expect(
+    run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8"),
+  ).rejects.toThrow("boom");
 });
 
 const locationPath = (project: string, location: string) =>

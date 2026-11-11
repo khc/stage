@@ -17,22 +17,29 @@ const writer = (write = async (_data: unknown) => {}) => {
 test("creates UUID-keyed contracts in runs and preserves the supplied prompt", async () => {
   const { db, collection, doc, create } = writer();
   const save = createCreateRun(db);
-  const contract = await save("  hello  ");
+  const contract = await save({ prompt: "  hello  ", jobName: "my-job" });
   expect(contract.runId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   );
   expect(contract.prompt).toBe("  hello  ");
+  expect(contract.jobName).toBe("my-job");
+  expect(Object.keys(contract).sort()).toEqual(["jobName", "prompt", "runId"]);
   expect(collection).toHaveBeenCalledWith("runs");
   expect(doc).toHaveBeenCalledWith(contract.runId);
   expect(create).toHaveBeenCalledWith(contract);
-  expect((await save("second")).runId).not.toBe(contract.runId);
+  expect((await save({ prompt: "second", jobName: "my-job" })).runId).not.toBe(
+    contract.runId,
+  );
 });
 
 test("waits for persistence before returning the contract", async () => {
   const deferred = Promise.withResolvers<void>();
   const { db, create } = writer(() => deferred.promise);
   let settled = false;
-  const saved = createCreateRun(db)("hello").then((result) => {
+  const saved = createCreateRun(db)({
+    prompt: "hello",
+    jobName: "my-job",
+  }).then((result) => {
     settled = true;
     return result;
   });
@@ -47,7 +54,9 @@ test("propagates a failed create without retrying", async () => {
   const { db, create } = writer(async () => {
     throw new Error("write failed");
   });
-  await expect(createCreateRun(db)("hello")).rejects.toThrow("write failed");
+  await expect(
+    createCreateRun(db)({ prompt: "hello", jobName: "my-job" }),
+  ).rejects.toThrow("write failed");
   expect(create).toHaveBeenCalledTimes(1);
 });
 
@@ -59,7 +68,10 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
       const reader = new Firestore();
       let runId: string | undefined;
       try {
-        const contract = await createCreateRun(db)("emulator prompt");
+        const contract = await createCreateRun(db)({
+          prompt: "emulator prompt",
+          jobName: "my-job",
+        });
         runId = contract.runId;
         expect(
           (await reader.collection("runs").doc(runId).get()).data(),
@@ -76,10 +88,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
   },
 );
 
-const snapshot = (id: string, prompt: string) => ({
+const snapshot = (id: string, prompt: string, jobName?: string) => ({
   id,
   exists: true,
-  get: (field: string) => ({ prompt, runId: "ignored", extra: true })[field],
+  get: (field: string) =>
+    ({ prompt, jobName, runId: "ignored", extra: true })[field],
 });
 const readerWith = (
   get: () => Promise<unknown>,
@@ -97,10 +110,12 @@ const readerWith = (
 test("lists only contract fields using document IDs", async () => {
   const { db, collection } = readerWith(
     async () => undefined,
-    async () => ({ docs: [snapshot("a", "one"), snapshot("b", "two")] }),
+    async () => ({
+      docs: [snapshot("a", "one", "my-job"), snapshot("b", "two")],
+    }),
   );
   expect(await createListRuns(db)()).toEqual([
-    { runId: "a", prompt: "one" },
+    { runId: "a", prompt: "one", jobName: "my-job" },
     { runId: "b", prompt: "two" },
   ]);
   expect(collection).toHaveBeenCalledWith("runs");
@@ -114,29 +129,12 @@ test("lists an empty collection", async () => {
   expect(await createListRuns(db)()).toEqual([]);
 });
 
-test("gets a contract by document ID without extra stored fields", async () => {
-  const { db, collection, doc } = readerWith(
-    async () => snapshot("a", "one"),
-    async () => undefined,
-  );
-  expect(await createGetRun(db)("a")).toEqual({ runId: "a", prompt: "one" });
-  expect(collection).toHaveBeenCalledWith("runs");
-  expect(doc).toHaveBeenCalledWith("a");
-});
-
-test("returns undefined for a missing document", async () => {
+test("propagates list failures", async () => {
   const { db } = readerWith(
-    async () => ({ exists: false }),
     async () => undefined,
+    async () => {
+      throw new Error("read failed");
+    },
   );
-  expect(await createGetRun(db)("missing")).toBeUndefined();
-});
-
-test("propagates list and lookup failures", async () => {
-  const fail = async () => {
-    throw new Error("read failed");
-  };
-  const { db } = readerWith(fail, fail);
   await expect(createListRuns(db)()).rejects.toThrow("read failed");
-  await expect(createGetRun(db)("a")).rejects.toThrow("read failed");
 });

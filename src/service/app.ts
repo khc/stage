@@ -10,15 +10,11 @@ const MAX_MESSAGE_LENGTH = 10_000;
 const message = z.string().trim().min(1).max(MAX_MESSAGE_LENGTH);
 
 const chatSchema = z.object({ message });
-const jobParamSchema = z.object({
-  name: z
-    .string()
-    .regex(/^[a-z]([-a-z0-9]*[a-z0-9])?$/)
-    .max(63),
-});
-const jobRunSchema = z.object({ message: message.optional() });
-
-const runSchema = z.object({ prompt: message });
+const jobNameSchema = z
+  .string()
+  .regex(/^[a-z]([-a-z0-9]*[a-z0-9])?$/)
+  .max(63);
+const runSchema = z.object({ prompt: message, jobName: jobNameSchema });
 const runParamSchema = z.object({
   runId: z.uuid().transform((id) => id.toLowerCase()),
 });
@@ -45,7 +41,7 @@ export const createApp = (
     })
     .post("/jobs/runs", zValidator("json", runSchema), async (c) => {
       try {
-        return c.json(await createRun(c.req.valid("json").prompt), 201);
+        return c.json(await createRun(c.req.valid("json")), 201);
       } catch (err) {
         console.error(err);
         throw new HTTPException(502, {
@@ -83,14 +79,25 @@ export const createApp = (
       c.json({ reply: await run(c.req.valid("json").message) }),
     )
     .post(
-      "/jobs/:name/run",
-      zValidator("param", jobParamSchema),
-      zValidator("json", jobRunSchema),
+      "/jobs/runs/:runId/exec",
+      zValidator("param", runParamSchema),
       async (c) => {
+        const { runId } = c.req.valid("param");
+        let contract: Awaited<ReturnType<GetRun>>;
         try {
-          const { name } = c.req.valid("param");
-          const { message } = c.req.valid("json");
-          return c.json({ operation: await runJob(name, message) }, 202);
+          contract = await getRun(runId);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "run_error" }, 502),
+          });
+        }
+        if (!contract) return c.json({ error: "run_not_found" }, 404);
+        const jobName = jobNameSchema.safeParse(contract.jobName);
+        if (!jobName.success)
+          return c.json({ error: "run_not_executable" }, 409);
+        try {
+          return c.json({ operation: await runJob(jobName.data, runId) }, 202);
         } catch (err) {
           console.error(err);
           throw new HTTPException(502, {

@@ -7,14 +7,16 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
     method: string;
     path: string;
     authorization: string | null;
+    body: unknown;
   }[] = [];
   const server = Bun.serve({
     port: 0,
-    fetch(req) {
+    async fetch(req) {
       requests.push({
         method: req.method,
         path: new URL(req.url).pathname,
         authorization: req.headers.get("authorization"),
+        body: await req.json(),
       });
       return Response.json({ name: "projects/p/locations/l/operations/op-1" });
     },
@@ -26,12 +28,28 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
     });
     const run = createRunJob(client, { project: "p", location: "l" });
 
-    expect(await run("my-job")).toBe("projects/p/locations/l/operations/op-1");
+    expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
+      "projects/p/locations/l/operations/op-1",
+    );
     expect(requests).toEqual([
       {
         method: "POST",
         path: "/v2/projects/p/locations/l/jobs/my-job:run",
         authorization: null,
+        body: {
+          overrides: {
+            containerOverrides: [
+              {
+                env: [
+                  {
+                    name: "RUN_ID",
+                    value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
+                  },
+                ],
+              },
+            ],
+          },
+        },
       },
     ]);
   } finally {
@@ -39,7 +57,7 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
   }
 });
 
-test("sends the AGENT_MESSAGE override in the REST request body", async () => {
+test("sends the RUN_ID override in the REST request body", async () => {
   const bodies: unknown[] = [];
   const server = Bun.serve({
     port: 0,
@@ -55,14 +73,21 @@ test("sends the AGENT_MESSAGE override in the REST request body", async () => {
     });
     await createRunJob(client, { project: "p", location: "l" })(
       "my-job",
-      "hi there",
+      "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
     );
 
     expect(bodies).toEqual([
       {
         overrides: {
           containerOverrides: [
-            { env: [{ name: "AGENT_MESSAGE", value: "hi there" }] },
+            {
+              env: [
+                {
+                  name: "RUN_ID",
+                  value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
+                },
+              ],
+            },
           ],
         },
       },

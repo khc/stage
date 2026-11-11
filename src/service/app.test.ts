@@ -1,13 +1,14 @@
 import { expect, mock, test } from "bun:test";
+import type { CreateRun, RunContract } from "./runs";
 import type { RunAgent } from "../agent";
 import { createApp } from "./app";
 import type { ListJobs, RunJob } from "./jobs";
 
 const noJob: RunJob = async () => "";
 const noJobs: ListJobs = async () => [];
-const noCreate = async (prompt: string) => ({
+const noCreate: CreateRun = async (input) => ({
   runId: crypto.randomUUID(),
-  prompt,
+  ...input,
 });
 const noRuns = async () => [];
 const noRun = async (_runId: string) => undefined;
@@ -67,128 +68,16 @@ test("POST /chat rejects a missing or empty message", async () => {
   expect(run).not.toHaveBeenCalled();
 });
 
-test("POST /jobs/:name/run starts the job and returns 202", async () => {
-  const runJob = mock(async (_job: string) => "op-1");
-  const res = await createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  ).request("/jobs/my-job/run", { method: "POST" });
-
-  expect(res.status).toBe(202);
-  expect(await res.json()).toEqual({ operation: "op-1" });
-  expect(runJob).toHaveBeenCalledWith("my-job", undefined);
-});
-
-test("POST /jobs/:name/run passes an optional message to the job", async () => {
-  const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const res = await createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  ).request("/jobs/my-job/run", post({ message: "hi there" }));
-
-  expect(res.status).toBe(202);
-  expect(runJob).toHaveBeenCalledWith("my-job", "hi there");
-});
-
-test("POST /jobs/:name/run rejects an empty or non-string message", async () => {
-  const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const app = createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  );
-
+test("POST /chat validates its maximum message length", async () => {
+  const run = mock(async () => "reply");
+  const app = appWith(run);
   expect(
-    (await app.request("/jobs/my-job/run", post({ message: "" }))).status,
+    (await app.request("/chat", post({ message: "x".repeat(10_001) }))).status,
   ).toBe(400);
-  expect(
-    (await app.request("/jobs/my-job/run", post({ message: 5 }))).status,
-  ).toBe(400);
-  expect(
-    (await app.request("/jobs/my-job/run", post({ message: "   " }))).status,
-  ).toBe(400);
-  expect(runJob).not.toHaveBeenCalled();
-});
-
-test("POST /jobs/:name/run passes the trimmed message", async () => {
-  const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const res = await createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  ).request("/jobs/my-job/run", post({ message: "  hi  " }));
-
-  expect(res.status).toBe(202);
-  expect(runJob).toHaveBeenCalledWith("my-job", "hi");
-});
-
-test("POST /jobs/:name/run and /chat reject an oversized message", async () => {
-  const run = mock(async (_message: string) => "reply");
-  const runJob = mock(async (_job: string, _message?: string) => "op-1");
-  const app = createApp(run, runJob, noJobs, noCreate, noRuns, noRun);
-  const tooLong = "x".repeat(10_001);
-
-  expect(
-    (await app.request("/jobs/my-job/run", post({ message: tooLong }))).status,
-  ).toBe(400);
-  expect((await app.request("/chat", post({ message: tooLong }))).status).toBe(
-    400,
-  );
+  expect(run).not.toHaveBeenCalled();
   expect(
     (await app.request("/chat", post({ message: "x".repeat(10_000) }))).status,
   ).toBe(200);
-  expect(runJob).not.toHaveBeenCalled();
-});
-
-test("POST /jobs/:name/run rejects an invalid job name", async () => {
-  const runJob = mock(async (_job: string) => "op-1");
-  const app = createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  );
-
-  expect(
-    (await app.request("/jobs/My_Job/run", { method: "POST" })).status,
-  ).toBe(400);
-  expect((await app.request("/jobs/-bad/run", { method: "POST" })).status).toBe(
-    400,
-  );
-  expect(runJob).not.toHaveBeenCalled();
-});
-
-test("POST /jobs/:name/run returns 502 job_error when the job fails to start", async () => {
-  const runJob = mock(async (_job: string): Promise<string> => {
-    throw new Error("secret gcp detail");
-  });
-  const res = await createApp(
-    async () => "",
-    runJob,
-    noJobs,
-    noCreate,
-    noRuns,
-    noRun,
-  ).request("/jobs/my-job/run", { method: "POST" });
-
-  expect(res.status).toBe(502);
-  expect(await res.json()).toEqual({ error: "job_error" });
 });
 
 test("GET /jobs returns all listed job resources", async () => {
@@ -245,15 +134,17 @@ test("GET /jobs returns 502 job_error without upstream details", async () => {
 const savedRun = {
   runId: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
   prompt: "hello",
+  jobName: "my-job",
 };
 const runApp = () => {
   const agent = mock(async () => "");
-  const job = mock(async () => "");
-  const create = mock(async (prompt: string) => ({ ...savedRun, prompt }));
+  const job = mock(async (_jobName: string, _runId: string) => "op-1");
+  const create = mock(async (input: { prompt: string; jobName: string }) => ({
+    ...savedRun,
+    ...input,
+  }));
   const list = mock(async () => [savedRun]);
-  const get = mock(
-    async (_id: string) => savedRun as typeof savedRun | undefined,
-  );
+  const get = mock(async (_id: string) => savedRun as RunContract | undefined);
   return {
     app: createApp(agent, job, noJobs, create, list, get),
     agent,
@@ -268,11 +159,16 @@ test("POST /jobs/runs saves a trimmed prompt and returns 201 without executing",
   const { app, create, agent, job } = runApp();
   const response = await app.request(
     "/jobs/runs",
-    post({ prompt: "  hello  ", runId: "client-id", extra: true }),
+    post({
+      jobName: "my-job",
+      prompt: "  hello  ",
+      runId: "client-id",
+      extra: true,
+    }),
   );
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual(savedRun);
-  expect(create).toHaveBeenCalledWith("hello");
+  expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName: "my-job" });
   expect(create).toHaveBeenCalledTimes(1);
   expect(agent).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
@@ -281,10 +177,17 @@ test("POST /jobs/runs saves a trimmed prompt and returns 201 without executing",
 test("POST /jobs/runs accepts the maximum prompt length", async () => {
   const { app, create } = runApp();
   expect(
-    (await app.request("/jobs/runs", post({ prompt: "x".repeat(10_000) })))
-      .status,
+    (
+      await app.request(
+        "/jobs/runs",
+        post({ jobName: "my-job", prompt: "x".repeat(10_000) }),
+      )
+    ).status,
   ).toBe(201);
-  expect(create).toHaveBeenCalledWith("x".repeat(10_000));
+  expect(create).toHaveBeenCalledWith({
+    prompt: "x".repeat(10_000),
+    jobName: "my-job",
+  });
 });
 
 test("POST /jobs/runs rejects invalid bodies without saving", async () => {
@@ -297,7 +200,10 @@ test("POST /jobs/runs rejects invalid bodies without saving", async () => {
     { prompt: null },
     { prompt: "x".repeat(10_001) },
   ]) {
-    expect((await app.request("/jobs/runs", post(body))).status).toBe(400);
+    expect(
+      (await app.request("/jobs/runs", post({ jobName: "my-job", ...body })))
+        .status,
+    ).toBe(400);
   }
   expect(
     (
@@ -373,9 +279,135 @@ for (const operation of ["create", "list", "get"] as const) {
     fixtures[operation].mockRejectedValue(new Error("private storage detail"));
     const response = await fixtures.app.request(
       operation === "get" ? `/jobs/runs/${savedRun.runId}` : "/jobs/runs",
-      operation === "create" ? post({ prompt: "hello" }) : undefined,
+      operation === "create"
+        ? post({ jobName: "my-job", prompt: "hello" })
+        : undefined,
     );
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "run_error" });
   });
 }
+
+for (const jobName of [
+  undefined,
+  42,
+  "",
+  "My_Job",
+  "-bad",
+  "bad-",
+  "a".repeat(64),
+  "projects/p/locations/l/jobs/job",
+  " my-job ",
+]) {
+  test(`creation rejects invalid jobName ${String(jobName)}`, async () => {
+    const { app, create } = runApp();
+    expect(
+      (await app.request("/jobs/runs", post({ prompt: "hello", jobName })))
+        .status,
+    ).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+}
+
+test("creation accepts a 63-character job name", async () => {
+  const { app, create } = runApp();
+  const jobName = "a".repeat(63);
+  expect(
+    (await app.request("/jobs/runs", post({ prompt: "hello", jobName })))
+      .status,
+  ).toBe(201);
+  expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName });
+});
+
+const execPath = `/jobs/runs/${savedRun.runId}/exec`;
+test("exec reads the contract before submitting only stored jobName and normalized UUID", async () => {
+  const { app, get, job, agent, create } = runApp();
+  const deferred = Promise.withResolvers<RunContract>();
+  get.mockImplementation(() => deferred.promise);
+  const pending = app.request(
+    `/jobs/runs/${savedRun.runId.toUpperCase()}/exec`,
+    { method: "POST" },
+  );
+  await Promise.resolve();
+  expect(job).not.toHaveBeenCalled();
+  deferred.resolve(savedRun);
+  const response = await pending;
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ operation: "op-1" });
+  expect(get).toHaveBeenCalledWith(savedRun.runId);
+  expect(job).toHaveBeenCalledWith("my-job", savedRun.runId);
+  expect(agent).not.toHaveBeenCalled();
+  expect(create).not.toHaveBeenCalled();
+});
+
+test("exec ignores conflicting prompt/message/jobName supplied in its body", async () => {
+  const { app, job } = runApp();
+  const response = await app.request(
+    execPath,
+    post({ jobName: "different-job", prompt: "override", message: "override" }),
+  );
+  expect(response.status).toBe(202);
+  expect(job).toHaveBeenCalledWith("my-job", savedRun.runId);
+});
+
+test("exec rejects invalid UUIDs without reading or submitting", async () => {
+  const { app, get, job } = runApp();
+  expect(
+    (await app.request("/jobs/runs/invalid/exec", { method: "POST" })).status,
+  ).toBe(400);
+  expect(get).not.toHaveBeenCalled();
+  expect(job).not.toHaveBeenCalled();
+});
+
+test("exec returns 404 for an absent contract without submission", async () => {
+  const { app, get, job } = runApp();
+  get.mockResolvedValue(undefined);
+  const response = await app.request(execPath, { method: "POST" });
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: "run_not_found" });
+  expect(job).not.toHaveBeenCalled();
+});
+
+for (const jobName of [
+  undefined,
+  "",
+  "Invalid_Name",
+  "a".repeat(64),
+  "../bad",
+  42,
+]) {
+  test(`exec rejects missing or invalid stored jobName ${String(jobName)}`, async () => {
+    const { app, get, job } = runApp();
+    get.mockResolvedValue({ ...savedRun, jobName } as RunContract);
+    const response = await app.request(execPath, { method: "POST" });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "run_not_executable" });
+    expect(job).not.toHaveBeenCalled();
+  });
+}
+
+test("exec lookup failure returns run_error without submission", async () => {
+  const { app, get, job } = runApp();
+  get.mockRejectedValue(new Error("private lookup failure"));
+  const response = await app.request(execPath, { method: "POST" });
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: "run_error" });
+  expect(job).not.toHaveBeenCalled();
+});
+
+test("exec submission failure returns job_error", async () => {
+  const { app, job } = runApp();
+  job.mockRejectedValue(new Error("private submission failure"));
+  const response = await app.request(execPath, { method: "POST" });
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: "job_error" });
+});
+
+test("old execution URL is removed", async () => {
+  const { app, job, get } = runApp();
+  expect(
+    (await app.request("/jobs/my-job/run", { method: "POST" })).status,
+  ).toBe(404);
+  expect(job).not.toHaveBeenCalled();
+  expect(get).not.toHaveBeenCalled();
+});
