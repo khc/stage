@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createJobsClient } from "./cloud-run";
-import { createListJobs, createRunJob } from "./jobs";
+import { createListJobs, createTaskJob } from "./jobs";
 
 test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentials", async () => {
   const requests: {
@@ -26,7 +26,7 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    const run = createRunJob(client, { project: "p", location: "l" });
+    const run = createTaskJob(client, { project: "p", location: "l" });
 
     expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
       "projects/p/locations/l/operations/op-1",
@@ -42,7 +42,7 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
               {
                 env: [
                   {
-                    name: "RUN_ID",
+                    name: "TASK_ID",
                     value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
                   },
                 ],
@@ -57,7 +57,7 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
   }
 });
 
-test("sends the RUN_ID override in the REST request body", async () => {
+test("sends the TASK_ID override in the REST request body", async () => {
   const bodies: unknown[] = [];
   const server = Bun.serve({
     port: 0,
@@ -71,7 +71,7 @@ test("sends the RUN_ID override in the REST request body", async () => {
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    await createRunJob(client, { project: "p", location: "l" })(
+    await createTaskJob(client, { project: "p", location: "l" })(
       "my-job",
       "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
     );
@@ -83,7 +83,7 @@ test("sends the RUN_ID override in the REST request body", async () => {
             {
               env: [
                 {
-                  name: "RUN_ID",
+                  name: "TASK_ID",
                   value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
                 },
               ],

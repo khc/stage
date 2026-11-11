@@ -1,6 +1,6 @@
 import { createEvent } from "@google/adk";
 import { expect, mock, test } from "bun:test";
-import { createRunAgent } from "./index";
+import { createTaskAgent } from "./index";
 
 const reply = (text: string) =>
   createEvent({ content: { role: "model", parts: [{ text }] } });
@@ -11,7 +11,7 @@ const setup = (
   const sessionService = {
     createSession: mock(async () => ({ id: "s1" })),
   };
-  const run = createRunAgent({ sessionService, runAsync } as never);
+  const run = createTaskAgent({ sessionService, runAsync } as never);
   return { run, sessionService };
 };
 
@@ -41,15 +41,15 @@ test("propagates a failed run", async () => {
   await expect(run("hi")).rejects.toThrow("boom");
 });
 
-test("passes runId as session metadata for a job invocation", async () => {
+test("passes taskId as session metadata for a job invocation", async () => {
   const { run, sessionService } = setup(async function* () {
     yield reply("hello");
   });
-  const runId = crypto.randomUUID();
-  await run("hi", runId);
+  const taskId = crypto.randomUUID();
+  await run("hi", taskId);
   expect(sessionService.createSession).toHaveBeenCalledWith({
     appName: "agent-jobs",
     userId: "user",
-    runId,
+    taskId,
   });
 });

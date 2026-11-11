@@ -17,9 +17,9 @@ import {
 const SESSIONS = "sessions";
 const EVENTS = "events";
 
-type RunSession = Session & { runId?: string };
-const withRunId = (session: Session, runId?: string): RunSession =>
-  Object.assign(session, runId === undefined ? {} : { runId });
+type TaskSession = Session & { taskId?: string };
+const withTaskId = (session: Session, taskId?: string): TaskSession =>
+  Object.assign(session, taskId === undefined ? {} : { taskId });
 
 export class FirestoreSessionService extends BaseSessionService {
   constructor(private readonly db: Firestore) {
@@ -36,9 +36,9 @@ export class FirestoreSessionService extends BaseSessionService {
     userId,
     state,
     sessionId,
-    runId,
-  }: CreateSessionRequest & { runId?: string }): Promise<RunSession> {
-    const session = withRunId(
+    taskId,
+  }: CreateSessionRequest & { taskId?: string }): Promise<TaskSession> {
+    const session = withTaskId(
       createSession({
         id: sessionId?.trim() || crypto.randomUUID(),
         appName,
@@ -47,12 +47,12 @@ export class FirestoreSessionService extends BaseSessionService {
         events: [],
         lastUpdateTime: Date.now(),
       }),
-      runId,
+      taskId,
     );
 
     await this.ref({ appName, userId, sessionId: session.id }).set({
       sessionId: session.id,
-      ...(runId !== undefined && { runId }),
+      ...(taskId !== undefined && { taskId }),
       appName,
       userId,
       state: session.state,
@@ -67,7 +67,7 @@ export class FirestoreSessionService extends BaseSessionService {
     userId,
     sessionId,
     config,
-  }: GetSessionRequest): Promise<RunSession | undefined> {
+  }: GetSessionRequest): Promise<TaskSession | undefined> {
     const ref = this.ref({ appName, userId, sessionId });
     const snapshot = await ref.get();
     if (!snapshot.exists) return undefined;
@@ -81,7 +81,7 @@ export class FirestoreSessionService extends BaseSessionService {
     if (afterTimestamp)
       events = events.filter((e) => e.timestamp >= afterTimestamp);
 
-    return withRunId(
+    return withTaskId(
       createSession({
         id: sessionId,
         appName,
@@ -90,7 +90,7 @@ export class FirestoreSessionService extends BaseSessionService {
         events,
         lastUpdateTime: snapshot.get("lastUpdateTime"),
       }),
-      snapshot.get("runId"),
+      snapshot.get("taskId"),
     );
   }
 
@@ -106,7 +106,7 @@ export class FirestoreSessionService extends BaseSessionService {
     if (userId !== undefined) query = query.where("userId", "==", userId);
 
     const sessions = (await query.get()).docs.map((doc) =>
-      withRunId(
+      withTaskId(
         createSession({
           id: doc.get("sessionId"),
           appName: doc.get("appName"),
@@ -115,7 +115,7 @@ export class FirestoreSessionService extends BaseSessionService {
           events: [],
           lastUpdateTime: doc.get("lastUpdateTime"),
         }),
-        doc.get("runId"),
+        doc.get("taskId"),
       ),
     );
 

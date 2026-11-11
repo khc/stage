@@ -1,6 +1,6 @@
 import type { Firestore } from "@google-cloud/firestore";
 import { expect, mock, test } from "bun:test";
-import { createGetRun } from "./run-contract";
+import { createGetTask } from "./task-contract";
 
 const reader = (get: () => Promise<unknown>) => {
   const doc = mock((_id: string) => ({ get }));
@@ -16,7 +16,7 @@ test("gets contract fields from the document ID and excludes extra stored fields
   const data: Record<string, unknown> = {
     prompt: "hello",
     jobName: "my-job",
-    runId: "ignored",
+    taskId: "ignored",
     extra: true,
   };
   const { db, collection, doc } = reader(async () => ({
@@ -24,12 +24,12 @@ test("gets contract fields from the document ID and excludes extra stored fields
     exists: true,
     get: (key: string) => data[key],
   }));
-  expect(await createGetRun(db)("a")).toEqual({
-    runId: "a",
+  expect(await createGetTask(db)("a")).toEqual({
+    taskId: "a",
     prompt: "hello",
     jobName: "my-job",
   });
-  expect(collection).toHaveBeenCalledWith("runs");
+  expect(collection).toHaveBeenCalledWith("tasks");
   expect(doc).toHaveBeenCalledWith("a");
 });
 
@@ -39,19 +39,19 @@ test("reads legacy prompt-only contracts without adding undefined fields", async
     exists: true,
     get: (key: string) => (key === "prompt" ? "hello" : undefined),
   }));
-  const contract = await createGetRun(db)("a");
-  expect(contract).toEqual({ runId: "a", prompt: "hello" });
+  const contract = await createGetTask(db)("a");
+  expect(contract).toEqual({ taskId: "a", prompt: "hello" });
   expect(Object.hasOwn(contract!, "jobName")).toBe(false);
 });
 
 test("returns undefined when a document is absent", async () => {
   const { db } = reader(async () => ({ exists: false }));
-  expect(await createGetRun(db)("a")).toBeUndefined();
+  expect(await createGetTask(db)("a")).toBeUndefined();
 });
 
 test("propagates lookup failures", async () => {
   const { db } = reader(async () => {
     throw new Error("read failed");
   });
-  await expect(createGetRun(db)("a")).rejects.toThrow("read failed");
+  await expect(createGetTask(db)("a")).rejects.toThrow("read failed");
 });

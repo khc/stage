@@ -67,6 +67,7 @@ if (import.meta.main) {
       const replacedNames = new Set([
         "AGENT_MESSAGE",
         "RUN_ID",
+        "TASK_ID",
         ...requiredEnv.map(({ name }) => name),
       ]);
       body.template = {

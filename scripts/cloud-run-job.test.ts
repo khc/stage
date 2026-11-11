@@ -95,7 +95,7 @@ test("create and update send configured job resources without printing credentia
       });
       expect(
         container.env.some((entry: { name: string }) =>
-          ["AGENT_MESSAGE", "RUN_ID"].includes(entry.name),
+          ["AGENT_MESSAGE", "RUN_ID", "TASK_ID"].includes(entry.name),
         ),
       ).toBe(false);
     }
@@ -126,6 +126,7 @@ test("update preserves the existing template and merges the agent environment", 
             { name: "CUSTOM_SETTING", value: "keep" },
             { name: "AGENT_MESSAGE", value: "legacy message" },
             { name: "RUN_ID", value: "legacy-id" },
+            { name: "TASK_ID", value: "stale-task-id" },
             {
               name: "GEMINI_API_KEY",
               valueSource: {

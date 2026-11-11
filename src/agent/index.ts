@@ -3,7 +3,7 @@ import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
 import { rootAgent } from "./agent";
 import { FirestoreSessionService } from "./session-service";
 
-export type RunAgent = (message: string, runId?: string) => Promise<string>;
+export type RunAgent = (message: string, taskId?: string) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<FirestoreSessionService, "createSession">;
 };
@@ -11,13 +11,13 @@ type RunnerLike = Pick<Runner, "runAsync"> & {
 const appName = "agent-jobs";
 const userId = "user";
 
-export const createRunAgent =
+export const createTaskAgent =
   (runner: RunnerLike): RunAgent =>
-  async (message, runId) => {
+  async (message, taskId) => {
     const session = await runner.sessionService.createSession({
       appName,
       userId,
-      ...(runId !== undefined && { runId }),
+      ...(taskId !== undefined && { taskId }),
     });
     let reply = "";
 
@@ -35,7 +35,7 @@ export const createRunAgent =
     return reply;
   };
 
-export const runAgent = createRunAgent(
+export const runAgent = createTaskAgent(
   new Runner({
     appName,
     agent: rootAgent,

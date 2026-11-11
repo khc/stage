@@ -3,8 +3,8 @@ import { z } from "zod";
 import { runAgent } from "../agent";
 import { createApp } from "./app";
 import { createJobsClient } from "./cloud-run";
-import { createListJobs, createRunJob } from "./jobs";
-import { createCreateRun, createListRuns, createGetRun } from "./runs";
+import { createListJobs, createTaskJob } from "./jobs";
+import { createCreateTask, createListTasks, createGetTask } from "./tasks";
 
 const env = z
   .object({ GCP_PROJECT: z.string().min(1), GCP_REGION: z.string().min(1) })
@@ -15,7 +15,7 @@ const config = {
   project: env.GCP_PROJECT,
   location: env.GCP_REGION,
 };
-const runJob = createRunJob(client, config);
+const runJob = createTaskJob(client, config);
 const listJobs = createListJobs(client, config);
 
 const db = new Firestore();
@@ -23,9 +23,9 @@ const app = createApp(
   runAgent,
   runJob,
   listJobs,
-  createCreateRun(db),
-  createListRuns(db),
-  createGetRun(db),
+  createCreateTask(db),
+  createListTasks(db),
+  createGetTask(db),
 );
 
 export default {

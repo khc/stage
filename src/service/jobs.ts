@@ -1,6 +1,6 @@
 import type { JobsClient, protos } from "@google-cloud/run";
 
-export type RunJob = (job: string, runId: string) => Promise<string>;
+export type RunJob = (job: string, taskId: string) => Promise<string>;
 export type ListJobs = () => Promise<protos.google.cloud.run.v2.IJob[]>;
 
 export const createListJobs =
@@ -17,16 +17,16 @@ export const createListJobs =
 
 type JobsApi = Pick<JobsClient, "runJob" | "jobPath">;
 
-export const createRunJob =
+export const createTaskJob =
   (
     client: JobsApi,
     { project, location }: { project: string; location: string },
   ): RunJob =>
-  async (job, runId) => {
+  async (job, taskId) => {
     const [operation] = await client.runJob({
       name: client.jobPath(project, location, job),
       overrides: {
-        containerOverrides: [{ env: [{ name: "RUN_ID", value: runId }] }],
+        containerOverrides: [{ env: [{ name: "TASK_ID", value: taskId }] }],
       },
     });
 

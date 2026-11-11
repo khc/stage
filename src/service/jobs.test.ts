@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { createListJobs, createRunJob } from "./jobs";
+import { createListJobs, createTaskJob } from "./jobs";
 
 const config = { project: "p", location: "l" };
 const jobPath = (project: string, location: string, job: string) =>
@@ -9,7 +9,7 @@ test("runs the job by its full resource name and returns the operation name", as
   const runJob = mock(async (_request: unknown) => [
     { name: "operations/op-1" },
   ]);
-  const run = createRunJob({ jobPath, runJob } as never, config);
+  const run = createTaskJob({ jobPath, runJob } as never, config);
 
   expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
     "operations/op-1",
@@ -20,7 +20,7 @@ test("runs the job by its full resource name and returns the operation name", as
       containerOverrides: [
         {
           env: [
-            { name: "RUN_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
+            { name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
           ],
         },
       ],
@@ -28,11 +28,11 @@ test("runs the job by its full resource name and returns the operation name", as
   });
 });
 
-test("passes the run ID as a per-execution RUN_ID override", async () => {
+test("passes the task ID as a per-execution TASK_ID override", async () => {
   const runJob = mock(async (_request: unknown) => [
     { name: "operations/op-1" },
   ]);
-  const run = createRunJob({ jobPath, runJob } as never, config);
+  const run = createTaskJob({ jobPath, runJob } as never, config);
 
   await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8");
 
@@ -42,7 +42,7 @@ test("passes the run ID as a per-execution RUN_ID override", async () => {
       containerOverrides: [
         {
           env: [
-            { name: "RUN_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
+            { name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
           ],
         },
       ],
@@ -54,7 +54,7 @@ test("propagates a runJob failure", async () => {
   const runJob = mock(async () => {
     throw new Error("boom");
   });
-  const run = createRunJob({ jobPath, runJob } as never, config);
+  const run = createTaskJob({ jobPath, runJob } as never, config);
 
   await expect(
     run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8"),

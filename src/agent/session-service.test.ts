@@ -36,29 +36,29 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
 
     test("links separate sessions to a run and preserves metadata across reads and events", async () => {
       const key = newApp();
-      const runId = crypto.randomUUID();
+      const taskId = crypto.randomUUID();
       const service = newService();
-      const first = await service.createSession({ ...key, runId });
-      const second = await service.createSession({ ...key, runId });
+      const first = await service.createSession({ ...key, taskId });
+      const second = await service.createSession({ ...key, taskId });
       try {
         expect(first.id).not.toBe(second.id);
-        expect(first).toMatchObject({ runId });
+        expect(first).toMatchObject({ taskId });
         const documentId = [key.appName, key.userId, first.id]
           .map(encodeURIComponent)
           .join(":");
         expect(
-          (await db.collection("sessions").doc(documentId).get()).get("runId"),
-        ).toBe(runId);
+          (await db.collection("sessions").doc(documentId).get()).get("taskId"),
+        ).toBe(taskId);
         await service.appendEvent({ session: first, event: reply("one") });
         expect(
           await newService().getSession({ ...key, sessionId: first.id }),
-        ).toMatchObject({ runId });
+        ).toMatchObject({ taskId });
         const listed = await newService().listSessions(key);
         expect(listed.sessions).toHaveLength(2);
         expect(listed.sessions).toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ id: first.id, runId }),
-            expect.objectContaining({ id: second.id, runId }),
+            expect.objectContaining({ id: first.id, taskId }),
+            expect.objectContaining({ id: second.id, taskId }),
           ]),
         );
       } finally {
@@ -67,7 +67,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
       }
     });
 
-    test("omits runId for sessions created without a run contract", async () => {
+    test("omits taskId for sessions created without a task contract", async () => {
       const key = newApp();
       const session = await newService().createSession(key);
       try {
@@ -75,13 +75,13 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
           ...key,
           sessionId: session.id,
         });
-        expect(Object.hasOwn(session, "runId")).toBe(false);
-        expect(Object.hasOwn(loaded!, "runId")).toBe(false);
+        expect(Object.hasOwn(session, "taskId")).toBe(false);
+        expect(Object.hasOwn(loaded!, "taskId")).toBe(false);
         const documentId = [key.appName, key.userId, session.id]
           .map(encodeURIComponent)
           .join(":");
         expect(
-          (await db.collection("sessions").doc(documentId).get()).get("runId"),
+          (await db.collection("sessions").doc(documentId).get()).get("taskId"),
         ).toBeUndefined();
       } finally {
         await newService().deleteSession({ ...key, sessionId: session.id });
