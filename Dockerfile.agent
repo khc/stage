@@ -1,7 +1,7 @@
 # Cloud Run Job image for the ADK agent (src/agent/main.ts). The HTTP service
 # image is ./Dockerfile.service.
 # Runtime configuration is supplied only via environment variables at execution
-# time; nothing is baked in: AGENT_MESSAGE (required), AGENT_MODEL (optional),
+# time; nothing is baked in: AGENT_MESSAGE (required), AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
 # and the Gemini credentials.
 ARG BUN_IMAGE=oven/bun:1.4.4-slim
 

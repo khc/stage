@@ -1,7 +1,7 @@
 # HTTP service image (src/service). The agent job image is ./Dockerfile.agent.
 # Runtime configuration is supplied via environment variables, nothing is baked
 # in: GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000),
-# AGENT_MODEL (optional) and the Gemini credentials.
+# AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional) and the Gemini credentials.
 ARG BUN_IMAGE=oven/bun:1.4.4-slim
 
 FROM ${BUN_IMAGE} AS deps

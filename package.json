@@ -18,6 +18,7 @@
     "@google-cloud/firestore": "^9.4.1",
     "@google-cloud/run": "^4.2.0",
     "@google/adk": "^2.4.0",
+    "@google/genai": "^2.29.1",
     "@hono/zod-validator": "^0.9.1",
     "hono": "^4.13.18",
     "zod": "^4.6.7"

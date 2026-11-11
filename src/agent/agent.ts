@@ -1,5 +1,6 @@
 import { FunctionTool, LlmAgent } from "@google/adk";
 import { z } from "zod";
+import { createModel } from "./model";
 
 export const getCurrentTime = new FunctionTool({
   name: "get_current_time",
@@ -12,7 +13,7 @@ export const getCurrentTime = new FunctionTool({
 
 export const rootAgent = new LlmAgent({
   name: "assistant",
-  model: process.env.AGENT_MODEL ?? "gemini-2.5-flash",
+  model: createModel(process.env),
   description: "A simple assistant that can tell the current time.",
   instruction:
     "You are a helpful assistant. Use get_current_time when asked about the time in a city.",

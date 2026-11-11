@@ -25,3 +25,4 @@ services:
       CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
       GEMINI_API_KEY:
       AGENT_MODEL:
+      GOOGLE_GENAI_USE_VERTEXAI:
