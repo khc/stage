@@ -31,6 +31,18 @@ export type SessionEvent = {
     }[];
   };
 };
+export type SessionStats = {
+  events: number;
+  llmCalls: number;
+  tokens: {
+    prompt: number;
+    candidates: number;
+    thoughts: number;
+    toolUsePrompt: number;
+    cached: number;
+    total: number;
+  };
+};
 export type Session = SessionSummary & {
   state: Record<string, unknown>;
   events: SessionEvent[];
@@ -95,6 +107,10 @@ export const api = {
     request<{ operation: string }>(
       `${taskPath(taskId)}/run`,
       json({ sessionId, message }),
+    ),
+  stats: (taskId: string, sessionId: string) =>
+    request<SessionStats>(
+      `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/stats`,
     ),
   deleteSession: (taskId: string, sessionId: string) =>
     request<void>(

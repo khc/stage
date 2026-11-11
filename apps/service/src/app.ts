@@ -15,6 +15,7 @@ import type { ListJobs, Resume, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
 import type { LiveEvents } from "./live-events";
+import { sessionStats } from "./stats";
 
 const KEEPALIVE_MS = 5_000;
 
@@ -101,6 +102,25 @@ export const createApp = (
           const session = await sessions.get(taskId, sessionId);
           if (!session) return c.json({ error: "session_not_found" }, 404);
           return c.json(session);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "session_error" }, 502),
+          });
+        }
+      },
+    )
+    .get(
+      "/tasks/:taskId/sessions/:sessionId/stats",
+      zValidator("param", sessionParamSchema),
+      async (c) => {
+        const { taskId, sessionId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          const session = await sessions.get(taskId, sessionId);
+          if (!session) return c.json({ error: "session_not_found" }, 404);
+          return c.json(sessionStats(session));
         } catch (err) {
           console.error(err);
           throw new HTTPException(502, {

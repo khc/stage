@@ -889,6 +889,42 @@ function NewTask({
   );
 }
 
+function SessionStatsBar({
+  taskId,
+  sessionId,
+  events,
+}: {
+  taskId: string;
+  sessionId: string;
+  events: number;
+}) {
+  // The event count in the key refetches the totals as live events arrive.
+  const stats = useQuery({
+    queryKey: ["session-stats", taskId, sessionId, events],
+    queryFn: () => api.stats(taskId, sessionId),
+    placeholderData: (previous) => previous,
+  });
+  if (!stats.data) return null;
+  const { tokens, llmCalls } = stats.data;
+  const items: [string, number][] = [
+    ["Total", tokens.total],
+    ["Prompt", tokens.prompt],
+    ["Output", tokens.candidates],
+    ["Thinking", tokens.thoughts],
+    ["Model calls", llmCalls],
+  ];
+  return (
+    <dl className="session-stats" aria-label="Token usage">
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value.toLocaleString()}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function DeleteSession({
   taskId,
   sessionId,
@@ -1288,6 +1324,11 @@ function TaskInspector({
                       <code>{detail.data.id}</code>
                       <CopyButton value={detail.data.id} />
                     </div>
+                    <SessionStatsBar
+                      taskId={taskId}
+                      sessionId={detail.data.id}
+                      events={detail.data.events.length}
+                    />
                     <p className="session-time">
                       <Clock3 size={12} />
                       Updated {formatTime(detail.data.lastUpdateTime)}

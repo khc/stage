@@ -110,6 +110,10 @@ The agent publishes every event the ADK runner yields (model responses, tool cal
 
 `DELETE /tasks/:taskId/sessions/:sessionId` permanently removes the session and all its stored events, returning HTTP 204 with no body. Only a session linked to that task can be deleted: an absent session, one belonging to another task, or one with no `taskId` (older sessions) returns 404 `session_not_found`, and a missing task returns 404 `task_not_found`. Invalid parameters return 400; storage failures return 502 `session_error`. The task and its other sessions are unchanged. Open event streams for the deleted session are not closed.
 
+### Session stats
+
+`GET /tasks/:taskId/sessions/:sessionId/stats` returns `{ "events": n, "llmCalls": n, "tokens": { "prompt", "candidates", "thoughts", "toolUsePrompt", "cached", "total" } }`, summed from the model usage ADK records on the session's stored events. `llmCalls` counts events that carry usage. `cached` is part of `prompt`; `total` is the model-reported total, which also covers thoughts and tool-use prompt tokens. Streaming partial events are not stored and not counted. Errors match the other session routes (404 `task_not_found` / `session_not_found`, 400, 502 `session_error`). The dashboard shows these totals at the top of an open session and refreshes them as live events arrive.
+
 ### Streaming session events
 
 `GET /tasks/:taskId/sessions/:sessionId/messages` is a Server-Sent Events stream (via the dashboard server this is `http://localhost:3001/tasks/:taskId/sessions/:sessionId/messages`). It first replays the stored events in order, then streams events the agent publishes to Pub/Sub until the client disconnects. Each message has `id` = event ID and `data` = the event JSON, a duplicate event ID is sent once, and a comment line is sent every 5 seconds to keep the connection open. Missing tasks and sessions (or a session of another task) return 404 before the stream starts; a Firestore or Pub/Sub failure returns 502 `events_error`.

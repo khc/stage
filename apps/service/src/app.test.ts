@@ -660,3 +660,58 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
     expect(del).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
+  const path = `/tasks/${savedTask.taskId}/sessions/s1/stats`;
+  const statsApp = (found: boolean) =>
+    createApp(
+      noJob,
+      noJobs,
+      noCreate,
+      noTasks,
+      async (id: string) =>
+        id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      {
+        list: async () => [],
+        get: async () =>
+          found
+            ? ({
+                events: [
+                  {
+                    usageMetadata: { promptTokenCount: 7, totalTokenCount: 9 },
+                  },
+                  {},
+                ],
+              } as never)
+            : undefined,
+        delete: async () => false,
+      },
+    );
+
+  test("returns event count and summed token usage", async () => {
+    const res = await statsApp(true).request(path);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      events: 2,
+      llmCalls: 1,
+      tokens: {
+        prompt: 7,
+        candidates: 0,
+        thoughts: 0,
+        toolUsePrompt: 0,
+        cached: 0,
+        total: 9,
+      },
+    });
+  });
+
+  test("returns 404 for a missing session or task", async () => {
+    const res = await statsApp(false).request(path);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "session_not_found" });
+    const noTask = await statsApp(true).request(
+      `/tasks/${crypto.randomUUID()}/sessions/s1/stats`,
+    );
+    expect(await noTask.json()).toEqual({ error: "task_not_found" });
+  });
+});

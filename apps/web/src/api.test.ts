@@ -144,3 +144,16 @@ test("deleting a session sends DELETE to the encoded path and accepts 204", asyn
     method: "DELETE",
   });
 });
+
+test("session stats are fetched from the encoded stats path", async () => {
+  const stats = { events: 2, llmCalls: 1, tokens: { total: 9 } };
+  const fetch = mock(async () => Response.json(stats));
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.stats("task-1", "s/1")).toEqual(stats as never);
+  expect(fetch).toHaveBeenCalledWith(
+    "/tasks/task-1/sessions/s%2F1/stats",
+    undefined,
+  );
+});

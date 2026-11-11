@@ -212,6 +212,35 @@ export const openApiDocument = {
         },
       },
     },
+    "/tasks/{taskId}/sessions/{sessionId}/stats": {
+      get: {
+        operationId: "getTaskSessionStats",
+        summary: "Get a session's event count and token usage",
+        description:
+          "Sums the model usage recorded on the session's stored events. cached is part of prompt; total is the model-reported total, which also covers thoughts and tool-use prompt tokens. Streaming partial events are not stored, so they are not counted.",
+        parameters: [taskId, sessionId],
+        responses: {
+          200: response(
+            "Session statistics",
+            schema(
+              z.object({
+                events: z.number().int(),
+                llmCalls: z.number().int(),
+                tokens: z.object({
+                  prompt: z.number().int(),
+                  candidates: z.number().int(),
+                  thoughts: z.number().int(),
+                  toolUsePrompt: z.number().int(),
+                  cached: z.number().int(),
+                  total: z.number().int(),
+                }),
+              }),
+            ),
+          ),
+          ...sessionResponses,
+        },
+      },
+    },
     "/tasks/{taskId}/sessions/{sessionId}/messages": {
       get: {
         operationId: "streamTaskSessionMessages",
