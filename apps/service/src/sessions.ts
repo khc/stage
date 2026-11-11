@@ -1,6 +1,6 @@
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
-import { FirestoreSessionService } from "../agent/session-service";
+import { FirestoreSessionService } from "@agent-jobs/agent/session-service";
 
 export type SessionSummary = Pick<
   Session,

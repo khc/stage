@@ -10,7 +10,7 @@ import {
   taskParamSchema,
   sessionParamSchema,
 } from "./schemas";
-import type { RunAgent } from "../agent";
+import type { RunAgent } from "@agent-jobs/agent";
 import type { ListJobs, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";

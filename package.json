@@ -1,38 +1,27 @@
 {
   "name": "agent-jobs",
-  "module": "index.ts",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "start": "bun src/service/index.ts",
-    "dev": "bun --hot src/service/index.ts",
+    "start": "bun --filter @agent-jobs/service start",
+    "dev": "bun --filter '@agent-jobs/*' dev",
+    "dev:service": "bun --filter @agent-jobs/service dev",
+    "dev:web": "bun --filter @agent-jobs/web dev",
+    "test": "bun test",
     "typecheck": "bun check"
   },
   "devDependencies": {
+    "@google-cloud/firestore": "^9.4.1",
+    "@google-cloud/run": "^4.2.0",
     "@types/bun": "latest",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0"
+    "bun-plugin-tailwind": "^0.1.2",
+    "tailwindcss": "^4.3.5",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "typescript": "^7"
-  },
-  "dependencies": {
-    "@google-cloud/firestore": "^9.4.1",
-    "@google-cloud/run": "^4.2.0",
-    "@google/adk": "^2.4.0",
-    "@google/genai": "^2.29.1",
-    "@hono/zod-validator": "^0.9.1",
-    "@scalar/hono-api-reference": "^0.12.19",
-    "@tanstack/react-query": "^5.107.1",
-    "bun-plugin-tailwind": "^0.1.2",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "hono": "^4.13.18",
-    "lucide-react": "^1.72.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "tailwind-merge": "^3.7.0",
-    "tailwindcss": "^4.3.5",
-    "zod": "^4.6.7"
   }
 }

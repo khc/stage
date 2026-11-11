@@ -4,37 +4,77 @@
   "workspaces": {
     "": {
       "name": "agent-jobs",
+      "devDependencies": {
+        "@google-cloud/firestore": "^9.4.1",
+        "@google-cloud/run": "^4.2.0",
+        "@types/bun": "latest",
+        "bun-plugin-tailwind": "^0.1.2",
+        "tailwindcss": "^4.3.5",
+        "zod": "^4.6.7",
+      },
+      "peerDependencies": {
+        "typescript": "^7",
+      },
+    },
+    "apps/agent": {
+      "name": "@agent-jobs/agent",
+      "version": "0.1.0",
       "dependencies": {
+        "@google-cloud/firestore": "^9.4.1",
+        "@google/adk": "^2.4.0",
+        "@google/genai": "^2.29.1",
+        "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "apps/service": {
+      "name": "@agent-jobs/service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agent-jobs/agent": "workspace:*",
         "@google-cloud/firestore": "^9.4.1",
         "@google-cloud/run": "^4.2.0",
         "@google/adk": "^2.4.0",
-        "@google/genai": "^2.29.1",
         "@hono/zod-validator": "^0.9.1",
         "@scalar/hono-api-reference": "^0.12.19",
+        "hono": "^4.13.18",
+        "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "apps/web": {
+      "name": "@agent-jobs/web",
+      "version": "0.1.0",
+      "dependencies": {
         "@tanstack/react-query": "^5.107.1",
         "bun-plugin-tailwind": "^0.1.2",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "hono": "^4.13.18",
         "lucide-react": "^1.72.0",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "tailwind-merge": "^3.7.0",
         "tailwindcss": "^4.3.5",
-        "zod": "^4.6.7",
       },
       "devDependencies": {
         "@types/bun": "latest",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
       },
-      "peerDependencies": {
-        "typescript": "^7",
-      },
     },
   },
   "packages": {
     "@a2a-js/sdk": ["@a2a-js/sdk@0.3.14", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "@bufbuild/protobuf": "^2.10.2", "@grpc/grpc-js": "^1.11.0", "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["@bufbuild/protobuf", "@grpc/grpc-js", "express"] }, "sha512-F6Ew1AtPzCLhTn8h9yiqTe7DiDf6XVrSnq9V1YqSl9eWqPm6anMveTiKdCSb/76cW0YiJc24rNaUrVezFFHbqQ=="],
+
+    "@agent-jobs/agent": ["@agent-jobs/agent@workspace:apps/agent"],
+
+    "@agent-jobs/service": ["@agent-jobs/service@workspace:apps/service"],
+
+    "@agent-jobs/web": ["@agent-jobs/web@workspace:apps/web"],
 
     "@balena/dockerignore": ["@balena/dockerignore@1.0.2", "", {}, "sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q=="],
 

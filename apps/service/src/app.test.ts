@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
-import type { RunAgent } from "../agent";
+import type { RunAgent } from "@agent-jobs/agent";
 import { createApp } from "./app";
 import type { openApiDocument } from "./openapi";
 import type { ListJobs, RunJob } from "./jobs";

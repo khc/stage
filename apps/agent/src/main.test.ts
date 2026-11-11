@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
-import type { TaskContract } from "../task-contract";
+import type { TaskContract } from "./task-contract";
 import { main } from "./main";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";

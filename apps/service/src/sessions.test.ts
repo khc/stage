@@ -1,7 +1,7 @@
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
 import { describe, expect, test } from "bun:test";
-import { FirestoreSessionService } from "../agent/session-service";
+import { FirestoreSessionService } from "@agent-jobs/agent/session-service";
 import { createTaskSessions } from "./sessions";
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {

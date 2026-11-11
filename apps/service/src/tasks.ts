@@ -1,8 +1,8 @@
 import type { Firestore } from "@google-cloud/firestore";
-import type { TaskContract } from "../task-contract";
+import type { TaskContract } from "@agent-jobs/agent/task-contract";
 
-export type { TaskContract, GetTask } from "../task-contract";
-export { createGetTask } from "../task-contract";
+export type { TaskContract, GetTask } from "@agent-jobs/agent/task-contract";
+export { createGetTask } from "@agent-jobs/agent/task-contract";
 
 export type CreateTask = (input: {
   prompt: string;

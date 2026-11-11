@@ -1,6 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
-import { createGetTask, type GetTask } from "../task-contract";
+import { createGetTask, type GetTask } from "./task-contract";
 import { runAgent, type RunAgent } from "./index";
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());

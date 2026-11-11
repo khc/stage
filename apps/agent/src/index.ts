@@ -3,6 +3,13 @@ import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
 import { rootAgent } from "./agent";
 import { FirestoreSessionService } from "./session-service";
 
+export { FirestoreSessionService } from "./session-service";
+export {
+  createGetTask,
+  type GetTask,
+  type TaskContract,
+} from "./task-contract";
+
 export type RunAgent = (message: string, taskId?: string) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<FirestoreSessionService, "createSession">;

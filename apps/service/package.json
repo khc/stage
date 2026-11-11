@@ -1,0 +1,28 @@
+{
+  "name": "@agent-jobs/service",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --hot src/index.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@agent-jobs/agent": "workspace:*",
+    "@google-cloud/firestore": "^9.4.1",
+    "@google-cloud/run": "^4.2.0",
+    "@google/adk": "^2.4.0",
+    "@hono/zod-validator": "^0.9.1",
+    "@scalar/hono-api-reference": "^0.12.19",
+    "hono": "^4.13.18",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

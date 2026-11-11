@@ -1,0 +1,24 @@
+{
+  "name": "@agent-jobs/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./session-service": "./src/session-service.ts",
+    "./task-contract": "./src/task-contract.ts"
+  },
+  "scripts": {
+    "start": "bun src/main.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.4.1",
+    "@google/adk": "^2.4.0",
+    "@google/genai": "^2.29.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

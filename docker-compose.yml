@@ -38,6 +38,18 @@ services:
   #     GEMINI_API_KEY:
   #     AGENT_MODEL:
   #     GOOGLE_GENAI_USE_VERTEXAI:
+  #
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.web
+  #   ports:
+  #     - "127.0.0.1:3001:3001"
+  #   depends_on:
+  #     - service
+  #   environment:
+  #     WEB_PORT: 3001
+  #     SERVICE_URL: http://service:3000
 
 volumes:
   floci-gcp-data:

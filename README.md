@@ -1,15 +1,22 @@
 # agent-jobs
 
+Bun workspace monorepo with three packages under `apps/`:
+
+- `@agent-jobs/agent` (`apps/agent`): ADK agent, Firestore session store, and task-contract reader (`src/main.ts` Cloud Run Job entrypoint).
+- `@agent-jobs/service` (`apps/service`): Hono HTTP API and OpenAPI/Scalar reference on port `3000`.
+- `@agent-jobs/web` (`apps/web`): Standalone React/Tailwind dashboard server on port `3001` (proxies API requests to `SERVICE_URL`, default `http://localhost:3000`).
+
 To install dependencies:
 
 ```bash
 bun install
 ```
 
-To run:
+To run in development:
 
 ```bash
-bun run index.ts
+bun run dev:service   # HTTP API service on http://localhost:3000
+bun run dev:web       # Web dashboard on http://localhost:3001
 ```
 
 To type check:
@@ -28,8 +35,8 @@ docker compose down            # stop
 ```
 
 - Configuration lives in `.env` (gitignored; Bun and `docker compose` both read it). Put your `GEMINI_API_KEY` there; the file lists every other variable the project uses.
-- Model: `AGENT_MODEL` picks it (default `gemini-2.5-flash`, Gemini API). With `GOOGLE_GENAI_USE_VERTEXAI=true` and an API key the agent uses Vertex AI in express mode, e.g. `AGENT_MODEL=publishers/google/models/gemini-2.5-flash`; ADK 2.4.0 cannot do this itself, so `src/agent/model.ts` provides a small `Gemini` subclass. Without a key, the flag selects ADK's own Vertex mode (needs `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` and Google Cloud credentials).
-- `service` (`Dockerfile.service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `POST /chat`, `GET /jobs`, and the task-contract routes below. `curl localhost:3000/jobs` lists all Cloud Run Jobs in the configured `GCP_PROJECT` and `GCP_REGION`, returning `{ "jobs": [...] }` (or `{ "jobs": [] }`) and collecting all upstream pages automatically. `POST /chat` accepts `{ "message": "..." }`, trimmed to 1–10,000 characters. In compose the service uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`) and Cloud Run jobs (`CLOUD_RUN_EMULATOR_HOST=floci-gcp:4588`, REST without credentials). Without `CLOUD_RUN_EMULATOR_HOST` it uses the real Cloud Run API and needs Application Default Credentials.
+- Model: `AGENT_MODEL` picks it (default `gemini-2.5-flash`, Gemini API). With `GOOGLE_GENAI_USE_VERTEXAI=true` and an API key the agent uses Vertex AI in express mode, e.g. `AGENT_MODEL=publishers/google/models/gemini-2.5-flash`; ADK 2.4.0 cannot do this itself, so `apps/agent/src/model.ts` provides a small `Gemini` subclass. Without a key, the flag selects ADK's own Vertex mode (needs `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` and Google Cloud credentials).
+- `service` (`Dockerfile.service`, `apps/service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `POST /chat`, `GET /jobs`, and the task-contract routes below. `curl localhost:3000/jobs` lists all Cloud Run Jobs in the configured `GCP_PROJECT` and `GCP_REGION`, returning `{ "jobs": [...] }` (or `{ "jobs": [] }`) and collecting all upstream pages automatically. `POST /chat` accepts `{ "message": "..." }`, trimmed to 1–10,000 characters. In compose the service uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`) and Cloud Run jobs (`CLOUD_RUN_EMULATOR_HOST=floci-gcp:4588`, REST without credentials). Without `CLOUD_RUN_EMULATOR_HOST` it uses the real Cloud Run API and needs Application Default Credentials.
 - With the stack up, `task create-job` (needs [go-task](https://taskfile.dev)) creates the agent Cloud Run job in Floci. Override with `task create-job JOB=my-job`; it fails if the job already exists. Creation reads `.env` through Bun and supplies `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `GEMINI_API_KEY` (required), and optional `AGENT_MODEL` / `GOOGLE_GENAI_USE_VERTEXAI`. No prompt or task ID is stored in the job definition. Job containers use `floci-gcp:4588` for Firestore; set `JOB_FIRESTORE_EMULATOR_HOST` to override that container-visible address. `task update-job` updates the existing job image/environment and removes legacy `AGENT_MESSAGE` and static `RUN_ID` / `TASK_ID` entries from the agent container; running executions keep their original settings. These commands print only the resource name to avoid exposing credentials. `task list-jobs` prints jobs as JSON (pipe to `jq`; `{}` when there are none). `task remove-job JOB=my-job` deletes one after confirmation (`--yes` skips it). Floci supports the Cloud Run v2 REST API only, not `gcloud run jobs`.
 - The agent job image is built from `Dockerfile.agent` (`docker build -f Dockerfile.agent -t agent-jobs-agent .`).
 
@@ -113,8 +120,8 @@ Open [Scalar API docs](http://localhost:3000/docs) while the service is running.
 
 ## Web dashboard
 
-Run `bun dev` (or `bun start`) and open [the dashboard](http://localhost:3000/web). The root URL `/` also serves the dashboard. The React/Tailwind dashboard is bundled by Bun's HTML routes and shares the service origin, so no separate frontend server or API URL is needed.
+Run `bun run dev:service` (port `3000`) and `bun run dev:web` (port `3001`), then open [the dashboard](http://localhost:3001/web). The root URL `/` on the web server also serves the dashboard. `@agent-jobs/web` runs as a standalone Bun server (`apps/web/src/index.ts`, `Dockerfile.web`) that bundles the React/Tailwind frontend via Bun's HTML routes and proxies API requests to `SERVICE_URL` (default `http://localhost:3000`).
 
 The dashboard lists tasks and Cloud Run jobs, saves new tasks, submits task executions, and shows session summaries, state, and ordered events. Tasks, jobs, and visible sessions refresh every 15 seconds. Execution notices indicate submission only; they do not claim agent completion. Search tasks by prompt/job/ID, or use `/` to focus search. New-task creation saves without executing. API documentation remains at `/docs`.
 
-The original `src/web/dash.html` is retained as an unused design reference. The app entrypoint is `src/web/index.html` with `dashboard.tsx`. `bunfig.toml` enables the Tailwind plugin; the service Docker image includes this configuration and the frontend source. Deploy/rebuild the service image to make dashboard changes available in Docker.
+The original `apps/web/src/dash.html` is retained as an unused design reference. The app entrypoint is `apps/web/src/index.html` with `dashboard.tsx`. `bunfig.toml` enables the Tailwind plugin.
