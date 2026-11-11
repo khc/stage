@@ -23,9 +23,12 @@ Run `bun fmt` to format the code.
 ## Local environment
 
 ```bash
-docker compose up -d   # start
-docker compose down    # stop
+docker compose up -d --build   # start (builds the service image)
+docker compose down            # stop
 ```
+
+- `service` (`Dockerfile.service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `POST /chat`, `POST /jobs/:name/run`. It uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`). Set `GEMINI_API_KEY` (and optionally `AGENT_MODEL`, `GCP_PROJECT`, `GCP_REGION`) in your shell before `docker compose up`. Running Cloud Run jobs needs real GCP credentials, which this setup does not provide.
+- The agent job image is built from `Dockerfile.agent` (`docker build -f Dockerfile.agent -t agent-jobs-agent .`).
 
 - [Floci GCP](https://floci.io/floci-gcp/getting-started/quick-start/) listens on `localhost:4588` and emulates Firestore, among other GCP services.
 - Firestore: set `FIRESTORE_EMULATOR_HOST=localhost:4588`.

@@ -7,3 +7,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       FLOCI_GCP_BASE_URL: http://floci-gcp:4588
+
+  service:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      floci-gcp:
+        condition: service_healthy
+    environment:
+      GCP_PROJECT: ${GCP_PROJECT:-demo}
+      GCP_REGION: ${GCP_REGION:-us-central1}
+      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-demo}
+      FIRESTORE_EMULATOR_HOST: floci-gcp:4588
+      GEMINI_API_KEY:
+      AGENT_MODEL:

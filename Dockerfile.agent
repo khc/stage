@@ -1,15 +1,21 @@
-# Cloud Run Job image for the ADK agent (src/agent/main.ts).
+# Cloud Run Job image for the ADK agent (src/agent/main.ts). The HTTP service
+# image is ./Dockerfile.service.
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: AGENT_MESSAGE (required), AGENT_MODEL (optional),
 # and the Gemini credentials.
-FROM oven/bun:1.4.4-slim
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
 
+FROM ${BUN_IMAGE} AS deps
 WORKDIR /app
-ENV NODE_ENV=production
-
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
+FROM ${BUN_IMAGE} AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
 COPY src/agent ./src/agent
 
 USER bun

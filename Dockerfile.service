@@ -1,0 +1,23 @@
+# HTTP service image (src/service). The agent job image is ./Dockerfile.agent.
+# Runtime configuration is supplied via environment variables, nothing is baked
+# in: GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000),
+# AGENT_MODEL (optional) and the Gemini credentials.
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
+
+FROM ${BUN_IMAGE} AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+FROM ${BUN_IMAGE} AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY src/agent ./src/agent
+COPY src/service ./src/service
+
+USER bun
+EXPOSE 3000
+CMD ["bun", "src/service/index.ts"]
