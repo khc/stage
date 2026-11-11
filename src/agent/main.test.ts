@@ -32,7 +32,7 @@ test("loads the contract by normalized RUN_ID and runs its exact prompt", async 
     ),
   ).toBe(0);
   expect(get).toHaveBeenCalledWith(runId);
-  expect(run).toHaveBeenCalledWith("  stored prompt  ");
+  expect(run).toHaveBeenCalledWith("  stored prompt  ", runId);
   expect(log).toHaveBeenCalledWith("reply");
 });
 

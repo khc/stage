@@ -5,7 +5,9 @@ import { createRunAgent } from "./index";
 const reply = (text: string) =>
   createEvent({ content: { role: "model", parts: [{ text }] } });
 
-const setup = (runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>) => {
+const setup = (
+  runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>,
+) => {
   const sessionService = {
     createSession: mock(async () => ({ id: "s1" })),
   };
@@ -37,4 +39,17 @@ test("propagates a failed run", async () => {
   });
 
   await expect(run("hi")).rejects.toThrow("boom");
+});
+
+test("passes runId as session metadata for a job invocation", async () => {
+  const { run, sessionService } = setup(async function* () {
+    yield reply("hello");
+  });
+  const runId = crypto.randomUUID();
+  await run("hi", runId);
+  expect(sessionService.createSession).toHaveBeenCalledWith({
+    appName: "agent-jobs",
+    userId: "user",
+    runId,
+  });
 });

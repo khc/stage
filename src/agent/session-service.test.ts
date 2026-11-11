@@ -34,6 +34,60 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
       expect(loaded?.events).toEqual([]);
     });
 
+    test("links separate sessions to a run and preserves metadata across reads and events", async () => {
+      const key = newApp();
+      const runId = crypto.randomUUID();
+      const service = newService();
+      const first = await service.createSession({ ...key, runId });
+      const second = await service.createSession({ ...key, runId });
+      try {
+        expect(first.id).not.toBe(second.id);
+        expect(first).toMatchObject({ runId });
+        const documentId = [key.appName, key.userId, first.id]
+          .map(encodeURIComponent)
+          .join(":");
+        expect(
+          (await db.collection("sessions").doc(documentId).get()).get("runId"),
+        ).toBe(runId);
+        await service.appendEvent({ session: first, event: reply("one") });
+        expect(
+          await newService().getSession({ ...key, sessionId: first.id }),
+        ).toMatchObject({ runId });
+        const listed = await newService().listSessions(key);
+        expect(listed.sessions).toHaveLength(2);
+        expect(listed.sessions).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: first.id, runId }),
+            expect.objectContaining({ id: second.id, runId }),
+          ]),
+        );
+      } finally {
+        await service.deleteSession({ ...key, sessionId: first.id });
+        await service.deleteSession({ ...key, sessionId: second.id });
+      }
+    });
+
+    test("omits runId for sessions created without a run contract", async () => {
+      const key = newApp();
+      const session = await newService().createSession(key);
+      try {
+        const loaded = await newService().getSession({
+          ...key,
+          sessionId: session.id,
+        });
+        expect(Object.hasOwn(session, "runId")).toBe(false);
+        expect(Object.hasOwn(loaded!, "runId")).toBe(false);
+        const documentId = [key.appName, key.userId, session.id]
+          .map(encodeURIComponent)
+          .join(":");
+        expect(
+          (await db.collection("sessions").doc(documentId).get()).get("runId"),
+        ).toBeUndefined();
+      } finally {
+        await newService().deleteSession({ ...key, sessionId: session.id });
+      }
+    });
+
     test("appendEvent persists events in order and applies the state delta", async () => {
       const key = newApp();
       const service = newService();
@@ -69,7 +123,10 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
       const service = newService();
       const session = await service.createSession({ ...key, sessionId: "s1" });
 
-      await service.appendEvent({ session, event: reply("p", { partial: true }) });
+      await service.appendEvent({
+        session,
+        event: reply("p", { partial: true }),
+      });
 
       const loaded = await newService().getSession({ ...key, sessionId: "s1" });
       expect(loaded!.events).toEqual([]);
@@ -79,8 +136,15 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
       const key = newApp();
       const service = newService();
       const session = await service.createSession({ ...key, sessionId: "s1" });
-      for (const [text, timestamp] of [["a", 1000], ["b", 2000], ["c", 3000]] as const) {
-        await service.appendEvent({ session, event: reply(text, { timestamp }) });
+      for (const [text, timestamp] of [
+        ["a", 1000],
+        ["b", 2000],
+        ["c", 3000],
+      ] as const) {
+        await service.appendEvent({
+          session,
+          event: reply(text, { timestamp }),
+        });
       }
 
       const recent = await newService().getSession({
@@ -125,9 +189,13 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
 
       await service.deleteSession({ ...key, sessionId: "s1" });
 
-      expect(await service.getSession({ ...key, sessionId: "s1" })).toBeUndefined();
+      expect(
+        await service.getSession({ ...key, sessionId: "s1" }),
+      ).toBeUndefined();
       await service.createSession({ ...key, sessionId: "s1" });
-      expect((await service.getSession({ ...key, sessionId: "s1" }))!.events).toEqual([]);
+      expect(
+        (await service.getSession({ ...key, sessionId: "s1" }))!.events,
+      ).toEqual([]);
     });
 
     test("getSession returns undefined for an unknown session", async () => {

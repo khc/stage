@@ -17,6 +17,10 @@ import {
 const SESSIONS = "sessions";
 const EVENTS = "events";
 
+type RunSession = Session & { runId?: string };
+const withRunId = (session: Session, runId?: string): RunSession =>
+  Object.assign(session, runId === undefined ? {} : { runId });
+
 export class FirestoreSessionService extends BaseSessionService {
   constructor(private readonly db: Firestore) {
     super();
@@ -32,18 +36,23 @@ export class FirestoreSessionService extends BaseSessionService {
     userId,
     state,
     sessionId,
-  }: CreateSessionRequest): Promise<Session> {
-    const session = createSession({
-      id: sessionId?.trim() || crypto.randomUUID(),
-      appName,
-      userId,
-      state: state ? trimTempState(state) : undefined,
-      events: [],
-      lastUpdateTime: Date.now(),
-    });
+    runId,
+  }: CreateSessionRequest & { runId?: string }): Promise<RunSession> {
+    const session = withRunId(
+      createSession({
+        id: sessionId?.trim() || crypto.randomUUID(),
+        appName,
+        userId,
+        state: state ? trimTempState(state) : undefined,
+        events: [],
+        lastUpdateTime: Date.now(),
+      }),
+      runId,
+    );
 
     await this.ref({ appName, userId, sessionId: session.id }).set({
       sessionId: session.id,
+      ...(runId !== undefined && { runId }),
       appName,
       userId,
       state: session.state,
@@ -58,25 +67,31 @@ export class FirestoreSessionService extends BaseSessionService {
     userId,
     sessionId,
     config,
-  }: GetSessionRequest): Promise<Session | undefined> {
+  }: GetSessionRequest): Promise<RunSession | undefined> {
     const ref = this.ref({ appName, userId, sessionId });
     const snapshot = await ref.get();
     if (!snapshot.exists) return undefined;
 
     const eventDocs = await ref.collection(EVENTS).orderBy("seq").get();
-    let events = eventDocs.docs.map((doc) => JSON.parse(doc.get("json")) as Event);
+    let events = eventDocs.docs.map(
+      (doc) => JSON.parse(doc.get("json")) as Event,
+    );
     if (config?.numRecentEvents) events = events.slice(-config.numRecentEvents);
     const { afterTimestamp } = config ?? {};
-    if (afterTimestamp) events = events.filter((e) => e.timestamp >= afterTimestamp);
+    if (afterTimestamp)
+      events = events.filter((e) => e.timestamp >= afterTimestamp);
 
-    return createSession({
-      id: sessionId,
-      appName,
-      userId,
-      state: snapshot.get("state"),
-      events,
-      lastUpdateTime: snapshot.get("lastUpdateTime"),
-    });
+    return withRunId(
+      createSession({
+        id: sessionId,
+        appName,
+        userId,
+        state: snapshot.get("state"),
+        events,
+        lastUpdateTime: snapshot.get("lastUpdateTime"),
+      }),
+      snapshot.get("runId"),
+    );
   }
 
   override async listSessions({
@@ -91,25 +106,33 @@ export class FirestoreSessionService extends BaseSessionService {
     if (userId !== undefined) query = query.where("userId", "==", userId);
 
     const sessions = (await query.get()).docs.map((doc) =>
-      createSession({
-        id: doc.get("sessionId"),
-        appName: doc.get("appName"),
-        userId: doc.get("userId"),
-        state: {},
-        events: [],
-        lastUpdateTime: doc.get("lastUpdateTime"),
-      }),
+      withRunId(
+        createSession({
+          id: doc.get("sessionId"),
+          appName: doc.get("appName"),
+          userId: doc.get("userId"),
+          state: {},
+          events: [],
+          lastUpdateTime: doc.get("lastUpdateTime"),
+        }),
+        doc.get("runId"),
+      ),
     );
 
     if (order) {
       const sign = order === "asc" ? 1 : -1;
       sessions.sort(
-        (a, b) => sign * (a.lastUpdateTime - b.lastUpdateTime) || a.id.localeCompare(b.id),
+        (a, b) =>
+          sign * (a.lastUpdateTime - b.lastUpdateTime) ||
+          a.id.localeCompare(b.id),
       );
     }
 
     const totalItems = sessions.length;
-    const start = page !== undefined && limit !== undefined ? (page - 1) * limit : (offset ?? 0);
+    const start =
+      page !== undefined && limit !== undefined
+        ? (page - 1) * limit
+        : (offset ?? 0);
     if (limit === undefined) {
       return {
         sessions: sessions.slice(start),
@@ -139,7 +162,10 @@ export class FirestoreSessionService extends BaseSessionService {
     await batch.commit();
   }
 
-  override async appendEvent({ session, event }: AppendEventRequest): Promise<Event> {
+  override async appendEvent({
+    session,
+    event,
+  }: AppendEventRequest): Promise<Event> {
     const appended = await super.appendEvent({ session, event });
     if (event.partial) return appended;
 
@@ -156,7 +182,10 @@ export class FirestoreSessionService extends BaseSessionService {
       timestamp: appended.timestamp,
       json: JSON.stringify(appended),
     });
-    batch.update(ref, { state: session.state, lastUpdateTime: session.lastUpdateTime });
+    batch.update(ref, {
+      state: session.state,
+      lastUpdateTime: session.lastUpdateTime,
+    });
     await batch.commit();
 
     return appended;

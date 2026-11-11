@@ -21,7 +21,7 @@ export const main = async (
     if (!contract) throw new Error("Run contract not found");
     if (!promptSchema.safeParse(contract.prompt).success)
       throw new Error("Run contract has an invalid prompt");
-    console.log(await run(contract.prompt));
+    console.log(await run(contract.prompt, id.data));
     return 0;
   } catch (err) {
     console.error(err);
