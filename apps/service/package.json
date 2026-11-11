@@ -15,6 +15,7 @@
   "dependencies": {
     "@agent-jobs/agent": "workspace:*",
     "@google-cloud/firestore": "^9.4.1",
+    "@google-cloud/pubsub": "^6.4.1",
     "@google-cloud/run": "^4.2.0",
     "@google/adk": "^2.4.0",
     "@hono/zod-validator": "^0.9.1",

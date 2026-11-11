@@ -200,6 +200,35 @@ export const openApiDocument = {
           ...sessionResponses,
         },
       },
+      delete: {
+        operationId: "deleteTaskSession",
+        summary: "Delete a task session and its events",
+        description:
+          "Permanently removes the session and all its stored events. Only a session linked to this task can be deleted. The task and its other sessions are unchanged.",
+        parameters: [taskId, sessionId],
+        responses: {
+          204: { description: "Session deleted" },
+          ...sessionResponses,
+        },
+      },
+    },
+    "/tasks/{taskId}/sessions/{sessionId}/messages": {
+      get: {
+        operationId: "streamTaskSessionMessages",
+        summary: "Stream session messages (Server-Sent Events)",
+        description:
+          "Replays the stored events in order, then streams new events published by the agent to Pub/Sub until the client disconnects. Each message has id = event ID and data = the event JSON; a duplicate event ID is sent once. Without PUBSUB_TOPIC only the stored events are sent and the connection stays open. A comment line is sent every 5 seconds to keep the connection open.",
+        parameters: [taskId, sessionId],
+        responses: {
+          200: {
+            description: "Event stream",
+            content: { "text/event-stream": { schema: { type: "string" } } },
+          },
+          400: invalid,
+          404: sessionResponses[404],
+          502: response("Firestore or Pub/Sub failure", error("events_error")),
+        },
+      },
     },
   },
   components: {

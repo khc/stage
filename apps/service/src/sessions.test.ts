@@ -53,6 +53,13 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
       expect(await api.get(taskId, chat.id)).toBeUndefined();
       expect(await api.get(taskId, "missing")).toBeUndefined();
       expect(await api.list(crypto.randomUUID())).toEqual([]);
+      expect(await api.delete(taskId, other.id)).toBe(false);
+      expect(await api.delete(taskId, chat.id)).toBe(false);
+      expect(await api.get(otherTaskId, other.id)).toBeDefined();
+      expect(await api.delete(taskId, first.id)).toBe(true);
+      expect(await api.get(taskId, first.id)).toBeUndefined();
+      expect(await api.list(taskId)).toEqual([]);
+      expect(await api.delete(taskId, first.id)).toBe(false);
     } finally {
       for (const session of [first, other, chat])
         await service.deleteSession({ ...key, sessionId: session.id });

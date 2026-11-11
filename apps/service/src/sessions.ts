@@ -12,10 +12,20 @@ export type TaskSessions = {
     taskId: string,
     sessionId: string,
   ) => Promise<(Session & { taskId?: string }) | undefined>;
+  delete: (taskId: string, sessionId: string) => Promise<boolean>;
 };
 
 export const createTaskSessions = (db: Firestore): TaskSessions => {
   const service = new FirestoreSessionService(db);
+  const find = async (taskId: string, sessionId: string) =>
+    (
+      await db
+        .collection("sessions")
+        .where("taskId", "==", taskId)
+        .where("sessionId", "==", sessionId)
+        .limit(1)
+        .get()
+    ).docs[0];
   return {
     async list(taskId) {
       const snapshot = await db
@@ -31,13 +41,7 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
       }));
     },
     async get(taskId, sessionId) {
-      const snapshot = await db
-        .collection("sessions")
-        .where("taskId", "==", taskId)
-        .where("sessionId", "==", sessionId)
-        .limit(1)
-        .get();
-      const doc = snapshot.docs[0];
+      const doc = await find(taskId, sessionId);
       if (!doc) return undefined;
       const session = await service.getSession({
         appName: doc.get("appName"),
@@ -45,6 +49,16 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
         sessionId,
       });
       return session?.taskId === taskId ? session : undefined;
+    },
+    async delete(taskId, sessionId) {
+      const doc = await find(taskId, sessionId);
+      if (!doc) return false;
+      await service.deleteSession({
+        appName: doc.get("appName"),
+        userId: doc.get("userId"),
+        sessionId,
+      });
+      return true;
     },
   };
 };

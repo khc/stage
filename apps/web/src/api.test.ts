@@ -1,5 +1,5 @@
 import { afterEach, expect, mock, spyOn, test } from "bun:test";
-import { api, ApiError } from "./api";
+import { api, ApiError, streamMessages, withEvent } from "./api";
 
 let fetchSpy: ReturnType<typeof spyOn> | undefined;
 afterEach(() => fetchSpy?.mockRestore());
@@ -86,5 +86,61 @@ test("resuming a session posts sessionId and message to the run route", async ()
   expect(JSON.parse(init.body as string)).toEqual({
     sessionId: "s1",
     message: "answer",
+  });
+});
+
+test("withEvent appends new events once and updates the session time", () => {
+  const session = {
+    id: "s1",
+    taskId: "t1",
+    appName: "a",
+    userId: "u",
+    lastUpdateTime: 1,
+    state: {},
+    events: [{ id: "e1", timestamp: 1 }],
+  };
+  const next = withEvent(session, { id: "e2", timestamp: 5 });
+  expect(next.events.map((e) => e.id)).toEqual(["e1", "e2"]);
+  expect(next.lastUpdateTime).toBe(5);
+  expect(withEvent(next, { id: "e2", timestamp: 9 })).toBe(next);
+});
+
+test("streamMessages parses events, ignores bad data and closes the source", () => {
+  const instances: {
+    url: string;
+    onmessage?: (m: { data: string }) => void;
+    close: () => void;
+  }[] = [];
+  const original = globalThis.EventSource;
+  globalThis.EventSource = class {
+    onmessage?: (m: { data: string }) => void;
+    close = mock(() => {});
+    constructor(public url: string) {
+      instances.push(this);
+    }
+  } as never;
+  try {
+    const seen: unknown[] = [];
+    const stop = streamMessages("t 1", "s/1", (e) => seen.push(e));
+    const source = instances[0]!;
+    expect(source.url).toBe("/tasks/t%201/sessions/s%2F1/messages");
+    source.onmessage?.({ data: '{"id":"e1"}' });
+    source.onmessage?.({ data: "not json" });
+    expect(seen).toEqual([{ id: "e1" }]);
+    stop();
+    expect(source.close).toHaveBeenCalled();
+  } finally {
+    globalThis.EventSource = original;
+  }
+});
+
+test("deleting a session sends DELETE to the encoded path and accepts 204", async () => {
+  const fetch = mock(async () => new Response(null, { status: 204 }));
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.deleteSession("task-1", "s/1")).toBeUndefined();
+  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/s%2F1", {
+    method: "DELETE",
   });
 });

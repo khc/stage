@@ -12,6 +12,7 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Box,
   Check,
@@ -32,6 +33,7 @@ import {
   Server,
   Sparkles,
   Terminal,
+  Trash2,
   Workflow,
   X,
 } from "lucide-react";
@@ -39,7 +41,10 @@ import {
   api,
   formatTime,
   shortJobName,
+  streamMessages,
+  withEvent,
   type Job,
+  type Session,
   type SessionEvent,
   type Task,
 } from "./api";
@@ -884,6 +889,71 @@ function NewTask({
   );
 }
 
+function DeleteSession({
+  taskId,
+  sessionId,
+  onDeleted,
+}: {
+  taskId: string;
+  sessionId: string;
+  onDeleted: () => void;
+}) {
+  const client = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => api.deleteSession(taskId, sessionId),
+    onSuccess: () => {
+      onDeleted();
+      client.removeQueries({ queryKey: ["session", taskId, sessionId] });
+      void client.invalidateQueries({ queryKey: ["sessions", taskId] });
+    },
+  });
+  if (!confirming)
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Delete session"
+        title="Delete session"
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2 size={15} />
+      </Button>
+    );
+  return (
+    <div className="session-delete-confirm" role="group" aria-label="Confirm">
+      <span role={remove.isError ? "alert" : undefined}>
+        {remove.isError ? remove.error.message : "Delete this session?"}
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={remove.isPending}
+        onClick={() => {
+          remove.reset();
+          setConfirming(false);
+        }}
+      >
+        Cancel
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="session-delete-button"
+        disabled={remove.isPending}
+        onClick={() => remove.mutate()}
+      >
+        {remove.isPending ? (
+          <Loader2 size={13} className="animate-spin" />
+        ) : (
+          <Trash2 size={13} />
+        )}
+        Delete
+      </Button>
+    </div>
+  );
+}
+
 function ContinueSession({
   taskId,
   sessionId,
@@ -893,6 +963,7 @@ function ContinueSession({
 }) {
   const client = useQueryClient();
   const [message, setMessage] = useState("");
+  const input = useRef<HTMLTextAreaElement>(null);
   const resume = useMutation({
     mutationFn: () => api.resume(taskId, sessionId, message.trim()),
     onSuccess: () => {
@@ -902,42 +973,124 @@ function ContinueSession({
       });
     },
   });
+  const canSend = !!message.trim() && !resume.isPending;
+  useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [message]);
   return (
     <form
-      className="continue-session"
+      className="composer"
       onSubmit={(e) => {
         e.preventDefault();
-        resume.mutate();
+        if (canSend) resume.mutate();
       }}
     >
-      <p className="section-overline">CONTINUE SESSION</p>
-      <textarea
-        aria-label="Message to continue the session"
-        value={message}
-        maxLength={10_000}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Send the next message to the agent…"
-      />
-      {resume.isError && <p role="alert">{resume.error.message}</p>}
-      {resume.isSuccess && (
-        <p role="status">
-          Submitted. New events appear when the agent responds.
+      <div className="composer-box">
+        <textarea
+          ref={input}
+          className="composer-input"
+          aria-label="Message to continue the session"
+          rows={1}
+          value={message}
+          maxLength={10_000}
+          placeholder="Message the agent…"
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
+              return;
+            e.preventDefault();
+            e.currentTarget.form?.requestSubmit();
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="composer-send"
+          aria-label="Send message"
+          disabled={!canSend}
+        >
+          {resume.isPending ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <ArrowUp size={16} />
+          )}
+        </Button>
+      </div>
+      {resume.isError ? (
+        <p className="composer-hint composer-error" role="alert">
+          {resume.error.message}
+        </p>
+      ) : resume.isSuccess ? (
+        <p className="composer-hint" role="status">
+          Sent. New events appear when the agent responds.
+        </p>
+      ) : (
+        <p className="composer-hint">
+          Enter to send · Shift+Enter for a new line
         </p>
       )}
-      <Button
-        size="sm"
-        type="submit"
-        disabled={!message.trim() || resume.isPending}
-      >
-        {resume.isPending ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : (
-          <Play size={13} />
-        )}
-        Send
-      </Button>
     </form>
   );
+}
+
+const INSPECTOR_MIN = 420;
+const INSPECTOR_KEY = "inspector-width";
+const clampWidth = (width: number) =>
+  Math.round(
+    Math.min(
+      Math.max(width, INSPECTOR_MIN),
+      Math.max(INSPECTOR_MIN, window.innerWidth * 0.9),
+    ),
+  );
+const savedWidth = () => {
+  try {
+    const value = Number(localStorage.getItem(INSPECTOR_KEY));
+    return value ? clampWidth(value) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+function useResizableWidth() {
+  const [width, setWidth] = useState<number | undefined>(savedWidth);
+  const [dragging, setDragging] = useState(false);
+  const save = (value: number) => {
+    try {
+      localStorage.setItem(INSPECTOR_KEY, String(value));
+    } catch {
+      // Storage can be unavailable; the width then lasts for this session only.
+    }
+  };
+  const handle = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDragging(true);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (dragging) setWidth(clampWidth(window.innerWidth - e.clientX));
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+      setDragging(false);
+      const next = clampWidth(window.innerWidth - e.clientX);
+      setWidth(next);
+      save(next);
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const step =
+        e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
+      if (!step) return;
+      e.preventDefault();
+      const next = clampWidth(
+        (width ?? e.currentTarget.closest("dialog")!.offsetWidth) + step,
+      );
+      setWidth(next);
+      save(next);
+    },
+  };
+  return { width, dragging, handle };
 }
 
 function TaskInspector({
@@ -956,6 +1109,7 @@ function TaskInspector({
   onDismissNotice: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const { width, dragging, handle } = useResizableWidth();
   const [tab, setTab] = useState<"sessions" | "prompt">("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const task = useQuery({
@@ -972,6 +1126,16 @@ function TaskInspector({
     queryFn: () => api.session(taskId, sessionId!),
     enabled: !!sessionId,
   });
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!sessionId) return;
+    return streamMessages(taskId, sessionId, (event) =>
+      client.setQueryData<Session>(
+        ["session", taskId, sessionId],
+        (old) => old && withEvent(old, event),
+      ),
+    );
+  }, [client, taskId, sessionId]);
   useEffect(() => {
     ref.current?.showModal();
   }, []);
@@ -988,7 +1152,20 @@ function TaskInspector({
       className="inspector"
       aria-labelledby="inspector-title"
       onClose={onClose}
+      style={
+        width ? ({ "--inspector-w": `${width}px` } as React.CSSProperties) : {}
+      }
     >
+      <div className="inspector-resize">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize task details"
+          tabIndex={0}
+          data-dragging={dragging}
+          {...handle}
+        />
+      </div>
       <div className="inspector-top">
         <span className="eyebrow">TASK DETAILS</span>
         <Button
@@ -1101,6 +1278,11 @@ function TaskInspector({
                     <div className="session-detail-title">
                       <h3>Session activity</h3>
                       <span>{detail.data.events.length} events</span>
+                      <DeleteSession
+                        taskId={taskId}
+                        sessionId={detail.data.id}
+                        onDeleted={() => setSessionId(null)}
+                      />
                     </div>
                     <div className="task-id session-id">
                       <code>{detail.data.id}</code>
@@ -1138,7 +1320,10 @@ function TaskInspector({
                         Events will appear here as the agent works.
                       </Empty>
                     )}
-                    <ContinueSession taskId={taskId} sessionId={detail.data.id} />
+                    <ContinueSession
+                      taskId={taskId}
+                      sessionId={detail.data.id}
+                    />
                   </>
                 )}
               </>

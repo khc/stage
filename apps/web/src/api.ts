@@ -73,6 +73,7 @@ export async function request<T>(
           : `Request failed (${response.status}). Please try again.`),
     );
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 const json = (body: unknown) => ({
@@ -95,6 +96,11 @@ export const api = {
       `${taskPath(taskId)}/run`,
       json({ sessionId, message }),
     ),
+  deleteSession: (taskId: string, sessionId: string) =>
+    request<void>(
+      `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`,
+      { method: "DELETE" },
+    ),
   sessions: (id: string) =>
     request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),
   session: (taskId: string, sessionId: string) =>
@@ -102,6 +108,33 @@ export const api = {
       `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`,
     ),
 };
+// Opens the session message stream (SSE); the server replays stored events
+// first, so callers must tolerate duplicates. Returns a function that closes it.
+export const streamMessages = (
+  taskId: string,
+  sessionId: string,
+  onEvent: (event: SessionEvent) => void,
+) => {
+  const source = new EventSource(
+    `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
+  );
+  source.onmessage = (message) => {
+    try {
+      onEvent(JSON.parse(message.data) as SessionEvent);
+    } catch {
+      // Ignore a malformed message; the periodic refetch still has the event.
+    }
+  };
+  return () => source.close();
+};
+export const withEvent = (session: Session, event: SessionEvent): Session =>
+  event.id && session.events.some((e) => e.id === event.id)
+    ? session
+    : {
+        ...session,
+        events: [...session.events, event],
+        lastUpdateTime: event.timestamp ?? session.lastUpdateTime,
+      };
 export const shortJobName = (job: Job) =>
   job.name?.split("/").at(-1) ?? "Unnamed job";
 // ADK records event/session timestamps in milliseconds in this repository.

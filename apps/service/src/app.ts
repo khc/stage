@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { streamSSE } from "hono/streaming";
 import { Scalar } from "@scalar/hono-api-reference";
 import { openApiDocument } from "./openapi";
 import {
@@ -13,6 +14,9 @@ import {
 import type { ListJobs, Resume, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
+import type { LiveEvents } from "./live-events";
+
+const KEEPALIVE_MS = 5_000;
 
 export const createApp = (
   runJob: RunJob,
@@ -21,6 +25,7 @@ export const createApp = (
   listTasks: ListTasks,
   getTask: GetTask,
   sessions: TaskSessions,
+  liveEvents?: LiveEvents,
 ) =>
   new Hono()
     .get("/openapi.json", (c) => c.json(openApiDocument))
@@ -102,6 +107,85 @@ export const createApp = (
             res: c.json({ error: "session_error" }, 502),
           });
         }
+      },
+    )
+    .delete(
+      "/tasks/:taskId/sessions/:sessionId",
+      zValidator("param", sessionParamSchema),
+      async (c) => {
+        const { taskId, sessionId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          if (!(await sessions.delete(taskId, sessionId)))
+            return c.json({ error: "session_not_found" }, 404);
+          return c.body(null, 204);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "session_error" }, 502),
+          });
+        }
+      },
+    )
+    .get(
+      "/tasks/:taskId/sessions/:sessionId/messages",
+      zValidator("param", sessionParamSchema),
+      async (c) => {
+        const { taskId, sessionId } = c.req.valid("param");
+        const pending: [string, string][] = [];
+        let wake = () => {};
+        let unsubscribe = () => {};
+        let session: Awaited<ReturnType<TaskSessions["get"]>>;
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          // Subscribe before reading history so no event falls in the gap.
+          unsubscribe =
+            (await liveEvents?.(taskId, sessionId, (id, json) => {
+              pending.push([id, json]);
+              wake();
+            })) ?? unsubscribe;
+          session = await sessions.get(taskId, sessionId);
+        } catch (err) {
+          unsubscribe();
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "events_error" }, 502),
+          });
+        }
+        if (!session) {
+          unsubscribe();
+          return c.json({ error: "session_not_found" }, 404);
+        }
+        const history = session.events;
+        return streamSSE(c, async (stream) => {
+          const seen = new Set<string>();
+          const send = async (id: string, data: string) => {
+            if (seen.has(id)) return;
+            seen.add(id);
+            await stream.writeSSE({ id, data });
+          };
+          stream.onAbort(unsubscribe);
+          try {
+            for (const event of history)
+              await send(event.id, JSON.stringify(event));
+            while (!stream.aborted) {
+              for (const [id, json] of pending.splice(0)) await send(id, json);
+              if (pending.length) continue;
+              await new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, KEEPALIVE_MS);
+                wake = () => {
+                  clearTimeout(timer);
+                  resolve();
+                };
+              });
+              if (!pending.length) await stream.write(": keepalive\n\n");
+            }
+          } finally {
+            unsubscribe();
+          }
+        });
       },
     )
     .post(

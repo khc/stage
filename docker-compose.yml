@@ -35,6 +35,8 @@ services:
   #     GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-floci-local}
   #     FIRESTORE_EMULATOR_HOST: floci-gcp:4588
   #     CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
+  #     PUBSUB_EMULATOR_HOST: floci-gcp:4588
+  #     PUBSUB_TOPIC: ${PUBSUB_TOPIC:-agent-events}
   #     GEMINI_API_KEY:
   #     AGENT_MODEL:
   #     GOOGLE_GENAI_USE_VERTEXAI:

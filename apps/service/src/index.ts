@@ -1,7 +1,9 @@
 import { Firestore } from "@google-cloud/firestore";
+import { PubSub } from "@google-cloud/pubsub";
 import { z } from "zod";
 import { createApp } from "./app";
 import { createTaskSessions } from "./sessions";
+import { createLiveEvents } from "./live-events";
 import { createJobsClient } from "./cloud-run";
 import { createListJobs, createTaskJob } from "./jobs";
 import { createCreateTask, createListTasks, createGetTask } from "./tasks";
@@ -26,6 +28,9 @@ const app = createApp(
   createListTasks(db),
   createGetTask(db),
   createTaskSessions(db),
+  process.env.PUBSUB_TOPIC
+    ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC)
+    : undefined,
 );
 
 export default {

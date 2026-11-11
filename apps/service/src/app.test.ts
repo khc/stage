@@ -1,4 +1,4 @@
-import { expect, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
 import { createApp } from "./app";
@@ -16,6 +16,7 @@ const noTask = async (_taskId: string) => undefined;
 const noSessions: TaskSessions = {
   list: async () => [],
   get: async () => undefined,
+  delete: async () => false,
 };
 const makeApp = () =>
   createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
@@ -415,6 +416,7 @@ const sessionsApp = () => {
     app: createApp(noJob, noJobs, noCreate, noTasks, getTask, {
       list,
       get,
+      delete: async () => false,
     }),
     getTask,
     list,
@@ -532,7 +534,7 @@ test("GET /openapi.json describes every API operation and its task input", async
   const described = Object.entries(document.paths)
     .flatMap(([path, operations]) =>
       Object.keys(operations as object)
-        .filter((method) => ["get", "post"].includes(method))
+        .filter((method) => ["get", "post", "delete"].includes(method))
         .map((method) => `${method} ${path}`),
     )
     .sort();
@@ -566,7 +568,7 @@ const resumeApp = (found: boolean) => {
     noCreate,
     noTasks,
     async () => savedTask as TaskContract,
-    { list: async () => [], get },
+    { list: async () => [], get, delete: async () => false },
   );
   return { app, job, get };
 };
@@ -602,4 +604,59 @@ test("run rejects sessionId without a valid message", async () => {
     expect((await app.request(runPath, post(body))).status).toBe(400);
   expect(get).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
+});
+
+describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
+  const path = `/tasks/${savedTask.taskId}/sessions/s1`;
+  const deleteApp = (remove: (t: string, s: string) => Promise<boolean>) => {
+    const del = mock(remove);
+    const app = createApp(
+      noJob,
+      noJobs,
+      noCreate,
+      noTasks,
+      async (id: string) =>
+        id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      { list: async () => [], get: async () => undefined, delete: del },
+    );
+    return { app, del };
+  };
+
+  test("deletes an owned session and returns 204", async () => {
+    const { app, del } = deleteApp(async () => true);
+    const res = await app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+    expect(del).toHaveBeenCalledWith(savedTask.taskId, "s1");
+  });
+
+  test("returns 404 for a missing session or task without deleting", async () => {
+    const missing = deleteApp(async () => false);
+    const res = await missing.app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "session_not_found" });
+
+    const noTask = deleteApp(async () => true);
+    const other = await noTask.app.request(
+      `/tasks/${crypto.randomUUID()}/sessions/s1`,
+      { method: "DELETE" },
+    );
+    expect(other.status).toBe(404);
+    expect(await other.json()).toEqual({ error: "task_not_found" });
+    expect(noTask.del).not.toHaveBeenCalled();
+  });
+
+  test("rejects an invalid task id and hides storage failures", async () => {
+    const { app, del } = deleteApp(async () => {
+      throw new Error("private storage detail");
+    });
+    expect(
+      (await app.request("/tasks/invalid/sessions/s1", { method: "DELETE" }))
+        .status,
+    ).toBe(400);
+    const res = await app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "session_error" });
+    expect(del).toHaveBeenCalledTimes(1);
+  });
 });
