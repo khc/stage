@@ -1,3 +1,5 @@
+import type { protos } from "@google-cloud/run";
+
 type Env = Record<string, string | undefined>;
 
 export const jobEnvironment = (env: Env, project: string, message: string) => {
@@ -38,7 +40,7 @@ if (import.meta.main) {
       mode === "create" ? "jobId" : "updateMask",
       mode === "create" ? job : "template",
     );
-    const body = {
+    const body: protos.google.cloud.run.v2.IJob = {
       ...(mode === "update" ? { name } : {}),
       template: {
         template: {
@@ -51,6 +53,43 @@ if (import.meta.main) {
         },
       },
     };
+    if (mode === "update") {
+      const current = await fetch(`${collection}/${encodeURIComponent(job)}`);
+      if (!current.ok)
+        throw new Error(`Cloud Run job read failed: HTTP ${current.status}`);
+      const existing =
+        (await current.json()) as protos.google.cloud.run.v2.IJob;
+      const template = existing.template;
+      const containers = template?.template?.containers;
+      if (!template?.template || !containers?.length)
+        throw new Error("Existing job has no container to update");
+      const [agent, ...others] = containers;
+      const requiredEnv = jobEnvironment(
+        env,
+        project,
+        env.JOB_MESSAGE || "hello",
+      );
+      const replacedNames = new Set(requiredEnv.map(({ name }) => name));
+      body.template = {
+        ...template,
+        template: {
+          ...template.template,
+          containers: [
+            {
+              ...agent,
+              image: env.JOB_IMAGE || "agent-jobs-agent:latest",
+              env: [
+                ...(agent?.env ?? []).filter(
+                  (entry) => !replacedNames.has(entry.name ?? ""),
+                ),
+                ...requiredEnv,
+              ],
+            },
+            ...others,
+          ],
+        },
+      };
+    }
     const response = await fetch(url, {
       method: mode === "create" ? "POST" : "PATCH",
       headers: { "content-type": "application/json" },
