@@ -543,10 +543,63 @@ test("GET /openapi.json describes every API operation and its task input", async
   expect(input.required).toEqual(["prompt", "jobName"]);
   expect(input.properties?.prompt).toMatchObject({ maxLength: 10_000 });
   expect(input.properties?.jobName).toMatchObject({ maxLength: 63 });
-  expect(document.paths["/tasks/{taskId}/run"].post).not.toHaveProperty(
-    "requestBody",
-  );
+  const resume =
+    document.paths["/tasks/{taskId}/run"].post.requestBody.content[
+      "application/json"
+    ].schema;
+  expect(resume.required).toEqual(["sessionId", "message"]);
   expect(
     document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"],
   ).toBeDefined();
+});
+
+const resumeApp = (found: boolean) => {
+  const job = mock(
+    async (_name: string, _taskId: string, _resume?: unknown) => "op-1",
+  );
+  const get = mock(async (_taskId: string, _sessionId: string) =>
+    found ? ({ id: "s1" } as never) : undefined,
+  );
+  const app = createApp(
+    job,
+    noJobs,
+    noCreate,
+    noTasks,
+    async () => savedTask as TaskContract,
+    { list: async () => [], get },
+  );
+  return { app, job, get };
+};
+
+test("run with sessionId and message resumes an owned session", async () => {
+  const { app, job, get } = resumeApp(true);
+  const response = await app.request(
+    runPath,
+    post({ sessionId: "s1", message: "  answer  " }),
+  );
+  expect(response.status).toBe(202);
+  expect(get).toHaveBeenCalledWith(savedTask.taskId, "s1");
+  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId, {
+    sessionId: "s1",
+    message: "answer",
+  });
+});
+
+test("run returns 404 session_not_found for a missing or foreign session", async () => {
+  const { app, job } = resumeApp(false);
+  const response = await app.request(
+    runPath,
+    post({ sessionId: "s1", message: "answer" }),
+  );
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: "session_not_found" });
+  expect(job).not.toHaveBeenCalled();
+});
+
+test("run rejects sessionId without a valid message", async () => {
+  const { app, get, job } = resumeApp(true);
+  for (const body of [{ sessionId: "s1" }, { sessionId: "s1", message: " " }])
+    expect((await app.request(runPath, post(body))).status).toBe(400);
+  expect(get).not.toHaveBeenCalled();
+  expect(job).not.toHaveBeenCalled();
 });

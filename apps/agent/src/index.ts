@@ -10,22 +10,39 @@ export {
   type TaskContract,
 } from "./task-contract";
 
-export type RunAgent = (message: string, taskId?: string) => Promise<string>;
+export type RunAgent = (
+  message: string,
+  taskId?: string,
+  sessionId?: string,
+) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
-  sessionService: Pick<FirestoreSessionService, "createSession">;
+  sessionService: Pick<FirestoreSessionService, "createSession" | "getSession">;
 };
 
 const appName = "agent-jobs";
 const userId = "user";
 
+const resumeSession = async (
+  service: RunnerLike["sessionService"],
+  sessionId: string,
+  taskId?: string,
+) => {
+  const session = await service.getSession({ appName, userId, sessionId });
+  if (!session || session.taskId !== taskId)
+    throw new Error("Session not found for this task");
+  return session;
+};
+
 export const createTaskAgent =
   (runner: RunnerLike): RunAgent =>
-  async (message, taskId) => {
-    const session = await runner.sessionService.createSession({
-      appName,
-      userId,
-      ...(taskId !== undefined && { taskId }),
-    });
+  async (message, taskId, sessionId) => {
+    const session = sessionId
+      ? await resumeSession(runner.sessionService, sessionId, taskId)
+      : await runner.sessionService.createSession({
+          appName,
+          userId,
+          ...(taskId !== undefined && { taskId }),
+        });
     let reply = "";
 
     for await (const event of runner.runAsync({

@@ -70,3 +70,21 @@ test("private upstream error details are not displayed", async () => {
     "Cloud Run could not complete the request",
   );
 });
+
+test("resuming a session posts sessionId and message to the run route", async () => {
+  const fetch = mock(async () =>
+    Response.json({ operation: "op-2" }, { status: 202 }),
+  );
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.resume("task-1", "s1", "answer")).toEqual({
+    operation: "op-2",
+  });
+  const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/tasks/task-1/run");
+  expect(JSON.parse(init.body as string)).toEqual({
+    sessionId: "s1",
+    message: "answer",
+  });
+});

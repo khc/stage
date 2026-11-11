@@ -884,6 +884,62 @@ function NewTask({
   );
 }
 
+function ContinueSession({
+  taskId,
+  sessionId,
+}: {
+  taskId: string;
+  sessionId: string;
+}) {
+  const client = useQueryClient();
+  const [message, setMessage] = useState("");
+  const resume = useMutation({
+    mutationFn: () => api.resume(taskId, sessionId, message.trim()),
+    onSuccess: () => {
+      setMessage("");
+      void client.invalidateQueries({
+        queryKey: ["session", taskId, sessionId],
+      });
+    },
+  });
+  return (
+    <form
+      className="continue-session"
+      onSubmit={(e) => {
+        e.preventDefault();
+        resume.mutate();
+      }}
+    >
+      <p className="section-overline">CONTINUE SESSION</p>
+      <textarea
+        aria-label="Message to continue the session"
+        value={message}
+        maxLength={10_000}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Send the next message to the agent…"
+      />
+      {resume.isError && <p role="alert">{resume.error.message}</p>}
+      {resume.isSuccess && (
+        <p role="status">
+          Submitted. New events appear when the agent responds.
+        </p>
+      )}
+      <Button
+        size="sm"
+        type="submit"
+        disabled={!message.trim() || resume.isPending}
+      >
+        {resume.isPending ? (
+          <Loader2 size={13} className="animate-spin" />
+        ) : (
+          <Play size={13} />
+        )}
+        Send
+      </Button>
+    </form>
+  );
+}
+
 function TaskInspector({
   taskId,
   onClose,
@@ -1082,6 +1138,7 @@ function TaskInspector({
                         Events will appear here as the agent works.
                       </Empty>
                     )}
+                    <ContinueSession taskId={taskId} sessionId={detail.data.id} />
                   </>
                 )}
               </>

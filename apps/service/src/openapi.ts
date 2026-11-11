@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  resumeSchema,
   taskSchema,
   taskParamSchema,
   sessionParamSchema,
@@ -145,22 +146,26 @@ export const openApiDocument = {
         operationId: "runTask",
         summary: "Start a task execution",
         description:
-          "Requires no body. Selects the stored jobName and sends only TASK_ID. Acknowledges submission, not agent completion. Repeated requests may start separate executions.",
+          "Without a body, selects the stored jobName and starts a new session from the stored prompt (sends only TASK_ID). With sessionId and message, resumes that task session with the message as the next turn. Other body fields are ignored. Acknowledges submission, not agent completion. Repeated requests may start separate executions.",
         parameters: [taskId],
+        requestBody: { required: false, content: json(schema(resumeSchema)) },
         responses: {
           202: response(
             "Cloud Run submission accepted",
             schema(z.object({ operation: z.string() })),
           ),
           400: invalid,
-          404: missingTask,
+          404: response(
+            "Task or session not found",
+            error("task_not_found", "session_not_found"),
+          ),
           409: response(
             "Stored jobName is missing or invalid",
             error("task_not_executable"),
           ),
           502: response(
             "Firestore lookup or Cloud Run submission failure",
-            error("task_error", "job_error"),
+            error("task_error", "session_error", "job_error"),
           ),
         },
       },

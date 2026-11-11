@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b0d14" />
-    <meta name="description" content="Manage agent tasks, Cloud Run jobs, and execution sessions." />
+    <meta
+      name="description"
+      content="Manage agent tasks, Cloud Run jobs, and execution sessions."
+    />
     <title>Agent Jobs · Control room</title>
     <script>
       // Apply appearance before styles load to avoid flashing the wrong theme.
@@ -14,15 +17,23 @@
           const saved = localStorage.getItem("agent-jobs-theme");
           if (saved === "light" || saved === "dark") preference = saved;
         } catch {}
-        const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference;
+        const theme =
+          preference === "system"
+            ? matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : preference;
         document.documentElement.dataset.theme = theme;
         document.documentElement.dataset.themePreference = preference;
         document.documentElement.style.colorScheme = theme;
-        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0b0d14" : "#f6f7fb";
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#0b0d14" : "#f6f7fb";
       })();
     </script>
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./main.tsx"></script>
   </head>
-  <body><div id="root"></div></body>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>

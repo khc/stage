@@ -90,6 +90,11 @@ export const api = {
     request<Task>("/tasks", json(input)),
   run: (id: string) =>
     request<{ operation: string }>(`${taskPath(id)}/run`, { method: "POST" }),
+  resume: (taskId: string, sessionId: string, message: string) =>
+    request<{ operation: string }>(
+      `${taskPath(taskId)}/run`,
+      json({ sessionId, message }),
+    ),
   sessions: (id: string) =>
     request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),
   session: (taskId: string, sessionId: string) =>

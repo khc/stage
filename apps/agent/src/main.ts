@@ -21,7 +21,11 @@ export const main = async (
     if (!contract) throw new Error("Task contract not found");
     if (!promptSchema.safeParse(contract.prompt).success)
       throw new Error("Task contract has an invalid prompt");
-    console.log(await run(contract.prompt, id.data));
+    const sessionId = env.SESSION_ID || undefined;
+    const message = sessionId ? env.MESSAGE : contract.prompt;
+    if (!promptSchema.safeParse(message).success)
+      throw new Error("MESSAGE is required to resume a session");
+    console.log(await run(message!, id.data, sessionId));
     return 0;
   } catch (err) {
     console.error(err);

@@ -5,7 +5,11 @@ const noAuth = {
   universeDomain: "googleapis.com",
   getRequestHeaders: async () => ({}),
   fetch: (url: string, init?: RequestInit) =>
-    fetch(url, { method: init?.method, headers: init?.headers, body: init?.body }),
+    fetch(url, {
+      method: init?.method,
+      headers: init?.headers,
+      body: init?.body,
+    }),
 };
 
 export const createJobsClient = (

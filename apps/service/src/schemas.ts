@@ -15,3 +15,7 @@ export const taskParamSchema = z.object({
 export const sessionParamSchema = taskParamSchema.extend({
   sessionId: z.string().min(1).max(1500),
 });
+export const resumeSchema = z.object({
+  sessionId: sessionParamSchema.shape.sessionId,
+  message,
+});

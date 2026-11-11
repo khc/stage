@@ -90,3 +90,27 @@ test("propagates a listJobs failure", async () => {
 
   await expect(list()).rejects.toThrow("list failed");
 });
+
+test("adds SESSION_ID and MESSAGE overrides when resuming a session", async () => {
+  const runJob = mock(async (_request: unknown) => [
+    { name: "operations/op-1" },
+  ]);
+  const run = createTaskJob({ jobPath, runJob } as never, config);
+
+  await run("my-job", "task-1", { sessionId: "s1", message: "answer" });
+
+  expect(runJob).toHaveBeenCalledWith({
+    name: "projects/p/locations/l/jobs/my-job",
+    overrides: {
+      containerOverrides: [
+        {
+          env: [
+            { name: "TASK_ID", value: "task-1" },
+            { name: "SESSION_ID", value: "s1" },
+            { name: "MESSAGE", value: "answer" },
+          ],
+        },
+      ],
+    },
+  });
+});

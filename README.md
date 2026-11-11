@@ -102,6 +102,10 @@ Matching tasks and session links are skipped, so the script can be rerun. Confli
 
 Deploy both new images together during the maintenance window: the service sends only `TASK_ID`, the agent loads `tasks/{taskId}`, and new sessions store `taskId`. Update job definitions with `task update-job` to remove old static `AGENT_MESSAGE`, `RUN_ID`, and `TASK_ID` values before resuming requests. The agent no longer accepts `RUN_ID` as execution input. The migration is provided as tooling; it does not run automatically at service startup.
 
+### Resuming a session
+
+`POST /tasks/:taskId/run` with `{ "sessionId": "...", "message": "..." }` resumes an existing session of that task and sends `message` as the next user turn, instead of creating a new session from the stored prompt. The service sends `SESSION_ID` and `MESSAGE` as per-execution overrides next to `TASK_ID`. `sessionId` and `message` must be sent together (400 otherwise); an absent session, or one linked to another task, returns 404 `session_not_found`. The agent rechecks that the session belongs to the task. A body without `sessionId` is ignored, as before.
+
 ### Task sessions
 
 ```bash

@@ -5,11 +5,12 @@ import { Scalar } from "@scalar/hono-api-reference";
 import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
+  resumeSchema,
   taskSchema,
   taskParamSchema,
   sessionParamSchema,
 } from "./schemas";
-import type { ListJobs, RunJob } from "./jobs";
+import type { ListJobs, Resume, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
 
@@ -121,8 +122,28 @@ export const createApp = (
         const jobName = jobNameSchema.safeParse(contract.jobName);
         if (!jobName.success)
           return c.json({ error: "task_not_executable" }, 409);
+        const body = await c.req.json().catch(() => undefined);
+        let resume: Resume | undefined;
+        if (body?.sessionId !== undefined) {
+          const parsed = resumeSchema.safeParse(body);
+          if (!parsed.success)
+            return c.json({ success: false, error: parsed.error }, 400);
+          resume = parsed.data;
+          try {
+            if (!(await sessions.get(taskId, resume.sessionId)))
+              return c.json({ error: "session_not_found" }, 404);
+          } catch (err) {
+            console.error(err);
+            throw new HTTPException(502, {
+              res: c.json({ error: "session_error" }, 502),
+            });
+          }
+        }
         try {
-          return c.json({ operation: await runJob(jobName.data, taskId) }, 202);
+          const operation = resume
+            ? await runJob(jobName.data, taskId, resume)
+            : await runJob(jobName.data, taskId);
+          return c.json({ operation }, 202);
         } catch (err) {
           console.error(err);
           throw new HTTPException(502, {
