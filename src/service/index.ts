@@ -2,6 +2,7 @@ import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 import { runAgent } from "../agent";
 import { createApp } from "./app";
+import { createTaskSessions } from "./sessions";
 import { createJobsClient } from "./cloud-run";
 import { createListJobs, createTaskJob } from "./jobs";
 import { createCreateTask, createListTasks, createGetTask } from "./tasks";
@@ -26,6 +27,7 @@ const app = createApp(
   createCreateTask(db),
   createListTasks(db),
   createGetTask(db),
+  createTaskSessions(db),
 );
 
 export default {

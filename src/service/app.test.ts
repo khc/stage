@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
 import type { RunAgent } from "../agent";
 import { createApp } from "./app";
@@ -12,8 +13,12 @@ const noCreate: CreateTask = async (input) => ({
 });
 const noTasks = async () => [];
 const noTask = async (_taskId: string) => undefined;
+const noSessions: TaskSessions = {
+  list: async () => [],
+  get: async () => undefined,
+};
 const appWith = (run: RunAgent) =>
-  createApp(run, noJob, noJobs, noCreate, noTasks, noTask);
+  createApp(run, noJob, noJobs, noCreate, noTasks, noTask, noSessions);
 
 const post = (body: unknown) => ({
   method: "POST",
@@ -93,6 +98,7 @@ test("GET /jobs returns all listed job resources", async () => {
     noCreate,
     noTasks,
     noTask,
+    noSessions,
   ).request("/jobs");
 
   expect(res.status).toBe(200);
@@ -108,6 +114,7 @@ test("GET /jobs returns an empty jobs array", async () => {
     noCreate,
     noTasks,
     noTask,
+    noSessions,
   ).request("/jobs");
 
   expect(res.status).toBe(200);
@@ -125,6 +132,7 @@ test("GET /jobs returns 502 job_error without upstream details", async () => {
     noCreate,
     noTasks,
     noTask,
+    noSessions,
   ).request("/jobs");
 
   expect(res.status).toBe(502);
@@ -148,7 +156,7 @@ const taskApp = () => {
     async (_id: string) => savedTask as TaskContract | undefined,
   );
   return {
-    app: createApp(agent, job, noJobs, create, list, get),
+    app: createApp(agent, job, noJobs, create, list, get, noSessions),
     agent,
     job,
     create,
@@ -240,6 +248,7 @@ test("GET /tasks returns an empty collection", async () => {
     noCreate,
     noTasks,
     noTask,
+    noSessions,
   ).request("/tasks");
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ tasks: [] });
@@ -433,4 +442,126 @@ test("former run-contract URLs are removed", async () => {
   expect(get).not.toHaveBeenCalled();
   expect(list).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
+});
+
+const sessionId = crypto.randomUUID();
+const session = {
+  id: sessionId,
+  taskId: savedTask.taskId,
+  appName: "agent-jobs",
+  userId: "user",
+  lastUpdateTime: 123,
+  state: { count: 1 },
+  events: [],
+};
+const sessionsApp = () => {
+  const getTask = mock(
+    async (_id: string): Promise<TaskContract | undefined> => savedTask,
+  );
+  const list = mock(async (_id: string) => [
+    {
+      id: session.id,
+      taskId: session.taskId,
+      appName: session.appName,
+      userId: session.userId,
+      lastUpdateTime: session.lastUpdateTime,
+    },
+  ]);
+  const get = mock(
+    async (
+      _taskId: string,
+      _sessionId: string,
+    ): Promise<typeof session | undefined> => session,
+  );
+  return {
+    app: createApp(async () => "", noJob, noJobs, noCreate, noTasks, getTask, {
+      list,
+      get,
+    }),
+    getTask,
+    list,
+    get,
+  };
+};
+
+test("GET task sessions returns summaries for the normalized task UUID", async () => {
+  const { app, list } = sessionsApp();
+  const response = await app.request(
+    `/tasks/${savedTask.taskId.toUpperCase()}/sessions`,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    sessions: [
+      {
+        id: session.id,
+        taskId: session.taskId,
+        appName: session.appName,
+        userId: session.userId,
+        lastUpdateTime: session.lastUpdateTime,
+      },
+    ],
+  });
+  expect(list).toHaveBeenCalledWith(savedTask.taskId);
+});
+
+test("GET task sessions returns an empty list", async () => {
+  const { app, list } = sessionsApp();
+  list.mockResolvedValue([]);
+  const response = await app.request(`/tasks/${savedTask.taskId}/sessions`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ sessions: [] });
+});
+
+test("GET task session returns full state and events", async () => {
+  const { app, get } = sessionsApp();
+  const response = await app.request(
+    `/tasks/${savedTask.taskId}/sessions/${sessionId}`,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(session);
+  expect(get).toHaveBeenCalledWith(savedTask.taskId, sessionId);
+});
+
+for (const detail of [false, true]) {
+  const path = `/tasks/${savedTask.taskId}/sessions${detail ? `/${sessionId}` : ""}`;
+  test(`session ${detail ? "detail" : "list"} rejects missing tasks before reading sessions`, async () => {
+    const { app, getTask, list, get } = sessionsApp();
+    getTask.mockResolvedValue(undefined);
+    const response = await app.request(path);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "task_not_found" });
+    expect(list).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+  test(`session ${detail ? "detail" : "list"} rejects invalid task UUIDs`, async () => {
+    const { app, getTask, list, get } = sessionsApp();
+    expect(
+      (
+        await app.request(
+          `/tasks/invalid/sessions${detail ? `/${sessionId}` : ""}`,
+        )
+      ).status,
+    ).toBe(400);
+    expect(getTask).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+  test(`session ${detail ? "detail" : "list"} storage errors return 502 without private detail`, async () => {
+    const { app, list, get } = sessionsApp();
+    if (detail) get.mockRejectedValue(new Error("private session error"));
+    else list.mockRejectedValue(new Error("private session error"));
+    const response = await app.request(path);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "session_error" });
+  });
+}
+
+test("GET task session returns 404 for absent or non-owned sessions", async () => {
+  const { app, get } = sessionsApp();
+  get.mockResolvedValue(undefined);
+  const response = await app.request(
+    `/tasks/${savedTask.taskId}/sessions/${sessionId}`,
+  );
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: "session_not_found" });
 });

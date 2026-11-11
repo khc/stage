@@ -94,3 +94,15 @@ The script copies `runs/{runId}` to `tasks/{taskId}` using the same UUID, replac
 Matching tasks and session links are skipped, so the script can be rerun. Conflicting task contents, conflicting session links, or invalid legacy IDs stop the migration without overwriting those records. An apply can make partial progress before a later error; resolve the conflict and rerun. Each session update checks its read version to detect concurrent changes. The summary contains counts only, without prompts or credentials.
 
 Deploy both new images together during the maintenance window: the service sends only `TASK_ID`, the agent loads `tasks/{taskId}`, and new sessions store `taskId`. Update job definitions with `task update-job` to remove old static `AGENT_MESSAGE`, `RUN_ID`, and `TASK_ID` values before resuming requests. The agent no longer accepts `RUN_ID` as execution input. The migration is provided as tooling; it does not run automatically at service startup.
+
+### Task sessions
+
+```bash
+curl "localhost:3000/tasks/$TASK_ID/sessions"
+SESSION_ID='paste-a-session-id-here'
+curl "localhost:3000/tasks/$TASK_ID/sessions/$SESSION_ID"
+```
+
+`GET /tasks/:taskId/sessions` returns HTTP 200 `{ "sessions": [...] }` with summaries containing `id`, `taskId`, `appName`, `userId`, and `lastUpdateTime`. The list includes only sessions linked to that task, is unpaginated with unspecified order, and returns `{ "sessions": [] }` when the task has no sessions. It does not load session state or events.
+
+`GET /tasks/:taskId/sessions/:sessionId` returns HTTP 200 with the full ADK session, including `state`, ordered `events`, and `taskId`. Session IDs are matched exactly (including case), supporting custom ADK IDs. Both routes validate and normalize the task UUID. Invalid parameters return 400; missing tasks return 404 `{ "error": "task_not_found" }`; an absent session or a session belonging to another task returns 404 `{ "error": "session_not_found" }`. Storage failures return 502 `{ "error": "session_error" }`. Existing sessions require a stored `taskId` link to appear, including those linked by the migration above.

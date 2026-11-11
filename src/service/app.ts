@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { RunAgent } from "../agent";
 import type { ListJobs, RunJob } from "./jobs";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
+import type { TaskSessions } from "./sessions";
 
 const MAX_MESSAGE_LENGTH = 10_000;
 const message = z.string().trim().min(1).max(MAX_MESSAGE_LENGTH);
@@ -19,6 +20,10 @@ const taskParamSchema = z.object({
   taskId: z.uuid().transform((id) => id.toLowerCase()),
 });
 
+const sessionParamSchema = taskParamSchema.extend({
+  sessionId: z.string().min(1).max(1500),
+});
+
 export const createApp = (
   run: RunAgent,
   runJob: RunJob,
@@ -26,6 +31,7 @@ export const createApp = (
   createTask: CreateTask,
   listTasks: ListTasks,
   getTask: GetTask,
+  sessions: TaskSessions,
 ) =>
   new Hono()
     .get("/health", (c) => c.json({ status: "ok" }))
@@ -71,6 +77,42 @@ export const createApp = (
         });
       }
     })
+    .get(
+      "/tasks/:taskId/sessions",
+      zValidator("param", taskParamSchema),
+      async (c) => {
+        const { taskId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          return c.json({ sessions: await sessions.list(taskId) });
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "session_error" }, 502),
+          });
+        }
+      },
+    )
+    .get(
+      "/tasks/:taskId/sessions/:sessionId",
+      zValidator("param", sessionParamSchema),
+      async (c) => {
+        const { taskId, sessionId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          const session = await sessions.get(taskId, sessionId);
+          if (!session) return c.json({ error: "session_not_found" }, 404);
+          return c.json(session);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "session_error" }, 502),
+          });
+        }
+      },
+    )
     .post("/chat", zValidator("json", chatSchema), async (c) =>
       c.json({ reply: await run(c.req.valid("json").message) }),
     )
