@@ -5,8 +5,20 @@ services:
       - "127.0.0.1:4588:4588"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - floci-gcp-data:/app/data
     environment:
       FLOCI_GCP_BASE_URL: http://floci-gcp:4588
+      FLOCI_GCP_STORAGE_MODE: hybrid
+
+  floci-ui:
+    image: floci/floci-ui:0.7.0
+    ports:
+      - "127.0.0.1:4500:4500"
+    depends_on:
+      floci-gcp:
+        condition: service_healthy
+    environment:
+      FLOCI_GCP_ENDPOINT: http://floci-gcp:4588
 
   service:
     build:
@@ -18,11 +30,14 @@ services:
       floci-gcp:
         condition: service_healthy
     environment:
-      GCP_PROJECT: ${GCP_PROJECT:-demo}
+      GCP_PROJECT: ${GCP_PROJECT:-floci-local}
       GCP_REGION: ${GCP_REGION:-us-central1}
-      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-demo}
+      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-floci-local}
       FIRESTORE_EMULATOR_HOST: floci-gcp:4588
       CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
       GEMINI_API_KEY:
       AGENT_MODEL:
       GOOGLE_GENAI_USE_VERTEXAI:
+
+volumes:
+  floci-gcp-data:
