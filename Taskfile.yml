@@ -7,6 +7,8 @@ vars:
   JOB: my-agent-job
   IMAGE: agent-jobs-agent:latest
   AGENT_MESSAGE: hello
+  JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
+  JOB_URL: "{{.JOBS_URL}}/{{.JOB | urlquery}}"
   JOB_BODY: >-
     {"template":{"template":{"containers":[{"image":{{.IMAGE | toJson}},"env":[{"name":"AGENT_MESSAGE","value":{{.AGENT_MESSAGE | toJson}}}]}]}}}
 
@@ -19,3 +21,15 @@ tasks:
         "{{.FLOCI}}/v2/projects/{{.PROJECT}}/locations/{{.REGION}}/jobs?jobId={{.JOB}}"
         -H 'content-type: application/json'
         -d {{.JOB_BODY | shellQuote}}
+
+  list-jobs:
+    desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
+    silent: true
+    cmds:
+      - curl -fsS {{.JOBS_URL | shellQuote}}
+
+  remove-job:
+    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=my-job, --yes to skip the prompt)
+    prompt: Remove job {{.JOB}} from Floci?
+    cmds:
+      - curl -fsS -X DELETE {{.JOB_URL | shellQuote}}

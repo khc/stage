@@ -68,7 +68,51 @@ test("POST /jobs/:name/run starts the job and returns 202", async () => {
 
   expect(res.status).toBe(202);
   expect(await res.json()).toEqual({ operation: "op-1" });
-  expect(runJob).toHaveBeenCalledWith("my-job");
+  expect(runJob).toHaveBeenCalledWith("my-job", undefined);
+});
+
+test("POST /jobs/:name/run passes an optional message to the job", async () => {
+  const runJob = mock(async (_job: string, _message?: string) => "op-1");
+  const res = await createApp(async () => "", runJob).request(
+    "/jobs/my-job/run",
+    post({ message: "hi there" }),
+  );
+
+  expect(res.status).toBe(202);
+  expect(runJob).toHaveBeenCalledWith("my-job", "hi there");
+});
+
+test("POST /jobs/:name/run rejects an empty or non-string message", async () => {
+  const runJob = mock(async (_job: string, _message?: string) => "op-1");
+  const app = createApp(async () => "", runJob);
+
+  expect((await app.request("/jobs/my-job/run", post({ message: "" }))).status).toBe(400);
+  expect((await app.request("/jobs/my-job/run", post({ message: 5 }))).status).toBe(400);
+  expect((await app.request("/jobs/my-job/run", post({ message: "   " }))).status).toBe(400);
+  expect(runJob).not.toHaveBeenCalled();
+});
+
+test("POST /jobs/:name/run passes the trimmed message", async () => {
+  const runJob = mock(async (_job: string, _message?: string) => "op-1");
+  const res = await createApp(async () => "", runJob).request(
+    "/jobs/my-job/run",
+    post({ message: "  hi  " }),
+  );
+
+  expect(res.status).toBe(202);
+  expect(runJob).toHaveBeenCalledWith("my-job", "hi");
+});
+
+test("POST /jobs/:name/run and /chat reject an oversized message", async () => {
+  const run = mock(async (_message: string) => "reply");
+  const runJob = mock(async (_job: string, _message?: string) => "op-1");
+  const app = createApp(run, runJob);
+  const tooLong = "x".repeat(10_001);
+
+  expect((await app.request("/jobs/my-job/run", post({ message: tooLong }))).status).toBe(400);
+  expect((await app.request("/chat", post({ message: tooLong }))).status).toBe(400);
+  expect((await app.request("/chat", post({ message: "x".repeat(10_000) }))).status).toBe(200);
+  expect(runJob).not.toHaveBeenCalled();
 });
 
 test("POST /jobs/:name/run rejects an invalid job name", async () => {

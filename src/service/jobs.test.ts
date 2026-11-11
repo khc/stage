@@ -15,6 +15,20 @@ test("runs the job by its full resource name and returns the operation name", as
   });
 });
 
+test("passes the message as a per-execution AGENT_MESSAGE override", async () => {
+  const runJob = mock(async (_request: unknown) => [{ name: "operations/op-1" }]);
+  const run = createRunJob({ jobPath, runJob } as never, config);
+
+  await run("my-job", "hi there");
+
+  expect(runJob).toHaveBeenCalledWith({
+    name: "projects/p/locations/l/jobs/my-job",
+    overrides: {
+      containerOverrides: [{ env: [{ name: "AGENT_MESSAGE", value: "hi there" }] }],
+    },
+  });
+});
+
 test("propagates a runJob failure", async () => {
   const runJob = mock(async () => {
     throw new Error("boom");
