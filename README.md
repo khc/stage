@@ -42,3 +42,22 @@ docker compose down            # stop
 - `floci-gcp` mounts the Docker socket (`/var/run/docker.sock`), which gives the container control of the host's Docker daemon. The port is bound to `127.0.0.1` only.
 
 This project was created using `bun init` in bun v1.4.4. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+
+## Run contracts
+
+`POST /jobs/runs` saves a run contract without starting a job or invoking the agent:
+
+```bash
+curl -X POST localhost:3000/jobs/runs -H 'content-type: application/json' -d '{"prompt":"hello"}'
+```
+
+Returns HTTP 201 `{ "runId": "<generated UUID>", "prompt": "hello" }` after saving the same fields at Firestore `runs/{runId}`. Prompts are trimmed and must contain 1–10,000 characters after trimming; invalid or missing JSON input returns 400. Additional body properties are ignored.
+
+```bash
+curl localhost:3000/jobs/runs
+curl localhost:3000/jobs/runs/<runId>
+```
+
+`GET /jobs/runs` returns HTTP 200 `{ "runs": [{ "runId": "<UUID>", "prompt": "hello" }] }`, or `{ "runs": [] }`. It returns all contracts without pagination or a guaranteed order.
+
+`GET /jobs/runs/:runId` returns HTTP 200 `{ "runId": "<UUID>", "prompt": "hello" }`. Invalid UUIDs return 400; UUIDs are normalized to lowercase for lookup. Missing runs return 404 `{ "error": "run_not_found" }`. All three endpoints return 502 `{ "error": "run_error" }` on Firestore failure. They use the existing Firestore environment configuration (`GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST` locally, or Application Default Credentials when deployed).
