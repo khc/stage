@@ -27,6 +27,11 @@ tasks:
     cmds:
       - bun scripts/cloud-run-job.ts update
 
+  rebuild:
+    desc: Rebuild the agent image (override IMAGE); run register-agents afterwards if the agents changed
+    cmds:
+      - docker build -f Dockerfile.agent -t {{.IMAGE | shellQuote}} .
+
   register-agents:
     desc: Record the agents inside the job image in the registry (needs the service running; override JOB, SERVICE_URL)
     cmds:

@@ -27,6 +27,7 @@ test("the haiku agent is registered by its name and described", () => {
   expect(haikuAgent.tools ?? []).toHaveLength(0);
   expect(String(haikuAgent.instruction)).toContain("5, 7 and 5");
   expect(haikuAgent.outputSchema).toBeDefined();
+  expect(String(haikuAgent.instruction)).toContain("Markdown");
   expect(describeAgents().map((a) => [a.name, a.description])).toEqual([
     ["assistant", "A simple assistant that can tell the current time."],
     ["haiku", "Writes a haiku about a topic."],
@@ -46,6 +47,9 @@ test("free-text agents publish string schemas and the haiku agent object schemas
     type: "object",
     required: ["poem"],
     properties: { poem: { type: "string" } },
+  });
+  expect(info.haiku?.outputSchema?.properties).toMatchObject({
+    poem: { description: expect.stringContaining("Markdown") },
   });
   expect(info.haiku?.inputSchema).not.toHaveProperty("$schema");
 });
