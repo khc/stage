@@ -41,16 +41,20 @@ import {
   api,
   formatTime,
   shortJobName,
+  buildPrompt,
   inputExample,
   jobDetails,
   jobEnvNames,
   lastOutput,
   parseJsonObject,
   promptError,
+  schemaFields,
   schemaSummary,
   streamMessages,
   withEvent,
   type AgentInfo,
+  type FormField,
+  type FormValues,
   type Job,
   type JsonSchema,
   type Session,
@@ -1090,6 +1094,87 @@ function JobInspector({
   );
 }
 
+// One control for a field of a structured agent input.
+function SchemaField({
+  field,
+  value,
+  onChange,
+}: {
+  field: FormField;
+  value: string | boolean | undefined;
+  onChange: (value: string | boolean) => void;
+}) {
+  const id = `field-${field.key}`;
+  const text = typeof value === "string" ? value : "";
+  const control =
+    field.kind === "boolean" ? (
+      <label className="schema-check" htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={value === true}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        {field.label}
+      </label>
+    ) : field.kind === "enum" ? (
+      <select
+        id={id}
+        className="form-input"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">{field.required ? "Choose…" : "Not set"}</option>
+        {field.options?.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    ) : field.kind === "json" ? (
+      <textarea
+        id={id}
+        className="form-input"
+        rows={3}
+        placeholder="JSON value"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    ) : field.kind === "number" ? (
+      <input
+        id={id}
+        className="form-input"
+        type="number"
+        inputMode="decimal"
+        step={field.integer ? 1 : "any"}
+        min={field.min}
+        max={field.max}
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    ) : (
+      <input
+        id={id}
+        className="form-input"
+        autoComplete="off"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  return (
+    <div className="schema-field">
+      {field.kind !== "boolean" && (
+        <label className="form-label" htmlFor={id}>
+          {field.label}
+          <span>{field.required ? "Required" : "Optional"}</span>
+        </label>
+      )}
+      {control}
+      {field.description && <p className="field-note">{field.description}</p>}
+    </div>
+  );
+}
+
 function NewTask({
   dialogRef,
   jobs,
@@ -1104,6 +1189,7 @@ function NewTask({
   const [prompt, setPrompt] = useState("");
   const [jobName, setJobName] = useState("");
   const [agentName, setAgentName] = useState("");
+  const [values, setValues] = useState<FormValues>({});
   const registered = useQuery({
     queryKey: ["agents", jobName],
     queryFn: () => api.agents(jobName),
@@ -1112,7 +1198,21 @@ function NewTask({
   });
   const jobAgents = registered.data?.agents ?? [];
   const selectedAgent = jobAgents.find((agent) => agent.name === agentName);
-  const promptProblem = promptError(selectedAgent?.inputSchema, prompt);
+  // A structured agent gets a form; its values are sent as the JSON prompt.
+  const fields = schemaFields(selectedAgent?.inputSchema);
+  const built = fields ? buildPrompt(fields, values) : undefined;
+  const effectivePrompt = built
+    ? "prompt" in built
+      ? built.prompt
+      : ""
+    : prompt;
+  const touched = Object.values(values).some((v) => v !== "" && v !== false);
+  const promptProblem = built
+    ? "error" in built && touched
+      ? built.error
+      : undefined
+    : promptError(selectedAgent?.inputSchema, prompt);
+  const invalid = built ? "error" in built : !!promptProblem;
   const jobOptions = [
     ...new Set(
       [...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(
@@ -1124,6 +1224,7 @@ function NewTask({
     mutationFn: api.create,
     onSuccess: (task) => {
       setPrompt("");
+      setValues({});
       setJobName("");
       setAgentName("");
       onCreated(task);
@@ -1136,7 +1237,7 @@ function NewTask({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({
-      prompt: prompt.trim(),
+      prompt: effectivePrompt.trim(),
       jobName,
       agentName: agentName.trim() || undefined,
     });
@@ -1177,6 +1278,7 @@ function NewTask({
           onChange={(e) => {
             setJobName(e.target.value);
             setAgentName("");
+            setValues({});
           }}
           required
         >
@@ -1198,7 +1300,10 @@ function NewTask({
           className="form-input"
           value={agentName}
           disabled={!jobName}
-          onChange={(e) => setAgentName(e.target.value)}
+          onChange={(e) => {
+            setAgentName(e.target.value);
+            setValues({});
+          }}
         >
           <option value="">Default agent</option>
           {jobAgents.map((agent) => (
@@ -1218,25 +1323,43 @@ function NewTask({
                 : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
         </p>
         {selectedAgent && <AgentContract agent={selectedAgent} />}
-        <label className="form-label prompt-label" htmlFor="task-prompt">
-          Prompt<span>Required</span>
-        </label>
-        <textarea
-          id="task-prompt"
-          className="form-input prompt-input"
-          placeholder={
-            inputExample(selectedAgent?.inputSchema) ??
-            "What would you like your agent to work on?"
-          }
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          required
-          maxLength={10_000}
-          rows={7}
-        />
-        <div className="prompt-counter">
-          {prompt.length.toLocaleString()} / 10,000
-        </div>
+        {fields ? (
+          <div className="schema-form">
+            <p className="section-overline">INPUT</p>
+            {fields.map((field) => (
+              <SchemaField
+                key={field.key}
+                field={field}
+                value={values[field.key]}
+                onChange={(value) =>
+                  setValues((current) => ({ ...current, [field.key]: value }))
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <>
+            <label className="form-label prompt-label" htmlFor="task-prompt">
+              Prompt<span>Required</span>
+            </label>
+            <textarea
+              id="task-prompt"
+              className="form-input prompt-input"
+              placeholder={
+                inputExample(selectedAgent?.inputSchema) ??
+                "What would you like your agent to work on?"
+              }
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              required
+              maxLength={10_000}
+              rows={7}
+            />
+            <div className="prompt-counter">
+              {prompt.length.toLocaleString()} / 10,000
+            </div>
+          </>
+        )}
         {promptProblem && (
           <p className="composer-hint composer-error" role="alert">
             {promptProblem}
@@ -1259,9 +1382,9 @@ function NewTask({
           <Button
             type="submit"
             disabled={
-              !prompt.trim() ||
+              !effectivePrompt.trim() ||
+              invalid ||
               !jobName ||
-              !!promptProblem ||
               mutation.isPending
             }
           >

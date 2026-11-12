@@ -6,8 +6,10 @@ import {
   jobDetails,
   jobEnvNames,
   lastOutput,
+  buildPrompt,
   parseJsonObject,
   promptError,
+  schemaFields,
   schemaSummary,
   streamMessages,
   withEvent,
@@ -316,4 +318,67 @@ test("jobDetails summarises a Cloud Run job and jobEnvNames lists names only", (
     ["Parallelism", "Default"],
     ["Service account", "Default"],
   ]);
+});
+
+test("schemaFields maps a structured schema to form fields", () => {
+  const fields = schemaFields({
+    type: "object",
+    required: ["topic"],
+    properties: {
+      topic: { type: "string", description: "The subject." },
+      lines: { type: "integer", minimum: 1, maximum: 5 },
+      loud: { type: "boolean" },
+      tone: { type: "string", enum: ["calm", "wild"] },
+      extra: { type: "array", items: { type: "string" } },
+    },
+  });
+  expect(fields?.map((f) => [f.key, f.kind, f.required])).toEqual([
+    ["topic", "string", true],
+    ["lines", "number", false],
+    ["loud", "boolean", false],
+    ["tone", "enum", false],
+    ["extra", "json", false],
+  ]);
+  expect(fields?.[0]?.description).toBe("The subject.");
+  expect(schemaFields({ type: "string" })).toBeUndefined();
+  expect(schemaFields({ type: "object", properties: {} })).toBeUndefined();
+  expect(schemaFields(undefined)).toBeUndefined();
+});
+
+test("buildPrompt turns values into JSON and reports the first problem", () => {
+  const fields = schemaFields({
+    type: "object",
+    required: ["topic"],
+    properties: {
+      topic: { type: "string" },
+      lines: { type: "integer", minimum: 1, maximum: 5 },
+      loud: { type: "boolean" },
+      extra: { type: "array" },
+    },
+  })!;
+  expect(
+    buildPrompt(fields, {
+      topic: "rain",
+      lines: "3",
+      loud: true,
+      extra: "[1,2]",
+    }),
+  ).toEqual({
+    prompt: '{"topic":"rain","lines":3,"loud":true,"extra":[1,2]}',
+  });
+  expect(buildPrompt(fields, { topic: "rain" })).toEqual({
+    prompt: '{"topic":"rain","loud":false}',
+  });
+  expect(buildPrompt(fields, { topic: " " })).toEqual({
+    error: "topic is required.",
+  });
+  expect(buildPrompt(fields, { topic: "a", lines: "2.5" })).toEqual({
+    error: "lines must be a whole number.",
+  });
+  expect(buildPrompt(fields, { topic: "a", lines: "9" })).toEqual({
+    error: "lines must be at most 5.",
+  });
+  expect(buildPrompt(fields, { topic: "a", extra: "{" })).toEqual({
+    error: "extra must be valid JSON.",
+  });
 });

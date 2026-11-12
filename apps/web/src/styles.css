@@ -2516,3 +2516,24 @@ select.form-input:disabled {
 :root[data-theme="light"] .job-card-title:hover {
   color: #7c3aed;
 }
+
+.schema-form {
+  margin-bottom: 8px;
+}
+.schema-field {
+  margin-bottom: 4px;
+}
+.schema-field .field-note {
+  margin: 6px 0 14px;
+}
+.schema-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.schema-check input {
+  accent-color: #8b5cf6;
+}

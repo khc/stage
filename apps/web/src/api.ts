@@ -64,6 +64,9 @@ export type JsonSchema = {
   required?: string[];
   items?: JsonSchema;
   enum?: unknown[];
+  title?: string;
+  minimum?: number;
+  maximum?: number;
 };
 export type AgentInfo = {
   name: string;
@@ -309,6 +312,94 @@ export const jobDetails = (job: Job): [string, string][] => {
     ["Latest execution", job.latestCreatedExecution?.name || undefined],
   ];
   return rows.filter((row): row is [string, string] => !!row[1]);
+};
+export type FormField = {
+  key: string;
+  label: string;
+  description?: string;
+  required: boolean;
+  kind: "string" | "number" | "boolean" | "enum" | "json";
+  options?: string[];
+  integer?: boolean;
+  min?: number;
+  max?: number;
+};
+export type FormValues = Record<string, string | boolean>;
+
+// Fields for a structured input schema: one per top-level property. Plain
+// strings, numbers, booleans and enums get their own control; anything
+// nested falls back to a JSON field. Undefined when the schema is not an
+// object with properties (those agents take a free-text prompt).
+export const schemaFields = (schema?: JsonSchema): FormField[] | undefined => {
+  if (!isStructured(schema) || !schema?.properties) return undefined;
+  const fields = Object.entries(schema.properties).map(
+    ([key, value]): FormField => {
+      const type = [value.type].flat()[0];
+      const base = {
+        key,
+        label: value.title ?? key,
+        description: value.description,
+        required: !!schema.required?.includes(key),
+      };
+      if (value.enum && value.enum.every((o) => typeof o === "string"))
+        return { ...base, kind: "enum", options: value.enum as string[] };
+      if (type === "string") return { ...base, kind: "string" };
+      if (type === "number" || type === "integer")
+        return {
+          ...base,
+          kind: "number",
+          integer: type === "integer",
+          min: value.minimum,
+          max: value.maximum,
+        };
+      if (type === "boolean") return { ...base, kind: "boolean" };
+      return { ...base, kind: "json" };
+    },
+  );
+  return fields.length ? fields : undefined;
+};
+// The JSON message for the field values, or the first problem with them.
+export const buildPrompt = (
+  fields: FormField[],
+  values: FormValues,
+): { prompt: string } | { error: string } => {
+  const result: Record<string, unknown> = {};
+  for (const field of fields) {
+    const raw = values[field.key];
+    if (field.kind === "boolean") {
+      result[field.key] = raw === true;
+      continue;
+    }
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) {
+      if (field.required) return { error: `${field.label} is required.` };
+      continue;
+    }
+    if (field.kind === "number") {
+      const number = Number(text);
+      if (
+        !Number.isFinite(number) ||
+        (field.integer && !Number.isInteger(number))
+      )
+        return {
+          error: `${field.label} must be ${field.integer ? "a whole number" : "a number"}.`,
+        };
+      if (field.min !== undefined && number < field.min)
+        return { error: `${field.label} must be at least ${field.min}.` };
+      if (field.max !== undefined && number > field.max)
+        return { error: `${field.label} must be at most ${field.max}.` };
+      result[field.key] = number;
+    } else if (field.kind === "json") {
+      try {
+        result[field.key] = JSON.parse(text);
+      } catch {
+        return { error: `${field.label} must be valid JSON.` };
+      }
+    } else {
+      result[field.key] = field.kind === "string" ? raw : text;
+    }
+  }
+  return { prompt: JSON.stringify(result) };
 };
 export const shortJobName = (job: Job) =>
   job.name?.split("/").at(-1) ?? "Unnamed job";
