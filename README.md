@@ -27,7 +27,7 @@ To type check:
 bun check
 ```
 
-Run `bun fmt` to format the code.
+Run `bun run format` (oxfmt, configured in `.oxfmtrc.json`) to format the code, `bun run format:check` to only check it, and `bun run lint` / `bun run lint:fix` (oxlint, `.oxlintrc.json`) to lint.
 
 ## Local environment
 

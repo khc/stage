@@ -12,13 +12,19 @@
     "dev:service": "bun --filter @agent-jobs/service dev",
     "dev:web": "bun --filter @agent-jobs/web dev",
     "test": "bun test",
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "devDependencies": {
     "@google-cloud/firestore": "^9.4.1",
     "@google-cloud/run": "^4.2.0",
     "@types/bun": "latest",
     "bun-plugin-tailwind": "^0.1.2",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
     "tailwindcss": "^4.3.5",
     "zod": "^4.6.7"
   },
