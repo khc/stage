@@ -42,13 +42,17 @@ import {
   formatTime,
   shortJobName,
   inputExample,
+  jobDetails,
+  jobEnvNames,
   lastOutput,
   parseJsonObject,
   promptError,
   schemaSummary,
   streamMessages,
   withEvent,
+  type AgentInfo,
   type Job,
+  type JsonSchema,
   type Session,
   type SessionSummary,
   type SessionEvent,
@@ -165,6 +169,7 @@ export function Dashboard() {
   );
   const [notice, setNotice] = useState<Notice | null>(null);
   const [newJob, setNewJob] = useState("");
+  const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const createDialog = useRef<HTMLDialogElement>(null);
   const tasksQuery = useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
   const jobsQuery = useQuery({ queryKey: ["jobs"], queryFn: api.jobs });
@@ -244,6 +249,9 @@ export function Dashboard() {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
+  const openJob = selectedJob
+    ? jobs.find((job) => shortJobName(job) === selectedJob)
+    : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["tasks"] });
@@ -664,6 +672,7 @@ export function Dashboard() {
                       key={job.name ?? i}
                       job={job}
                       onCreate={() => openCreate(shortJobName(job))}
+                      onOpen={() => setSelectedJob(shortJobName(job))}
                     />
                   ))}
                 </div>
@@ -707,7 +716,23 @@ export function Dashboard() {
           });
         }}
       />
-      {selected && (
+      {openJob && (
+        <JobInspector
+          key={selectedJob}
+          job={openJob}
+          tasks={tasks}
+          onClose={() => setSelectedJob(null)}
+          onCreate={() => {
+            setSelectedJob(null);
+            openCreate(shortJobName(openJob));
+          }}
+          onOpenTask={(taskId) => {
+            setSelectedJob(null);
+            setSelected(taskId);
+          }}
+        />
+      )}
+      {selected && !openJob && (
         <TaskInspector
           taskId={selected}
           onClose={() => setSelected(null)}
@@ -743,32 +768,115 @@ export function Dashboard() {
 
 const REGISTRATION_POLL_MS = 30_000;
 
-function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
-  const location = job.name?.split("/locations/")[1]?.split("/")[0];
-  const name = shortJobName(job);
-  // Registration is asynchronous, so poll the registry for a while after submitting.
+// Registration is asynchronous, so poll the registry for a while after submitting.
+function useAgentRegistration(jobName: string, enabled = true) {
   const [pollUntil, setPollUntil] = useState(0);
-  const agents = useQuery({
-    queryKey: ["agents", name],
-    queryFn: () => api.agents(name),
-    enabled: !!job.name,
+  const query = useQuery({
+    queryKey: ["agents", jobName],
+    queryFn: () => api.agents(jobName),
+    enabled,
     retry: false,
     refetchInterval: () => (Date.now() < pollUntil ? 3000 : false),
   });
   const register = useMutation({
-    mutationFn: () => api.registerAgents(name),
+    mutationFn: () => api.registerAgents(jobName),
     onSuccess: () => setPollUntil(Date.now() + REGISTRATION_POLL_MS),
   });
-  const registered = agents.data?.agents ?? [];
+  return { agents: query.data?.agents ?? [], query, register };
+}
+
+function RegisterAgentsButton({
+  register,
+  disabled,
+}: {
+  register: ReturnType<typeof useAgentRegistration>["register"];
+  disabled?: boolean;
+}) {
+  return (
+    <>
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={disabled || register.isPending}
+        onClick={() => register.mutate()}
+      >
+        {register.isPending ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <RefreshCw size={14} />
+        )}
+        Register agents
+      </Button>
+      {register.isError ? (
+        <p className="job-register-note job-register-error" role="alert">
+          {register.error.message}
+        </p>
+      ) : register.isSuccess ? (
+        <p className="job-register-note" role="status">
+          Registration submitted. Agents appear here when the job finishes.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function AgentContract({
+  agent,
+  className = "",
+}: {
+  agent: AgentInfo;
+  className?: string;
+}) {
+  const rows: [string, JsonSchema | undefined][] = [
+    ["Input", agent.inputSchema],
+    ["Output", agent.outputSchema],
+  ];
+  return (
+    <dl className={`agent-contract ${className}`}>
+      {rows.map(([label, schema]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>
+            {schemaSummary(schema)}
+            {schema?.description && ` — ${schema.description}`}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function JobCard({
+  job,
+  onCreate,
+  onOpen,
+}: {
+  job: Job;
+  onCreate: () => void;
+  onOpen: () => void;
+}) {
+  const location = job.name?.split("/locations/")[1]?.split("/")[0];
+  const name = shortJobName(job);
+  const { agents: registered, register } = useAgentRegistration(
+    name,
+    !!job.name,
+  );
   return (
     <article className="job-card">
       <div className="job-card-top">
         <span className="job-card-icon">
           <Server size={21} />
         </span>
-        <span className="badge neutral">Configured</span>
+        <Button variant="ghost" size="sm" onClick={onOpen}>
+          Details
+          <ChevronRight size={13} />
+        </Button>
       </div>
-      <h3>{name}</h3>
+      <h3>
+        <button className="job-card-title" onClick={onOpen}>
+          {name}
+        </button>
+      </h3>
       <p>
         {job.description || "An agent worker available for task execution."}
       </p>
@@ -804,33 +912,181 @@ function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
         <code>{job.name ?? "Resource name unavailable"}</code>
         {job.name && <CopyButton value={job.name} />}
       </div>
-      <Button
-        variant="outline"
-        className="w-full"
-        disabled={!job.name || register.isPending}
-        onClick={() => register.mutate()}
-      >
-        {register.isPending ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <RefreshCw size={14} />
-        )}
-        Register agents
-      </Button>
-      {register.isError ? (
-        <p className="job-register-note job-register-error" role="alert">
-          {register.error.message}
-        </p>
-      ) : register.isSuccess ? (
-        <p className="job-register-note" role="status">
-          Registration submitted. Agents appear here when the job finishes.
-        </p>
-      ) : null}
+      <RegisterAgentsButton register={register} disabled={!job.name} />
       <Button variant="outline" className="w-full" onClick={onCreate}>
         <Plus size={14} />
         Create task for this job
       </Button>
     </article>
+  );
+}
+
+// Pane for one Cloud Run job: its configuration, registered agents and tasks.
+function JobInspector({
+  job,
+  tasks,
+  onClose,
+  onCreate,
+  onOpenTask,
+}: {
+  job: Job;
+  tasks: Task[];
+  onClose: () => void;
+  onCreate: () => void;
+  onOpenTask: (taskId: string) => void;
+}) {
+  const [tab, setTab] = useState<"overview" | "agents" | "tasks">("overview");
+  const name = shortJobName(job);
+  const location = job.name?.split("/locations/")[1]?.split("/")[0];
+  const { agents, query, register } = useAgentRegistration(name, !!job.name);
+  const jobTasks = tasks.filter((task) => task.jobName === name);
+  const envNames = jobEnvNames(job);
+  const status = jobDetails(job).find(([label]) => label === "Status")?.[1];
+  return (
+    <InspectorShell eyebrow="JOB DETAILS" label="job details" onClose={onClose}>
+      <div className="inspector-heading">
+        <span className="task-detail-icon">
+          <Server size={24} />
+        </span>
+        <h2 id="inspector-title">{name}</h2>
+        <div className="task-id">
+          <code>{job.name ?? "Resource name unavailable"}</code>
+          {job.name && <CopyButton value={job.name} />}
+        </div>
+        <div className="task-detail-meta">
+          <span className="job-chip">
+            <Box size={12} />
+            {location ?? "Cloud Run"}
+          </span>
+          {status && (
+            <span
+              className={`badge ${status === "Ready" ? "neutral" : "warning"}`}
+            >
+              <span className="mini-dot" />
+              {status}
+            </span>
+          )}
+          <Button size="sm" onClick={onCreate}>
+            <Plus size={13} />
+            Create task
+          </Button>
+        </div>
+      </div>
+      <div
+        className="inspector-tabs"
+        role="tablist"
+        aria-label="Job detail sections"
+      >
+        <button
+          role="tab"
+          aria-selected={tab === "overview"}
+          onClick={() => setTab("overview")}
+        >
+          <Database size={15} />
+          Overview
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "agents"}
+          onClick={() => setTab("agents")}
+        >
+          <Workflow size={15} />
+          Agents<span>{agents.length}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "tasks"}
+          onClick={() => setTab("tasks")}
+        >
+          <FileText size={15} />
+          Tasks<span>{jobTasks.length}</span>
+        </button>
+      </div>
+      <div className="inspector-body" role="tabpanel">
+        {tab === "overview" ? (
+          <>
+            {job.description && (
+              <p className="job-description">{job.description}</p>
+            )}
+            <dl className="job-details">
+              {jobDetails(job).map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="section-overline">ENVIRONMENT VARIABLES</p>
+            {envNames.length ? (
+              <div className="job-env">
+                {envNames.map((envName) => (
+                  <code key={envName}>{envName}</code>
+                ))}
+              </div>
+            ) : (
+              <small className="job-env-note">None set.</small>
+            )}
+            <small className="job-env-note">Values are not shown.</small>
+          </>
+        ) : tab === "agents" ? (
+          <>
+            <div className="sessions-heading">
+              <div>
+                <p className="section-overline">REGISTERED AGENTS</p>
+                <p>The agents inside this job&apos;s container.</p>
+              </div>
+            </div>
+            {query.isError ? (
+              <ErrorBox
+                error={query.error}
+                retry={() => void query.refetch()}
+              />
+            ) : query.isPending ? (
+              <Loading label="Loading agents…" />
+            ) : !agents.length ? (
+              <Empty icon={<Workflow size={25} />} title="No agents registered">
+                Register this job to record the agents in its container.
+              </Empty>
+            ) : (
+              agents.map((agent) => (
+                <article key={agent.name} className="agent-card">
+                  <h3>
+                    <Workflow size={14} />
+                    {agent.name}
+                  </h3>
+                  {agent.description && <p>{agent.description}</p>}
+                  <AgentContract agent={agent} className="flush" />
+                </article>
+              ))
+            )}
+            <RegisterAgentsButton register={register} disabled={!job.name} />
+          </>
+        ) : !jobTasks.length ? (
+          <Empty icon={<FileText size={25} />} title="No tasks yet">
+            Create a task for this job to see it here.
+          </Empty>
+        ) : (
+          jobTasks.map((task) => (
+            <button
+              key={task.taskId}
+              className="session-list-item"
+              onClick={() => onOpenTask(task.taskId)}
+            >
+              <span className="session-icon">
+                <FileText size={17} />
+              </span>
+              <span>
+                <strong className="task-row-prompt">{task.prompt}</strong>
+                <small>
+                  {task.agentName ?? "Default agent"} · …{task.taskId.slice(-6)}
+                </small>
+              </span>
+              <ChevronRight size={16} />
+            </button>
+          ))
+        )}
+      </div>
+    </InspectorShell>
   );
 }
 
@@ -961,26 +1217,7 @@ function NewTask({
                 ? "Agents registered for this job."
                 : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
         </p>
-        {selectedAgent && (
-          <dl className="agent-contract">
-            <div>
-              <dt>Input</dt>
-              <dd>
-                {schemaSummary(selectedAgent.inputSchema)}
-                {selectedAgent.inputSchema?.description &&
-                  ` — ${selectedAgent.inputSchema.description}`}
-              </dd>
-            </div>
-            <div>
-              <dt>Output</dt>
-              <dd>
-                {schemaSummary(selectedAgent.outputSchema)}
-                {selectedAgent.outputSchema?.description &&
-                  ` — ${selectedAgent.outputSchema.description}`}
-              </dd>
-            </div>
-          </dl>
-        )}
+        {selectedAgent && <AgentContract agent={selectedAgent} />}
         <label className="form-label prompt-label" htmlFor="task-prompt">
           Prompt<span>Required</span>
         </label>
@@ -1370,6 +1607,58 @@ function LastOutput({
   );
 }
 
+function InspectorShell({
+  eyebrow,
+  label,
+  onClose,
+  children,
+}: {
+  eyebrow: string;
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const { width, dragging, handle } = useResizableWidth();
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="inspector"
+      aria-labelledby="inspector-title"
+      onClose={onClose}
+      style={
+        width ? ({ "--inspector-w": `${width}px` } as React.CSSProperties) : {}
+      }
+    >
+      <div className="inspector-resize">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${label}`}
+          tabIndex={0}
+          data-dragging={dragging}
+          {...handle}
+        />
+      </div>
+      <div className="inspector-top">
+        <span className="eyebrow">{eyebrow}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Close ${label}`}
+          onClick={() => ref.current?.close()}
+        >
+          <X size={19} />
+        </Button>
+      </div>
+      {children}
+    </dialog>
+  );
+}
+
 function TaskInspector({
   taskId,
   onClose,
@@ -1385,8 +1674,6 @@ function TaskInspector({
   notice: Notice | null;
   onDismissNotice: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const { width, dragging, handle } = useResizableWidth();
   const [tab, setTab] = useState<"sessions" | "output" | "prompt">("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const task = useQuery({
@@ -1406,9 +1693,6 @@ function TaskInspector({
   });
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
   useEffect(() => {
-    ref.current?.showModal();
-  }, []);
-  useEffect(() => {
     setSessionId(null);
     setTab("sessions");
   }, [taskId]);
@@ -1416,36 +1700,11 @@ function TaskInspector({
     (a, b) => b.lastUpdateTime - a.lastUpdateTime,
   );
   return (
-    <dialog
-      ref={ref}
-      className="inspector"
-      aria-labelledby="inspector-title"
+    <InspectorShell
+      eyebrow="TASK DETAILS"
+      label="task details"
       onClose={onClose}
-      style={
-        width ? ({ "--inspector-w": `${width}px` } as React.CSSProperties) : {}
-      }
     >
-      <div className="inspector-resize">
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize task details"
-          tabIndex={0}
-          data-dragging={dragging}
-          {...handle}
-        />
-      </div>
-      <div className="inspector-top">
-        <span className="eyebrow">TASK DETAILS</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close task details"
-          onClick={() => ref.current?.close()}
-        >
-          <X size={19} />
-        </Button>
-      </div>
       {task.isPending ? (
         <Loading label="Loading task…" />
       ) : task.isError ? (
@@ -1689,7 +1948,7 @@ function TaskInspector({
           </div>
         </>
       )}
-    </dialog>
+    </InspectorShell>
   );
 }
 

@@ -4,14 +4,35 @@ export type Task = {
   jobName?: string;
   agentName?: string;
 };
+// Cloud Run timestamps and durations arrive as { seconds, nanos }.
+export type Timestamp = {
+  seconds?: string | number | null;
+  nanos?: number | null;
+} | null;
 export type Job = {
   name?: string;
   description?: string;
   uid?: string;
-  createTime?: string;
+  createTime?: Timestamp;
+  updateTime?: Timestamp;
+  executionCount?: number;
+  terminalCondition?: { state?: string; message?: string } | null;
+  latestCreatedExecution?: { name?: string; createTime?: Timestamp } | null;
   template?: {
     taskCount?: number;
-    template?: { containers?: { image?: string }[] };
+    parallelism?: number;
+    template?: {
+      // Variable values are deliberately not typed: the UI shows names only.
+      containers?: {
+        image?: string;
+        env?: { name?: string }[];
+        resources?: { limits?: Record<string, string> } | null;
+      }[];
+      maxRetries?: number;
+      timeout?: Timestamp;
+      serviceAccount?: string;
+      executionEnvironment?: string;
+    };
   };
 };
 export type SessionSummary = {
@@ -236,6 +257,58 @@ export const promptError = (schema: JsonSchema | undefined, prompt: string) => {
   return missing.length
     ? `Missing required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`
     : undefined;
+};
+const timestampMs = (t?: Timestamp) =>
+  t?.seconds == null
+    ? undefined
+    : Number(t.seconds) * 1000 + Math.floor((t.nanos ?? 0) / 1e6);
+const formatDuration = (t?: Timestamp) => {
+  const seconds = t?.seconds == null ? undefined : Number(t.seconds);
+  if (seconds == null) return undefined;
+  if (seconds % 3600 === 0 && seconds) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0 && seconds) return `${seconds / 60}m`;
+  return `${seconds}s`;
+};
+const when = (t?: Timestamp) => {
+  const ms = timestampMs(t);
+  return ms === undefined ? undefined : formatTime(ms);
+};
+const conditionLabel = (state?: string) =>
+  state === "CONDITION_SUCCEEDED"
+    ? "Ready"
+    : state?.replace("CONDITION_", "").toLowerCase();
+export const jobEnvNames = (job: Job) =>
+  (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) =>
+    e.name ? [e.name] : [],
+  );
+// Label/value rows for a job's detail pane; unknown fields are left out.
+export const jobDetails = (job: Job): [string, string][] => {
+  const task = job.template?.template;
+  const container = task?.containers?.[0];
+  const limits = container?.resources?.limits;
+  const rows: [string, string | undefined][] = [
+    ["Status", conditionLabel(job.terminalCondition?.state)],
+    ["Image", container?.image],
+    ["Tasks per execution", job.template?.taskCount?.toString()],
+    [
+      "Parallelism",
+      job.template?.parallelism ? String(job.template.parallelism) : "Default",
+    ],
+    ["Max retries", task?.maxRetries?.toString()],
+    ["Timeout", formatDuration(task?.timeout)],
+    ["CPU", limits?.cpu],
+    ["Memory", limits?.memory],
+    ["Service account", task?.serviceAccount || "Default"],
+    [
+      "Environment",
+      task?.executionEnvironment?.replace("EXECUTION_ENVIRONMENT_", ""),
+    ],
+    ["Created", when(job.createTime)],
+    ["Updated", when(job.updateTime)],
+    ["Executions", job.executionCount?.toString()],
+    ["Latest execution", job.latestCreatedExecution?.name || undefined],
+  ];
+  return rows.filter((row): row is [string, string] => !!row[1]);
 };
 export const shortJobName = (job: Job) =>
   job.name?.split("/").at(-1) ?? "Unnamed job";

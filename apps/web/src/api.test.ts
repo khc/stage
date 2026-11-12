@@ -3,6 +3,8 @@ import {
   api,
   ApiError,
   inputExample,
+  jobDetails,
+  jobEnvNames,
   lastOutput,
   parseJsonObject,
   promptError,
@@ -265,4 +267,53 @@ test("structured input helpers build an example and validate the prompt", () => 
   expect(promptError(schema, "  ")).toBeUndefined();
   expect(parseJsonObject('{"a":1}')).toEqual({ a: 1 });
   expect(parseJsonObject("nope")).toBeUndefined();
+});
+
+test("jobDetails summarises a Cloud Run job and jobEnvNames lists names only", () => {
+  const job = {
+    name: "projects/p/locations/l/jobs/my-job",
+    createTime: { seconds: "1794425567", nanos: 922767631 },
+    executionCount: 36,
+    terminalCondition: { state: "CONDITION_SUCCEEDED" },
+    latestCreatedExecution: { name: "my-job-abcde" },
+    template: {
+      taskCount: 1,
+      parallelism: 0,
+      template: {
+        maxRetries: 3,
+        timeout: { seconds: "600", nanos: 0 },
+        serviceAccount: "",
+        executionEnvironment: "EXECUTION_ENVIRONMENT_GEN2",
+        containers: [
+          {
+            image: "agent:latest",
+            resources: { limits: { cpu: "1000m", memory: "512Mi" } },
+            env: [{ name: "A" }, { name: "B" }, {}],
+          },
+        ],
+      },
+    },
+  };
+  const rows = Object.fromEntries(jobDetails(job));
+  expect(rows).toMatchObject({
+    Status: "Ready",
+    Image: "agent:latest",
+    "Tasks per execution": "1",
+    Parallelism: "Default",
+    "Max retries": "3",
+    Timeout: "10m",
+    CPU: "1000m",
+    Memory: "512Mi",
+    "Service account": "Default",
+    Environment: "GEN2",
+    Executions: "36",
+    "Latest execution": "my-job-abcde",
+  });
+  expect(rows.Created).toBeString();
+  expect(rows).not.toHaveProperty("Updated");
+  expect(jobEnvNames(job)).toEqual(["A", "B"]);
+  expect(jobDetails({})).toEqual([
+    ["Parallelism", "Default"],
+    ["Service account", "Default"],
+  ]);
 });

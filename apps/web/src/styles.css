@@ -2401,3 +2401,118 @@ select.form-input:disabled {
 .output-fields dd {
   margin: 0 0 12px;
 }
+
+.job-card-title {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.job-card-title:hover {
+  color: #b49bdb;
+}
+.job-card-top {
+  justify-content: space-between;
+}
+.job-description {
+  margin: 0 0 18px;
+  color: #98a3bc;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.job-details {
+  display: grid;
+  gap: 1px;
+  margin: 0 0 24px;
+  overflow: hidden;
+  background: #2d3549;
+  border: 1px solid #2d3549;
+  border-radius: 8px;
+}
+.job-details > div {
+  display: flex;
+  gap: 12px;
+  padding: 9px 12px;
+  background: #0c121e;
+  font-size: 11px;
+}
+.job-details dt {
+  flex: none;
+  width: 130px;
+  color: #7c88a1;
+}
+.job-details dd {
+  margin: 0;
+  min-width: 0;
+  color: #c0c8db;
+  overflow-wrap: anywhere;
+}
+.job-env {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.job-env code {
+  padding: 3px 8px;
+  background: #141a27;
+  border: 1px solid #2b3347;
+  border-radius: 6px;
+  color: #98a6c4;
+  font-size: 10px;
+}
+.job-env-note {
+  display: block;
+  color: #67758e;
+  font-size: 10px;
+}
+.agent-card {
+  margin-bottom: 12px;
+  padding: 14px;
+  background: #141a27;
+  border: 1px solid #2b3347;
+  border-radius: 8px;
+}
+.agent-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.agent-card p {
+  margin: 0 0 10px;
+  color: #8f9ab3;
+  font-size: 11px;
+}
+.agent-contract.flush {
+  margin: 0;
+}
+.task-row-prompt {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-theme="light"] .job-details {
+  background: #dee5f0;
+  border-color: #dee5f0;
+}
+:root[data-theme="light"] .job-details > div {
+  background: #f8fafd;
+}
+:root[data-theme="light"] .job-details dd,
+:root[data-theme="light"] .job-description {
+  color: #465875;
+}
+:root[data-theme="light"] :is(.job-env code, .agent-card) {
+  background: #f8fafd;
+  border-color: #dee5f0;
+}
+:root[data-theme="light"] .job-card-title:hover {
+  color: #7c3aed;
+}
