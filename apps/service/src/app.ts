@@ -1,8 +1,12 @@
+import type { ListAgents } from "@agent-jobs/agents/agent-registry";
 import { zValidator } from "@hono/zod-validator";
+import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
-import { Scalar } from "@scalar/hono-api-reference";
+
+import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
+import type { LiveEvents } from "./live-events";
 import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
@@ -12,12 +16,9 @@ import {
   taskParamSchema,
   sessionParamSchema,
 } from "./schemas";
-import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
-import type { ListAgents } from "@agent-jobs/agents/agent-registry";
-import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
-import type { LiveEvents } from "./live-events";
 import { sessionStats } from "./stats";
+import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 
 const KEEPALIVE_MS = 5_000;
 
@@ -48,40 +49,29 @@ export const createApp = (
         });
       }
     })
-    .get(
-      "/jobs/:jobName/agents",
-      zValidator("param", jobParamSchema),
-      async (c) => {
-        try {
-          const agents =
-            (await registry?.list(c.req.valid("param").jobName)) ?? [];
-          return c.json({ agents });
-        } catch (err) {
-          console.error(err);
-          throw new HTTPException(502, {
-            res: c.json({ error: "agents_error" }, 502),
-          });
-        }
-      },
-    )
-    .post(
-      "/jobs/:jobName/register",
-      zValidator("param", jobParamSchema),
-      async (c) => {
-        if (!registry) return c.json({ error: "not_supported" }, 501);
-        try {
-          const operation = await registry.register(
-            c.req.valid("param").jobName,
-          );
-          return c.json({ operation }, 202);
-        } catch (err) {
-          console.error(err);
-          throw new HTTPException(502, {
-            res: c.json({ error: "job_error" }, 502),
-          });
-        }
-      },
-    )
+    .get("/jobs/:jobName/agents", zValidator("param", jobParamSchema), async (c) => {
+      try {
+        const agents = (await registry?.list(c.req.valid("param").jobName)) ?? [];
+        return c.json({ agents });
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "agents_error" }, 502),
+        });
+      }
+    })
+    .post("/jobs/:jobName/register", zValidator("param", jobParamSchema), async (c) => {
+      if (!registry) return c.json({ error: "not_supported" }, 501);
+      try {
+        const operation = await registry.register(c.req.valid("param").jobName);
+        return c.json({ operation }, 202);
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "job_error" }, 502),
+        });
+      }
+    })
     .post("/tasks", zValidator("json", taskSchema), async (c) => {
       const input = c.req.valid("json");
       try {
@@ -122,53 +112,41 @@ export const createApp = (
         });
       }
     })
-    .delete(
-      "/tasks/:taskId",
-      zValidator("param", taskParamSchema),
-      async (c) => {
-        if (!deleteTask) return c.json({ error: "not_supported" }, 501);
-        const { taskId } = c.req.valid("param");
-        try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
-          // Sessions go first, so a failure leaves the task in place to retry.
-          for (const { id } of await sessions.list(taskId))
-            await sessions.delete(taskId, id);
-          await deleteTask(taskId);
-          return c.body(null, 204);
-        } catch (err) {
-          console.error(err);
-          throw new HTTPException(502, {
-            res: c.json({ error: "task_error" }, 502),
-          });
-        }
-      },
-    )
-    .get(
-      "/tasks/:taskId/sessions",
-      zValidator("param", taskParamSchema),
-      async (c) => {
-        const { taskId } = c.req.valid("param");
-        try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
-          return c.json({ sessions: await sessions.list(taskId) });
-        } catch (err) {
-          console.error(err);
-          throw new HTTPException(502, {
-            res: c.json({ error: "session_error" }, 502),
-          });
-        }
-      },
-    )
+    .delete("/tasks/:taskId", zValidator("param", taskParamSchema), async (c) => {
+      if (!deleteTask) return c.json({ error: "not_supported" }, 501);
+      const { taskId } = c.req.valid("param");
+      try {
+        if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+        // Sessions go first, so a failure leaves the task in place to retry.
+        for (const { id } of await sessions.list(taskId)) await sessions.delete(taskId, id);
+        await deleteTask(taskId);
+        return c.body(null, 204);
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "task_error" }, 502),
+        });
+      }
+    })
+    .get("/tasks/:taskId/sessions", zValidator("param", taskParamSchema), async (c) => {
+      const { taskId } = c.req.valid("param");
+      try {
+        if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+        return c.json({ sessions: await sessions.list(taskId) });
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "session_error" }, 502),
+        });
+      }
+    })
     .get(
       "/tasks/:taskId/sessions/:sessionId",
       zValidator("param", sessionParamSchema),
       async (c) => {
         const { taskId, sessionId } = c.req.valid("param");
         try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
           const session = await sessions.get(taskId, sessionId);
           if (!session) return c.json({ error: "session_not_found" }, 404);
           return c.json(session);
@@ -186,8 +164,7 @@ export const createApp = (
       async (c) => {
         const { taskId, sessionId } = c.req.valid("param");
         try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
           const session = await sessions.get(taskId, sessionId);
           if (!session) return c.json({ error: "session_not_found" }, 404);
           return c.json(sessionStats(session));
@@ -205,8 +182,7 @@ export const createApp = (
       async (c) => {
         const { taskId, sessionId } = c.req.valid("param");
         try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
           if (!(await sessions.delete(taskId, sessionId)))
             return c.json({ error: "session_not_found" }, 404);
           return c.body(null, 204);
@@ -228,8 +204,7 @@ export const createApp = (
         let unsubscribe = () => {};
         let session: Awaited<ReturnType<TaskSessions["get"]>>;
         try {
-          if (!(await getTask(taskId)))
-            return c.json({ error: "task_not_found" }, 404);
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
           // Subscribe before reading history so no event falls in the gap.
           unsubscribe =
             (await liveEvents?.(taskId, sessionId, (id, json) => {
@@ -258,8 +233,7 @@ export const createApp = (
           };
           stream.onAbort(unsubscribe);
           try {
-            for (const event of history)
-              await send(event.id, JSON.stringify(event));
+            for (const event of history) await send(event.id, JSON.stringify(event));
             while (!stream.aborted) {
               for (const [id, json] of pending.splice(0)) await send(id, json);
               if (pending.length) continue;
@@ -278,54 +252,48 @@ export const createApp = (
         });
       },
     )
-    .post(
-      "/tasks/:taskId/run",
-      zValidator("param", taskParamSchema),
-      async (c) => {
-        const { taskId } = c.req.valid("param");
-        let contract: Awaited<ReturnType<GetTask>>;
+    .post("/tasks/:taskId/run", zValidator("param", taskParamSchema), async (c) => {
+      const { taskId } = c.req.valid("param");
+      let contract: Awaited<ReturnType<GetTask>>;
+      try {
+        contract = await getTask(taskId);
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "task_error" }, 502),
+        });
+      }
+      if (!contract) return c.json({ error: "task_not_found" }, 404);
+      const jobName = jobNameSchema.safeParse(contract.jobName);
+      if (!jobName.success) return c.json({ error: "task_not_executable" }, 409);
+      const body = await c.req.json().catch(() => undefined);
+      let resume: Resume | undefined;
+      if (body?.sessionId !== undefined) {
+        const parsed = resumeSchema.safeParse(body);
+        if (!parsed.success) return c.json({ success: false, error: parsed.error }, 400);
+        resume = parsed.data;
         try {
-          contract = await getTask(taskId);
+          if (!(await sessions.get(taskId, resume.sessionId)))
+            return c.json({ error: "session_not_found" }, 404);
         } catch (err) {
           console.error(err);
           throw new HTTPException(502, {
-            res: c.json({ error: "task_error" }, 502),
+            res: c.json({ error: "session_error" }, 502),
           });
         }
-        if (!contract) return c.json({ error: "task_not_found" }, 404);
-        const jobName = jobNameSchema.safeParse(contract.jobName);
-        if (!jobName.success)
-          return c.json({ error: "task_not_executable" }, 409);
-        const body = await c.req.json().catch(() => undefined);
-        let resume: Resume | undefined;
-        if (body?.sessionId !== undefined) {
-          const parsed = resumeSchema.safeParse(body);
-          if (!parsed.success)
-            return c.json({ success: false, error: parsed.error }, 400);
-          resume = parsed.data;
-          try {
-            if (!(await sessions.get(taskId, resume.sessionId)))
-              return c.json({ error: "session_not_found" }, 404);
-          } catch (err) {
-            console.error(err);
-            throw new HTTPException(502, {
-              res: c.json({ error: "session_error" }, 502),
-            });
-          }
-        }
-        try {
-          const operation = resume
-            ? await runJob(jobName.data, taskId, resume)
-            : await runJob(jobName.data, taskId);
-          return c.json({ operation }, 202);
-        } catch (err) {
-          console.error(err);
-          throw new HTTPException(502, {
-            res: c.json({ error: "job_error" }, 502),
-          });
-        }
-      },
-    )
+      }
+      try {
+        const operation = resume
+          ? await runJob(jobName.data, taskId, resume)
+          : await runJob(jobName.data, taskId);
+        return c.json({ operation }, 202);
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "job_error" }, 502),
+        });
+      }
+    })
     .onError((err, c) => {
       if (err instanceof HTTPException) return err.getResponse();
       console.error(err);

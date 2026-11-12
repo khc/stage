@@ -1,6 +1,8 @@
-import { LlmAgent } from "@google/adk";
 import { expect, test } from "bun:test";
+
+import { LlmAgent } from "@google/adk";
 import { z } from "zod";
+
 import { checkInput, describeAgents, type AgentSpec } from "./spec";
 
 const agent = new LlmAgent({

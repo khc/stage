@@ -1,5 +1,7 @@
-import { checkInput, describeAgents } from "@agent-jobs/agents/spec";
 import { expect, test } from "bun:test";
+
+import { checkInput, describeAgents } from "@agent-jobs/agents/spec";
+
 import { agentSet } from "./agents";
 import { haikuAgent } from "./haiku-agent";
 

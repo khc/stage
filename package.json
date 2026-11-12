@@ -1,11 +1,11 @@
 {
   "name": "agent-jobs",
-  "type": "module",
   "private": true,
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "start": "bun --filter @agent-jobs/service start",
     "dev": "bun --filter '@agent-jobs/*' dev",

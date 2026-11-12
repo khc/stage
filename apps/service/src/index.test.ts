@@ -9,12 +9,8 @@ test("service server starts and serves API routes", async () => {
     const { default: config } = await import("./index");
     const server = Bun.serve({ ...config, port: 0, development: false });
     try {
-      expect(
-        await (await fetch(new URL("/health", server.url))).json(),
-      ).toEqual({ status: "ok" });
-      expect((await fetch(new URL("/openapi.json", server.url))).status).toBe(
-        200,
-      );
+      expect(await (await fetch(new URL("/health", server.url))).json()).toEqual({ status: "ok" });
+      expect((await fetch(new URL("/openapi.json", server.url))).status).toBe(200);
     } finally {
       server.stop(true);
     }

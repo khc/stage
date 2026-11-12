@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
-import type { TaskContract } from "./task-contract";
+
 import { main, registerMain } from "./cli";
+import type { TaskContract } from "./task-contract";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
 let log: ReturnType<typeof spyOn>;
@@ -25,28 +26,17 @@ const setup = () => ({
 test("loads the contract by normalized TASK_ID and runs its exact prompt", async () => {
   const { run, get } = setup();
   expect(
-    await main(
-      { TASK_ID: taskId.toUpperCase(), AGENT_MESSAGE: "ignore this" },
-      run,
-      get,
-    ),
+    await main({ TASK_ID: taskId.toUpperCase(), AGENT_MESSAGE: "ignore this" }, run, get),
   ).toBe(0);
   expect(get).toHaveBeenCalledWith(taskId);
-  expect(run).toHaveBeenCalledWith(
-    "  stored prompt  ",
-    taskId,
-    undefined,
-    undefined,
-  );
+  expect(run).toHaveBeenCalledWith("  stored prompt  ", taskId, undefined, undefined);
   expect(log).toHaveBeenCalledWith("reply");
 });
 
 for (const id of [undefined, "", "   ", "invalid-id"]) {
   test(`rejects TASK_ID ${JSON.stringify(id)} before reading or running`, async () => {
     const { run, get } = setup();
-    expect(
-      await main({ TASK_ID: id, AGENT_MESSAGE: "no fallback" }, run, get),
-    ).toBe(1);
+    expect(await main({ TASK_ID: id, AGENT_MESSAGE: "no fallback" }, run, get)).toBe(1);
     expect(get).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalled();
@@ -90,13 +80,7 @@ test("logs agent failures and returns 1", async () => {
 
 test("resumes SESSION_ID with MESSAGE instead of the stored prompt", async () => {
   const { run, get } = setup();
-  expect(
-    await main(
-      { TASK_ID: taskId, SESSION_ID: "s1", MESSAGE: "answer" },
-      run,
-      get,
-    ),
-  ).toBe(0);
+  expect(await main({ TASK_ID: taskId, SESSION_ID: "s1", MESSAGE: "answer" }, run, get)).toBe(0);
   expect(run).toHaveBeenCalledWith("answer", taskId, "s1", undefined);
 });
 
@@ -116,9 +100,7 @@ test("runs the agent named by the task contract, also when resuming", async () =
   }));
   expect(await main({ TASK_ID: taskId }, run, get)).toBe(0);
   expect(run).toHaveBeenLastCalledWith("p", taskId, undefined, "researcher");
-  expect(
-    await main({ TASK_ID: taskId, SESSION_ID: "s1", MESSAGE: "m" }, run, get),
-  ).toBe(0);
+  expect(await main({ TASK_ID: taskId, SESSION_ID: "s1", MESSAGE: "m" }, run, get)).toBe(0);
   expect(run).toHaveBeenLastCalledWith("m", taskId, "s1", "researcher");
 });
 

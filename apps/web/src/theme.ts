@@ -28,9 +28,7 @@ export function createThemeController({
     /* Storage can be disabled by browser settings. */
   }
   const update = () =>
-    apply(
-      preference === "system" ? (media.matches ? "dark" : "light") : preference,
-    );
+    apply(preference === "system" ? (media.matches ? "dark" : "light") : preference);
   update();
   media.addEventListener("change", update);
   return {

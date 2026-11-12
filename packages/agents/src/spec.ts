@@ -1,5 +1,6 @@
 import type { BaseAgent } from "@google/adk";
 import { z } from "zod";
+
 import type { AgentInfo, JsonSchema } from "./agent-registry";
 
 // An agent with the contract it is registered under: what a task's message to
@@ -23,9 +24,7 @@ const toJsonSchema = (schema: z.ZodType): JsonSchema => {
   return rest;
 };
 
-export const describeAgents = (
-  agents: Record<string, AgentSpec>,
-): AgentInfo[] =>
+export const describeAgents = (agents: Record<string, AgentSpec>): AgentInfo[] =>
   Object.entries(agents).map(([name, spec]) => ({
     name,
     ...(spec.agent.description && { description: spec.agent.description }),

@@ -1,5 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
+
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 import { FirestoreSessionService } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
@@ -23,8 +24,7 @@ const resumeSession = async (
   taskId?: string,
 ) => {
   const session = await service.getSession({ appName, userId, sessionId });
-  if (!session || session.taskId !== taskId)
-    throw new Error("Session not found for this task");
+  if (!session || session.taskId !== taskId) throw new Error("Session not found for this task");
   return session;
 };
 
@@ -71,9 +71,10 @@ export const createRunAgent = (
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
     checkInput(spec, message);
     const { agent } = spec;
-    return createTaskAgent(
-      new Runner({ appName, agent, sessionService }),
-      publish,
-    )(message, taskId, sessionId);
+    return createTaskAgent(new Runner({ appName, agent, sessionService }), publish)(
+      message,
+      taskId,
+      sessionId,
+    );
   };
 };

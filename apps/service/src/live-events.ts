@@ -19,8 +19,7 @@ export const createLiveEvents = (
 ): LiveEvents => {
   const listeners = new Map<string, Set<EventListener>>();
   let started: Promise<void> | undefined;
-  const key = (taskId: string, sessionId: string) =>
-    JSON.stringify([taskId, sessionId]);
+  const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
 
   const start = () =>
     (started ??= (async () => {
@@ -28,9 +27,7 @@ export const createLiveEvents = (
       const [subscription] = await topic.createSubscription(subscriptionName, {
         expirationPolicy: { ttl: { seconds: SUBSCRIPTION_TTL_SECONDS } },
       });
-      subscription.on("error", (err) =>
-        console.error("Event subscription error", err),
-      );
+      subscription.on("error", (err) => console.error("Event subscription error", err));
       subscription.on("message", (message) => {
         message.ack();
         const { taskId, sessionId, eventId } = message.attributes;

@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+
 import { createListAgents, createRegisterAgents } from "./agent-registry";
 
 const registerSetup = (stored: { name: string; id: string }[]) => {
@@ -39,14 +40,8 @@ test("registers a job's agents and removes ones no longer in the image", async (
   expect(where).toHaveBeenCalledWith("jobName", "==", "my-job");
   expect(batch.delete).toHaveBeenCalledTimes(1);
   expect(batch.delete).toHaveBeenCalledWith({ id: "my-job:old" });
-  const sets = batch.set.mock.calls as [
-    { id: string },
-    Record<string, unknown>,
-  ][];
-  expect(sets.map(([ref]) => ref.id)).toEqual([
-    "my-job:assistant",
-    "my-job:researcher",
-  ]);
+  const sets = batch.set.mock.calls as [{ id: string }, Record<string, unknown>][];
+  expect(sets.map(([ref]) => ref.id)).toEqual(["my-job:assistant", "my-job:researcher"]);
   expect(sets[0]![1]).toMatchObject({
     jobName: "my-job",
     name: "assistant",
@@ -57,9 +52,9 @@ test("registers a job's agents and removes ones no longer in the image", async (
 });
 
 test("lists a job's agents sorted by name", async () => {
-  const docs = [{ name: "b", description: "Second" }, { name: "a" }].map(
-    (d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }),
-  );
+  const docs = [{ name: "b", description: "Second" }, { name: "a" }].map((d) => ({
+    get: (f: string) => (d as Record<string, unknown>)[f],
+  }));
   const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
   const db = { collection: () => ({ where }) } as never;
 
@@ -85,9 +80,9 @@ test("stores schemas as JSON text and parses them back when listing", async () =
   expect(sets[0]![1].outputSchema).toBe('{"type":"string"}');
   expect(sets[1]![1]).not.toHaveProperty("inputSchema");
 
-  const docs = [
-    { name: "x", inputSchema: JSON.stringify(input), outputSchema: "not json" },
-  ].map((d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }));
+  const docs = [{ name: "x", inputSchema: JSON.stringify(input), outputSchema: "not json" }].map(
+    (d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }),
+  );
   const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
   const listed = await createListAgents({
     collection: () => ({ where }),

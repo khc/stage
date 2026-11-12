@@ -1,17 +1,13 @@
+import { FirestoreSessionService } from "@agent-jobs/agents/session-service";
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
-import { FirestoreSessionService } from "@agent-jobs/agents/session-service";
 
-export type SessionSummary = Pick<
-  Session,
-  "id" | "appName" | "userId" | "lastUpdateTime"
-> & { taskId: string };
+export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUpdateTime"> & {
+  taskId: string;
+};
 export type TaskSessions = {
   list: (taskId: string) => Promise<SessionSummary[]>;
-  get: (
-    taskId: string,
-    sessionId: string,
-  ) => Promise<(Session & { taskId?: string }) | undefined>;
+  get: (taskId: string, sessionId: string) => Promise<(Session & { taskId?: string }) | undefined>;
   delete: (taskId: string, sessionId: string) => Promise<boolean>;
 };
 
@@ -28,10 +24,7 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
     ).docs[0];
   return {
     async list(taskId) {
-      const snapshot = await db
-        .collection("sessions")
-        .where("taskId", "==", taskId)
-        .get();
+      const snapshot = await db.collection("sessions").where("taskId", "==", taskId).get();
       return snapshot.docs.map((doc) => ({
         id: doc.get("sessionId"),
         taskId,

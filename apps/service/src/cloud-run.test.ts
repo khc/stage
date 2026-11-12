@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { createJobsClient } from "./cloud-run";
 import { createListJobs, createTaskJob } from "./jobs";
 
@@ -102,9 +103,9 @@ test("without CLOUD_RUN_EMULATOR_HOST, returns the default client", () => {
 });
 
 test("rejects a CLOUD_RUN_EMULATOR_HOST without a port", () => {
-  expect(() =>
-    createJobsClient({ CLOUD_RUN_EMULATOR_HOST: "floci-gcp" }),
-  ).toThrow("CLOUD_RUN_EMULATOR_HOST must be host:port");
+  expect(() => createJobsClient({ CLOUD_RUN_EMULATOR_HOST: "floci-gcp" })).toThrow(
+    "CLOUD_RUN_EMULATOR_HOST must be host:port",
+  );
 });
 
 test("lists every page over plain REST without credentials", async () => {
@@ -167,9 +168,7 @@ test("normalizes an empty REST listing response to an empty array", async () => 
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    expect(
-      await createListJobs(client, { project: "p", location: "l" })(),
-    ).toEqual([]);
+    expect(await createListJobs(client, { project: "p", location: "l" })()).toEqual([]);
   } finally {
     server.stop(true);
   }
@@ -200,9 +199,9 @@ test("rejects instead of returning partial jobs when a later page fails", async 
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    await expect(
-      createListJobs(client, { project: "p", location: "l" })(),
-    ).rejects.toThrow("listing denied");
+    await expect(createListJobs(client, { project: "p", location: "l" })()).rejects.toThrow(
+      "listing denied",
+    );
   } finally {
     server.stop(true);
   }

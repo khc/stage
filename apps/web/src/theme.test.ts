@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { createThemeController, THEME_STORAGE_KEY } from "./theme";
 
 const setup = (stored: string | null = null, dark = false) => {

@@ -1,5 +1,7 @@
-import { describeAgents } from "@agent-jobs/agents/spec";
 import { expect, test } from "bun:test";
+
+import { describeAgents } from "@agent-jobs/agents/spec";
+
 import { agentSet, assistantAgent, getCurrentTime } from "./agents";
 
 test("getCurrentTime returns the city and an ISO time", async () => {

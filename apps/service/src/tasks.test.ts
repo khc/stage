@@ -1,11 +1,8 @@
-import { Firestore } from "@google-cloud/firestore";
 import { describe, expect, mock, test } from "bun:test";
-import {
-  createCreateTask,
-  createDeleteTask,
-  createGetTask,
-  createListTasks,
-} from "./tasks";
+
+import { Firestore } from "@google-cloud/firestore";
+
+import { createCreateTask, createDeleteTask, createGetTask, createListTasks } from "./tasks";
 
 const writer = (write = async (_data: unknown) => {}) => {
   const create = mock(write);
@@ -32,9 +29,7 @@ test("creates UUID-keyed contracts in runs and preserves the supplied prompt", a
   expect(collection).toHaveBeenCalledWith("tasks");
   expect(doc).toHaveBeenCalledWith(contract.taskId);
   expect(create).toHaveBeenCalledWith(contract);
-  expect((await save({ prompt: "second", jobName: "my-job" })).taskId).not.toBe(
-    contract.taskId,
-  );
+  expect((await save({ prompt: "second", jobName: "my-job" })).taskId).not.toBe(contract.taskId);
 });
 
 test("waits for persistence before returning the contract", async () => {
@@ -59,50 +54,41 @@ test("propagates a failed create without retrying", async () => {
   const { db, create } = writer(async () => {
     throw new Error("write failed");
   });
-  await expect(
-    createCreateTask(db)({ prompt: "hello", jobName: "my-job" }),
-  ).rejects.toThrow("write failed");
+  await expect(createCreateTask(db)({ prompt: "hello", jobName: "my-job" })).rejects.toThrow(
+    "write failed",
+  );
   expect(create).toHaveBeenCalledTimes(1);
 });
 
-describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)(
-  "task contracts in Firestore",
-  () => {
-    test("persists a contract across clients", async () => {
-      const db = new Firestore();
-      const reader = new Firestore();
-      let taskId: string | undefined;
-      try {
-        const contract = await createCreateTask(db)({
-          prompt: "emulator prompt",
-          jobName: "my-job",
-        });
-        taskId = contract.taskId;
-        expect(
-          (await reader.collection("tasks").doc(taskId).get()).data(),
-        ).toEqual(contract);
-        expect(await createGetTask(reader)(taskId)).toEqual(contract);
-        expect(await createListTasks(reader)()).toContainEqual(contract);
-        await db.collection("tasks").doc(taskId).delete();
-        expect(await createGetTask(reader)(taskId)).toBeUndefined();
-      } finally {
-        if (taskId) await db.collection("tasks").doc(taskId).delete();
-        await Promise.all([db.terminate(), reader.terminate()]);
-      }
-    });
-  },
-);
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task contracts in Firestore", () => {
+  test("persists a contract across clients", async () => {
+    const db = new Firestore();
+    const reader = new Firestore();
+    let taskId: string | undefined;
+    try {
+      const contract = await createCreateTask(db)({
+        prompt: "emulator prompt",
+        jobName: "my-job",
+      });
+      taskId = contract.taskId;
+      expect((await reader.collection("tasks").doc(taskId).get()).data()).toEqual(contract);
+      expect(await createGetTask(reader)(taskId)).toEqual(contract);
+      expect(await createListTasks(reader)()).toContainEqual(contract);
+      await db.collection("tasks").doc(taskId).delete();
+      expect(await createGetTask(reader)(taskId)).toBeUndefined();
+    } finally {
+      if (taskId) await db.collection("tasks").doc(taskId).delete();
+      await Promise.all([db.terminate(), reader.terminate()]);
+    }
+  });
+});
 
 const snapshot = (id: string, prompt: string, jobName?: string) => ({
   id,
   exists: true,
-  get: (field: string) =>
-    ({ prompt, jobName, taskId: "ignored", extra: true })[field],
+  get: (field: string) => ({ prompt, jobName, taskId: "ignored", extra: true })[field],
 });
-const readerWith = (
-  get: () => Promise<unknown>,
-  list: () => Promise<unknown>,
-) => {
+const readerWith = (get: () => Promise<unknown>, list: () => Promise<unknown>) => {
   const doc = mock((_id: string) => ({ get }));
   const collection = mock((_name: string) => ({ doc, get: list }));
   return {
@@ -164,9 +150,7 @@ test("stores agentName only when supplied and lists it", async () => {
           id: "a",
           exists: true,
           get: (f: string) =>
-            ({ prompt: "p", jobName: "my-job", agentName: "researcher" })[
-              f as "prompt"
-            ],
+            ({ prompt: "p", jobName: "my-job", agentName: "researcher" })[f as "prompt"],
         },
       ],
     }),

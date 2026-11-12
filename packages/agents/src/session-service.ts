@@ -73,13 +73,10 @@ export class FirestoreSessionService extends BaseSessionService {
     if (!snapshot.exists) return undefined;
 
     const eventDocs = await ref.collection(EVENTS).orderBy("seq").get();
-    let events = eventDocs.docs.map(
-      (doc) => JSON.parse(doc.get("json")) as Event,
-    );
+    let events = eventDocs.docs.map((doc) => JSON.parse(doc.get("json")) as Event);
     if (config?.numRecentEvents) events = events.slice(-config.numRecentEvents);
     const { afterTimestamp } = config ?? {};
-    if (afterTimestamp)
-      events = events.filter((e) => e.timestamp >= afterTimestamp);
+    if (afterTimestamp) events = events.filter((e) => e.timestamp >= afterTimestamp);
 
     return withTaskId(
       createSession({
@@ -122,17 +119,12 @@ export class FirestoreSessionService extends BaseSessionService {
     if (order) {
       const sign = order === "asc" ? 1 : -1;
       sessions.sort(
-        (a, b) =>
-          sign * (a.lastUpdateTime - b.lastUpdateTime) ||
-          a.id.localeCompare(b.id),
+        (a, b) => sign * (a.lastUpdateTime - b.lastUpdateTime) || a.id.localeCompare(b.id),
       );
     }
 
     const totalItems = sessions.length;
-    const start =
-      page !== undefined && limit !== undefined
-        ? (page - 1) * limit
-        : (offset ?? 0);
+    const start = page !== undefined && limit !== undefined ? (page - 1) * limit : (offset ?? 0);
     if (limit === undefined) {
       return {
         sessions: sessions.slice(start),
@@ -162,10 +154,7 @@ export class FirestoreSessionService extends BaseSessionService {
     await batch.commit();
   }
 
-  override async appendEvent({
-    session,
-    event,
-  }: AppendEventRequest): Promise<Event> {
+  override async appendEvent({ session, event }: AppendEventRequest): Promise<Event> {
     const appended = await super.appendEvent({ session, event });
     if (event.partial) return appended;
 

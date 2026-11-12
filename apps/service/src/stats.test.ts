@@ -1,9 +1,10 @@
-import { createEvent } from "@google/adk";
 import { expect, test } from "bun:test";
+
+import { createEvent } from "@google/adk";
+
 import { sessionStats } from "./stats";
 
-const usage = (usageMetadata: Record<string, number>) =>
-  createEvent({ usageMetadata });
+const usage = (usageMetadata: Record<string, number>) => createEvent({ usageMetadata });
 
 test("sums token usage across events and counts model calls", () => {
   const events = [

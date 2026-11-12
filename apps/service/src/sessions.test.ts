@@ -1,7 +1,9 @@
+import { describe, expect, test } from "bun:test";
+
+import { FirestoreSessionService } from "@agent-jobs/agents/session-service";
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
-import { describe, expect, test } from "bun:test";
-import { FirestoreSessionService } from "@agent-jobs/agents/session-service";
+
 import { createTaskSessions } from "./sessions";
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
@@ -45,10 +47,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
         taskId,
         state: { count: 1 },
       });
-      expect(loaded?.events.map((e) => e.content?.parts?.[0]?.text)).toEqual([
-        "one",
-        "two",
-      ]);
+      expect(loaded?.events.map((e) => e.content?.parts?.[0]?.text)).toEqual(["one", "two"]);
       expect(await api.get(taskId, other.id)).toBeUndefined();
       expect(await api.get(taskId, chat.id)).toBeUndefined();
       expect(await api.get(taskId, "missing")).toBeUndefined();

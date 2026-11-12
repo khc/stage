@@ -1,4 +1,5 @@
 import { afterEach, expect, mock, spyOn, test } from "bun:test";
+
 import {
   api,
   ApiError,
@@ -24,9 +25,7 @@ test("task creation sends only the saved contract input", async () => {
   fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     fetch as unknown as typeof globalThis.fetch,
   );
-  expect(await api.create({ prompt: "hello", jobName: "worker" })).toEqual(
-    task,
-  );
+  expect(await api.create({ prompt: "hello", jobName: "worker" })).toEqual(task);
   expect(fetch).toHaveBeenCalledWith("/tasks", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -35,9 +34,7 @@ test("task creation sends only the saved contract input", async () => {
 });
 
 test("running a task submits once with no prompt or job override", async () => {
-  const fetch = mock(async () =>
-    Response.json({ operation: "op-1" }, { status: 202 }),
-  );
+  const fetch = mock(async () => Response.json({ operation: "op-1" }, { status: 202 }));
   fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     fetch as unknown as typeof globalThis.fetch,
   );
@@ -47,9 +44,7 @@ test("running a task submits once with no prompt or job override", async () => {
 });
 
 test("session IDs are encoded and missing sessions reject rather than becoming empty content", async () => {
-  const fetch = mock(async () =>
-    Response.json({ error: "session_not_found" }, { status: 404 }),
-  );
+  const fetch = mock(async () => Response.json({ error: "session_not_found" }, { status: 404 }));
   fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     fetch as unknown as typeof globalThis.fetch,
   );
@@ -57,10 +52,7 @@ test("session IDs are encoded and missing sessions reject rather than becoming e
     status: 404,
     message: "This session could not be found for this task.",
   });
-  expect(fetch).toHaveBeenCalledWith(
-    "/tasks/task-1/sessions/custom%2Fid",
-    undefined,
-  );
+  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/custom%2Fid", undefined);
 });
 
 test("non-JSON server failures produce a readable error", async () => {
@@ -80,15 +72,11 @@ test("private upstream error details are not displayed", async () => {
       { error: "job_error", detail: "private credential details" },
       { status: 502 },
     )) as unknown as typeof globalThis.fetch);
-  await expect(api.run("task-1")).rejects.toThrow(
-    "Cloud Run could not complete the request",
-  );
+  await expect(api.run("task-1")).rejects.toThrow("Cloud Run could not complete the request");
 });
 
 test("resuming a session posts sessionId and message to the run route", async () => {
-  const fetch = mock(async () =>
-    Response.json({ operation: "op-2" }, { status: 202 }),
-  );
+  const fetch = mock(async () => Response.json({ operation: "op-2" }, { status: 202 }));
   fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     fetch as unknown as typeof globalThis.fetch,
   );
@@ -166,10 +154,7 @@ test("session stats are fetched from the encoded stats path", async () => {
     fetch as unknown as typeof globalThis.fetch,
   );
   expect(await api.stats("task-1", "s/1")).toEqual(stats as never);
-  expect(fetch).toHaveBeenCalledWith(
-    "/tasks/task-1/sessions/s%2F1/stats",
-    undefined,
-  );
+  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/s%2F1/stats", undefined);
 });
 
 test("task creation sends agentName only when provided", async () => {
@@ -201,9 +186,7 @@ test("job agents are fetched from the encoded job path", async () => {
 });
 
 test("registering a job's agents posts to the encoded register path", async () => {
-  const fetch = mock(async () =>
-    Response.json({ operation: "op-3" }, { status: 202 }),
-  );
+  const fetch = mock(async () => Response.json({ operation: "op-3" }, { status: 202 }));
   fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     fetch as unknown as typeof globalThis.fetch,
   );

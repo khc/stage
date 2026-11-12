@@ -1,18 +1,14 @@
+import { createListAgents } from "@agent-jobs/agents/agent-registry";
 import { Firestore } from "@google-cloud/firestore";
 import { PubSub } from "@google-cloud/pubsub";
 import { z } from "zod";
+
 import { createApp } from "./app";
-import { createTaskSessions } from "./sessions";
-import { createLiveEvents } from "./live-events";
 import { createJobsClient } from "./cloud-run";
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
-import { createListAgents } from "@agent-jobs/agents/agent-registry";
-import {
-  createCreateTask,
-  createDeleteTask,
-  createListTasks,
-  createGetTask,
-} from "./tasks";
+import { createLiveEvents } from "./live-events";
+import { createTaskSessions } from "./sessions";
+import { createCreateTask, createDeleteTask, createListTasks, createGetTask } from "./tasks";
 
 const env = z
   .object({ GCP_PROJECT: z.string().min(1), GCP_REGION: z.string().min(1) })
@@ -35,9 +31,7 @@ const app = createApp(
   createListTasks(db),
   createGetTask(db),
   createTaskSessions(db),
-  process.env.PUBSUB_TOPIC
-    ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC)
-    : undefined,
+  process.env.PUBSUB_TOPIC ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC) : undefined,
   { register: registerJob, list: createListAgents(db) },
   createDeleteTask(db),
 );

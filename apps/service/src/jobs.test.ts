@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
 
 const config = { project: "p", location: "l" };
@@ -6,22 +7,16 @@ const jobPath = (project: string, location: string, job: string) =>
   `projects/${project}/locations/${location}/jobs/${job}`;
 
 test("runs the job by its full resource name and returns the operation name", async () => {
-  const runJob = mock(async (_request: unknown) => [
-    { name: "operations/op-1" },
-  ]);
+  const runJob = mock(async (_request: unknown) => [{ name: "operations/op-1" }]);
   const run = createTaskJob({ jobPath, runJob } as never, config);
 
-  expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
-    "operations/op-1",
-  );
+  expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe("operations/op-1");
   expect(runJob).toHaveBeenCalledWith({
     name: "projects/p/locations/l/jobs/my-job",
     overrides: {
       containerOverrides: [
         {
-          env: [
-            { name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
-          ],
+          env: [{ name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" }],
         },
       ],
     },
@@ -29,9 +24,7 @@ test("runs the job by its full resource name and returns the operation name", as
 });
 
 test("passes the task ID as a per-execution TASK_ID override", async () => {
-  const runJob = mock(async (_request: unknown) => [
-    { name: "operations/op-1" },
-  ]);
+  const runJob = mock(async (_request: unknown) => [{ name: "operations/op-1" }]);
   const run = createTaskJob({ jobPath, runJob } as never, config);
 
   await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8");
@@ -41,9 +34,7 @@ test("passes the task ID as a per-execution TASK_ID override", async () => {
     overrides: {
       containerOverrides: [
         {
-          env: [
-            { name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" },
-          ],
+          env: [{ name: "TASK_ID", value: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8" }],
         },
       ],
     },
@@ -56,18 +47,14 @@ test("propagates a runJob failure", async () => {
   });
   const run = createTaskJob({ jobPath, runJob } as never, config);
 
-  await expect(
-    run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8"),
-  ).rejects.toThrow("boom");
+  await expect(run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).rejects.toThrow("boom");
 });
 
 const locationPath = (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
 test("lists jobs under the configured project and location", async () => {
-  const jobs = [
-    { name: "projects/p/locations/l/jobs/my-job", labels: { team: "agent" } },
-  ];
+  const jobs = [{ name: "projects/p/locations/l/jobs/my-job", labels: { team: "agent" } }];
   const listJobs = mock(async (_request: unknown) => [jobs]);
   const list = createListJobs({ locationPath, listJobs } as never, config);
 
@@ -92,9 +79,7 @@ test("propagates a listJobs failure", async () => {
 });
 
 test("adds SESSION_ID and MESSAGE overrides when resuming a session", async () => {
-  const runJob = mock(async (_request: unknown) => [
-    { name: "operations/op-1" },
-  ]);
+  const runJob = mock(async (_request: unknown) => [{ name: "operations/op-1" }]);
   const run = createTaskJob({ jobPath, runJob } as never, config);
 
   await run("my-job", "task-1", { sessionId: "s1", message: "answer" });
@@ -116,18 +101,14 @@ test("adds SESSION_ID and MESSAGE overrides when resuming a session", async () =
 });
 
 test("register runs the job with the register argument and its JOB_NAME", async () => {
-  const runJob = mock(async (_request: unknown) => [
-    { name: "operations/op-9" },
-  ]);
+  const runJob = mock(async (_request: unknown) => [{ name: "operations/op-9" }]);
   const register = createRegisterJob({ jobPath, runJob } as never, config);
 
   expect(await register("my-job")).toBe("operations/op-9");
   expect(runJob).toHaveBeenCalledWith({
     name: "projects/p/locations/l/jobs/my-job",
     overrides: {
-      containerOverrides: [
-        { args: ["register"], env: [{ name: "JOB_NAME", value: "my-job" }] },
-      ],
+      containerOverrides: [{ args: ["register"], env: [{ name: "JOB_NAME", value: "my-job" }] }],
     },
   });
 });

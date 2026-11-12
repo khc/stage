@@ -22,9 +22,7 @@ for (const workspace of ["service", "web"]) {
       ).json();
       for (const name of ["start", "dev"]) {
         // The watch flag does not affect env loading; omit it so the fixture exits.
-        const args = (pkg.scripts[name] as string)
-          .split(/\s+/)
-          .filter((arg) => arg !== "--hot");
+        const args = (pkg.scripts[name] as string).split(/\s+/).filter((arg) => arg !== "--hot");
         const child = Bun.spawn(args, {
           cwd,
           env: {

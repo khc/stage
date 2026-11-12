@@ -12,9 +12,7 @@ const noAuth = {
     }),
 };
 
-export const createJobsClient = (
-  env: Record<string, string | undefined>,
-): JobsClient => {
+export const createJobsClient = (env: Record<string, string | undefined>): JobsClient => {
   const emulator = env.CLOUD_RUN_EMULATOR_HOST;
   if (!emulator) return new JobsClient();
 

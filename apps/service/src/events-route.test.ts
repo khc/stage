@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+
 import { createApp } from "./app";
 import type { EventListener, LiveEvents } from "./live-events";
 import type { TaskContract } from "./tasks";
@@ -10,15 +11,9 @@ const stored = [
   { id: "e2", author: "a" },
 ];
 
-const setup = (opts: {
-  task?: boolean;
-  session?: boolean;
-  live?: LiveEvents;
-}) => {
+const setup = (opts: { task?: boolean; session?: boolean; live?: LiveEvents }) => {
   const get = mock(async (_t: string, _s: string) =>
-    opts.session === false
-      ? undefined
-      : ({ id: "s1", events: stored } as never),
+    opts.session === false ? undefined : ({ id: "s1", events: stored } as never),
   );
   const app = createApp(
     async () => "",
@@ -26,9 +21,7 @@ const setup = (opts: {
     async (i) => ({ taskId, ...i }),
     async () => [],
     async () =>
-      opts.task === false
-        ? undefined
-        : ({ taskId, prompt: "p", jobName: "j" } as TaskContract),
+      opts.task === false ? undefined : ({ taskId, prompt: "p", jobName: "j" } as TaskContract),
     { list: async () => [], get, delete: async () => false },
     opts.live,
   );

@@ -34,7 +34,5 @@ export const publisherFromEnv = (
 ): PublishEvent | undefined => {
   const name = env.PUBSUB_TOPIC;
   if (!name) return undefined;
-  return createEventPublisher(
-    async () => (await pubsub.topic(name).get({ autoCreate: true }))[0],
-  );
+  return createEventPublisher(async () => (await pubsub.topic(name).get({ autoCreate: true }))[0]);
 };

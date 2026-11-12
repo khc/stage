@@ -104,16 +104,11 @@ const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
   task_not_executable: "This task needs a valid job name before it can run.",
   session_not_found: "This session could not be found for this task.",
-  job_error:
-    "Cloud Run could not complete the request. Check the job configuration and try again.",
-  task_error:
-    "Tasks could not be loaded. Check the service connection and try again.",
+  job_error: "Cloud Run could not complete the request. Check the job configuration and try again.",
+  task_error: "Tasks could not be loaded. Check the service connection and try again.",
   session_error: "Sessions could not be loaded. Try again in a moment.",
 };
-export async function request<T>(
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
+export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, options);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {
@@ -144,38 +139,25 @@ export const api = {
   task: (id: string) => request<Task>(taskPath(id)),
   create: (input: { prompt: string; jobName: string; agentName?: string }) =>
     request<Task>("/tasks", json(input)),
-  run: (id: string) =>
-    request<{ operation: string }>(`${taskPath(id)}/run`, { method: "POST" }),
+  run: (id: string) => request<{ operation: string }>(`${taskPath(id)}/run`, { method: "POST" }),
   resume: (taskId: string, sessionId: string, message: string) =>
-    request<{ operation: string }>(
-      `${taskPath(taskId)}/run`,
-      json({ sessionId, message }),
-    ),
+    request<{ operation: string }>(`${taskPath(taskId)}/run`, json({ sessionId, message })),
   registerAgents: (jobName: string) =>
-    request<{ operation: string }>(
-      `/jobs/${encodeURIComponent(jobName)}/register`,
-      { method: "POST" },
-    ),
+    request<{ operation: string }>(`/jobs/${encodeURIComponent(jobName)}/register`, {
+      method: "POST",
+    }),
   agents: (jobName: string) =>
-    request<{ agents: AgentInfo[] }>(
-      `/jobs/${encodeURIComponent(jobName)}/agents`,
-    ),
+    request<{ agents: AgentInfo[] }>(`/jobs/${encodeURIComponent(jobName)}/agents`),
   stats: (taskId: string, sessionId: string) =>
-    request<SessionStats>(
-      `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/stats`,
-    ),
+    request<SessionStats>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/stats`),
   deleteTask: (id: string) => request<void>(taskPath(id), { method: "DELETE" }),
   deleteSession: (taskId: string, sessionId: string) =>
-    request<void>(
-      `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`,
-      { method: "DELETE" },
-    ),
-  sessions: (id: string) =>
-    request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),
+    request<void>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+    }),
+  sessions: (id: string) => request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),
   session: (taskId: string, sessionId: string) =>
-    request<Session>(
-      `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`,
-    ),
+    request<Session>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`),
 };
 // Opens the session message stream (SSE); the server replays stored events
 // first, so callers must tolerate duplicates. Returns a function that closes it.
@@ -247,9 +229,7 @@ const isStructured = (schema?: JsonSchema) => schema?.type === "object";
 export const inputExample = (schema?: JsonSchema) =>
   isStructured(schema)
     ? JSON.stringify(
-        Object.fromEntries(
-          Object.keys(schema?.properties ?? {}).map((key) => [key, ""]),
-        ),
+        Object.fromEntries(Object.keys(schema?.properties ?? {}).map((key) => [key, ""])),
       )
     : undefined;
 // Structured agents take a JSON message; text agents take anything.
@@ -263,9 +243,7 @@ export const promptError = (schema: JsonSchema | undefined, prompt: string) => {
     : undefined;
 };
 const timestampMs = (t?: Timestamp) =>
-  t?.seconds == null
-    ? undefined
-    : Number(t.seconds) * 1000 + Math.floor((t.nanos ?? 0) / 1e6);
+  t?.seconds == null ? undefined : Number(t.seconds) * 1000 + Math.floor((t.nanos ?? 0) / 1e6);
 const formatDuration = (t?: Timestamp) => {
   const seconds = t?.seconds == null ? undefined : Number(t.seconds);
   if (seconds == null) return undefined;
@@ -278,13 +256,9 @@ const when = (t?: Timestamp) => {
   return ms === undefined ? undefined : formatTime(ms);
 };
 const conditionLabel = (state?: string) =>
-  state === "CONDITION_SUCCEEDED"
-    ? "Ready"
-    : state?.replace("CONDITION_", "").toLowerCase();
+  state === "CONDITION_SUCCEEDED" ? "Ready" : state?.replace("CONDITION_", "").toLowerCase();
 export const jobEnvNames = (job: Job) =>
-  (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) =>
-    e.name ? [e.name] : [],
-  );
+  (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) => (e.name ? [e.name] : []));
 // Label/value rows for a job's detail pane; unknown fields are left out.
 export const jobDetails = (job: Job): [string, string][] => {
   const task = job.template?.template;
@@ -294,19 +268,13 @@ export const jobDetails = (job: Job): [string, string][] => {
     ["Status", conditionLabel(job.terminalCondition?.state)],
     ["Image", container?.image],
     ["Tasks per execution", job.template?.taskCount?.toString()],
-    [
-      "Parallelism",
-      job.template?.parallelism ? String(job.template.parallelism) : "Default",
-    ],
+    ["Parallelism", job.template?.parallelism ? String(job.template.parallelism) : "Default"],
     ["Max retries", task?.maxRetries?.toString()],
     ["Timeout", formatDuration(task?.timeout)],
     ["CPU", limits?.cpu],
     ["Memory", limits?.memory],
     ["Service account", task?.serviceAccount || "Default"],
-    [
-      "Environment",
-      task?.executionEnvironment?.replace("EXECUTION_ENVIRONMENT_", ""),
-    ],
+    ["Environment", task?.executionEnvironment?.replace("EXECUTION_ENVIRONMENT_", "")],
     ["Created", when(job.createTime)],
     ["Updated", when(job.updateTime)],
     ["Executions", job.executionCount?.toString()],
@@ -333,30 +301,28 @@ export type FormValues = Record<string, string | boolean>;
 // object with properties (those agents take a free-text prompt).
 export const schemaFields = (schema?: JsonSchema): FormField[] | undefined => {
   if (!isStructured(schema) || !schema?.properties) return undefined;
-  const fields = Object.entries(schema.properties).map(
-    ([key, value]): FormField => {
-      const type = [value.type].flat()[0];
-      const base = {
-        key,
-        label: value.title ?? key,
-        description: value.description,
-        required: !!schema.required?.includes(key),
+  const fields = Object.entries(schema.properties).map(([key, value]): FormField => {
+    const type = [value.type].flat()[0];
+    const base = {
+      key,
+      label: value.title ?? key,
+      description: value.description,
+      required: !!schema.required?.includes(key),
+    };
+    if (value.enum && value.enum.every((o) => typeof o === "string"))
+      return { ...base, kind: "enum", options: value.enum as string[] };
+    if (type === "string") return { ...base, kind: "string" };
+    if (type === "number" || type === "integer")
+      return {
+        ...base,
+        kind: "number",
+        integer: type === "integer",
+        min: value.minimum,
+        max: value.maximum,
       };
-      if (value.enum && value.enum.every((o) => typeof o === "string"))
-        return { ...base, kind: "enum", options: value.enum as string[] };
-      if (type === "string") return { ...base, kind: "string" };
-      if (type === "number" || type === "integer")
-        return {
-          ...base,
-          kind: "number",
-          integer: type === "integer",
-          min: value.minimum,
-          max: value.maximum,
-        };
-      if (type === "boolean") return { ...base, kind: "boolean" };
-      return { ...base, kind: "json" };
-    },
-  );
+    if (type === "boolean") return { ...base, kind: "boolean" };
+    return { ...base, kind: "json" };
+  });
   return fields.length ? fields : undefined;
 };
 // The JSON message for the field values, or the first problem with them.
@@ -378,10 +344,7 @@ export const buildPrompt = (
     }
     if (field.kind === "number") {
       const number = Number(text);
-      if (
-        !Number.isFinite(number) ||
-        (field.integer && !Number.isInteger(number))
-      )
+      if (!Number.isFinite(number) || (field.integer && !Number.isInteger(number)))
         return {
           error: `${field.label} must be ${field.integer ? "a whole number" : "a number"}.`,
         };
@@ -402,8 +365,7 @@ export const buildPrompt = (
   }
   return { prompt: JSON.stringify(result) };
 };
-export const shortJobName = (job: Job) =>
-  job.name?.split("/").at(-1) ?? "Unnamed job";
+export const shortJobName = (job: Job) => job.name?.split("/").at(-1) ?? "Unnamed job";
 // ADK records event/session timestamps in milliseconds in this repository.
 export const formatTime = (timestamp: number) =>
   new Date(timestamp).toLocaleString(undefined, {

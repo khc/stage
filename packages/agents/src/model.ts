@@ -1,5 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
 import { Gemini } from "@google/adk";
+import { GoogleGenAI } from "@google/genai";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
@@ -28,12 +28,9 @@ export class VertexExpressGemini extends Gemini {
 const isEnabled = (value?: string) =>
   value !== undefined && ["true", "1"].includes(value.toLowerCase());
 
-export const createModel = (
-  env: Record<string, string | undefined>,
-): string | Gemini => {
+export const createModel = (env: Record<string, string | undefined>): string | Gemini => {
   const model = env.AGENT_MODEL || DEFAULT_MODEL;
-  const apiKey =
-    env.GOOGLE_GENAI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_API_KEY;
+  const apiKey = env.GOOGLE_GENAI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_API_KEY;
 
   return isEnabled(env.GOOGLE_GENAI_USE_VERTEXAI) && apiKey
     ? new VertexExpressGemini({ model, apiKey })

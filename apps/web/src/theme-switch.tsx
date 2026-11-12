@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
 import {
   createThemeController,
   normalizePreference,
@@ -11,9 +12,7 @@ export function ThemeSwitch() {
   const [preference, setPreference] = useState<ThemePreference>(() =>
     normalizePreference(document.documentElement.dataset.themePreference),
   );
-  const controller = useRef<ReturnType<typeof createThemeController> | null>(
-    null,
-  );
+  const controller = useRef<ReturnType<typeof createThemeController> | null>(null);
   useEffect(() => {
     let storage: Storage | undefined;
     try {

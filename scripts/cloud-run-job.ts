@@ -3,8 +3,7 @@ import type { protos } from "@google-cloud/run";
 type Env = Record<string, string | undefined>;
 
 export const jobEnvironment = (env: Env, project: string) => {
-  if (!env.GEMINI_API_KEY)
-    throw new Error("GEMINI_API_KEY is required (set it in .env)");
+  if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is required (set it in .env)");
   return [
     { name: "GOOGLE_CLOUD_PROJECT", value: project },
     {
@@ -26,8 +25,7 @@ export const jobEnvironment = (env: Env, project: string) => {
 if (import.meta.main) {
   try {
     const mode = process.argv[2];
-    if (mode !== "create" && mode !== "update")
-      throw new Error("Expected create or update");
+    if (mode !== "create" && mode !== "update") throw new Error("Expected create or update");
     const env = process.env;
     const project = env.JOB_PROJECT || "floci-local";
     const region = env.JOB_REGION || "us-central1";
@@ -36,9 +34,7 @@ if (import.meta.main) {
     const base = (env.JOB_FLOCI || "http://localhost:4588").replace(/\/$/, "");
     const collection = `${base}/v2/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(region)}/jobs`;
     const url = new URL(
-      mode === "create"
-        ? collection
-        : `${collection}/${encodeURIComponent(job)}`,
+      mode === "create" ? collection : `${collection}/${encodeURIComponent(job)}`,
     );
     url.searchParams.set(
       mode === "create" ? "jobId" : "updateMask",
@@ -59,10 +55,8 @@ if (import.meta.main) {
     };
     if (mode === "update") {
       const current = await fetch(`${collection}/${encodeURIComponent(job)}`);
-      if (!current.ok)
-        throw new Error(`Cloud Run job read failed: HTTP ${current.status}`);
-      const existing =
-        (await current.json()) as protos.google.cloud.run.v2.IJob;
+      if (!current.ok) throw new Error(`Cloud Run job read failed: HTTP ${current.status}`);
+      const existing = (await current.json()) as protos.google.cloud.run.v2.IJob;
       const template = existing.template;
       const containers = template?.template?.containers;
       if (!template?.template || !containers?.length)
@@ -84,9 +78,7 @@ if (import.meta.main) {
               ...agent,
               image: env.JOB_IMAGE || `agent-jobs-${job}:latest`,
               env: [
-                ...(agent?.env ?? []).filter(
-                  (entry) => !replacedNames.has(entry.name ?? ""),
-                ),
+                ...(agent?.env ?? []).filter((entry) => !replacedNames.has(entry.name ?? "")),
                 ...requiredEnv,
               ],
             },
@@ -100,14 +92,11 @@ if (import.meta.main) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!response.ok)
-      throw new Error(`Cloud Run job ${mode} failed: HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`Cloud Run job ${mode} failed: HTTP ${response.status}`);
     // Job responses include credentials; report only the resource name.
     console.log(`${mode === "create" ? "Created" : "Updated"} ${name}`);
   } catch (err) {
-    console.error(
-      err instanceof Error ? err.message : "Cloud Run job request failed",
-    );
+    console.error(err instanceof Error ? err.message : "Cloud Run job request failed");
     process.exitCode = 1;
   }
 }

@@ -18,9 +18,7 @@ const count = (value: number | undefined) => value ?? 0;
 // Sums the model usage ADK records on each event. `cached` is part of
 // `prompt`, and `total` is the model-reported total, which also covers
 // thoughts and tool-use prompt tokens.
-export const sessionStats = ({
-  events,
-}: Pick<Session, "events">): SessionStats => {
+export const sessionStats = ({ events }: Pick<Session, "events">): SessionStats => {
   const stats: SessionStats = {
     events: events.length,
     llmCalls: 0,

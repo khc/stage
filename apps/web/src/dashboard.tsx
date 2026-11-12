@@ -1,11 +1,3 @@
-import { ThemeSwitch } from "./theme-switch";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
@@ -37,6 +29,8 @@ import {
   Workflow,
   X,
 } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+
 import {
   api,
   formatTime,
@@ -63,6 +57,7 @@ import {
   type Task,
 } from "./api";
 import { Button } from "./components/ui/button";
+import { ThemeSwitch } from "./theme-switch";
 
 type View = "overview" | "tasks" | "jobs";
 type Notice = {
@@ -85,13 +80,7 @@ function Loading({ label = "Loading workspace…" }: { label?: string }) {
     </div>
   );
 }
-function ErrorBox({
-  error,
-  retry,
-}: {
-  error: Error | null;
-  retry?: () => void;
-}) {
+function ErrorBox({ error, retry }: { error: Error | null; retry?: () => void }) {
   return (
     <div className="error-box" role="alert">
       <CircleAlert size={18} />
@@ -152,13 +141,7 @@ function CopyButton({ value }: { value: string }) {
         }
       }}
     >
-      {failed ? (
-        <CircleAlert size={13} />
-      ) : copied ? (
-        <Check size={13} />
-      ) : (
-        <Copy size={13} />
-      )}
+      {failed ? <CircleAlert size={13} /> : copied ? <Check size={13} /> : <Copy size={13} />}
     </button>
   );
 }
@@ -223,9 +206,7 @@ export function Dashboard() {
         document.querySelector("dialog[open]")
       )
         return;
-      const search = document.querySelector<HTMLInputElement>(
-        ".search-field input",
-      );
+      const search = document.querySelector<HTMLInputElement>(".search-field input");
       if (search) {
         event.preventDefault();
         search.focus();
@@ -249,13 +230,9 @@ export function Dashboard() {
       .includes(search.toLowerCase()),
   );
   const filteredJobs = jobs.filter((job) =>
-    `${job.name} ${job.description ?? ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+    `${job.name} ${job.description ?? ""}`.toLowerCase().includes(search.toLowerCase()),
   );
-  const openJob = selectedJob
-    ? jobs.find((job) => shortJobName(job) === selectedJob)
-    : undefined;
+  const openJob = selectedJob ? jobs.find((job) => shortJobName(job) === selectedJob) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["tasks"] });
@@ -357,11 +334,7 @@ export function Dashboard() {
             <span>Workspace</span>
             <ChevronRight size={13} />
             <strong>
-              {view === "overview"
-                ? "Overview"
-                : view === "tasks"
-                  ? "Tasks"
-                  : "Jobs"}
+              {view === "overview" ? "Overview" : view === "tasks" ? "Tasks" : "Jobs"}
             </strong>
           </div>
           <div className="topbar-right">
@@ -370,18 +343,9 @@ export function Dashboard() {
               <span
                 className={`status-dot ${health.isError ? "offline" : health.isPending ? "pending" : ""}`}
               />
-              {health.isError
-                ? "Disconnected"
-                : health.isPending
-                  ? "Connecting"
-                  : "Connected"}
+              {health.isError ? "Disconnected" : health.isPending ? "Connecting" : "Connected"}
             </span>
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Open API reference"
-            >
+            <a href="/docs" target="_blank" rel="noreferrer" aria-label="Open API reference">
               <BookOpen size={17} />
             </a>
           </div>
@@ -404,10 +368,7 @@ export function Dashboard() {
                 disabled={refreshing}
                 aria-label="Refresh workspace"
               >
-                <RefreshCw
-                  size={16}
-                  className={refreshing ? "animate-spin" : ""}
-                />
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
               </Button>
               <Button onClick={() => openCreate()}>
                 <Plus size={16} />
@@ -424,9 +385,7 @@ export function Dashboard() {
                   </span>
                   <span className="stat-label">Saved tasks</span>
                   <strong>{tasksQuery.data ? tasks.length : "—"}</strong>
-                  <span className="stat-note">
-                    Ready for your next execution
-                  </span>
+                  <span className="stat-note">Ready for your next execution</span>
                 </div>
                 <div className="stat-card">
                   <span className="stat-icon blue">
@@ -434,23 +393,15 @@ export function Dashboard() {
                   </span>
                   <span className="stat-label">Cloud Run jobs</span>
                   <strong>{jobsQuery.data ? jobs.length : "—"}</strong>
-                  <span className="stat-note">
-                    Configured workers in your workspace
-                  </span>
+                  <span className="stat-note">Configured workers in your workspace</span>
                 </div>
                 <div className="stat-card">
-                  <span
-                    className={`stat-icon ${health.isError ? "amber" : "green"}`}
-                  >
+                  <span className={`stat-icon ${health.isError ? "amber" : "green"}`}>
                     <Activity size={18} />
                   </span>
                   <span className="stat-label">API connection</span>
                   <strong className="status-value">
-                    {health.isError
-                      ? "Unavailable"
-                      : health.isPending
-                        ? "Connecting"
-                        : "Healthy"}
+                    {health.isError ? "Unavailable" : health.isPending ? "Connecting" : "Healthy"}
                   </strong>
                   <span className="stat-note">
                     {health.dataUpdatedAt
@@ -465,10 +416,7 @@ export function Dashboard() {
                 </div>
                 <div>
                   <h2>One task. Every conversation in view.</h2>
-                  <p>
-                    Give an agent a prompt, then inspect its work through
-                    execution sessions.
-                  </p>
+                  <p>Give an agent a prompt, then inspect its work through execution sessions.</p>
                 </div>
                 <div className="workflow-steps">
                   <span>
@@ -495,9 +443,7 @@ export function Dashboard() {
                 <div className="panel-title">
                   <Layers3 size={17} />
                   <h2>{view === "overview" ? "Saved tasks" : "All tasks"}</h2>
-                  {tasksQuery.data && (
-                    <span className="count-badge">{tasks.length}</span>
-                  )}
+                  {tasksQuery.data && <span className="count-badge">{tasks.length}</span>}
                 </div>
                 <label className="search-field">
                   <Search size={15} />
@@ -513,10 +459,7 @@ export function Dashboard() {
               {tasksQuery.isPending ? (
                 <Loading label="Loading tasks…" />
               ) : tasksQuery.isError ? (
-                <ErrorBox
-                  error={tasksQuery.error}
-                  retry={() => void tasksQuery.refetch()}
-                />
+                <ErrorBox error={tasksQuery.error} retry={() => void tasksQuery.refetch()} />
               ) : !tasks.length ? (
                 <Empty
                   icon={<Layers3 size={27} />}
@@ -550,10 +493,7 @@ export function Dashboard() {
                       {filtered.map((task) => (
                         <tr key={task.taskId}>
                           <td>
-                            <button
-                              className="task-link"
-                              onClick={() => setSelected(task.taskId)}
-                            >
+                            <button className="task-link" onClick={() => setSelected(task.taskId)}>
                               <span className="task-row-icon">
                                 <FileText size={16} />
                               </span>
@@ -561,9 +501,7 @@ export function Dashboard() {
                                 <strong>{task.prompt}</strong>
                                 <small>
                                   {task.taskId.slice(0, 8)}
-                                  <span className="id-ellipsis">
-                                    …{task.taskId.slice(-6)}
-                                  </span>
+                                  <span className="id-ellipsis">…{task.taskId.slice(-6)}</span>
                                 </small>
                               </span>
                             </button>
@@ -575,17 +513,13 @@ export function Dashboard() {
                             </span>
                           </td>
                           <td>
-                            <span
-                              className={`job-chip ${task.agentName ? "" : "chip-muted"}`}
-                            >
+                            <span className={`job-chip ${task.agentName ? "" : "chip-muted"}`}>
                               <Workflow size={12} />
                               {task.agentName ?? "Default"}
                             </span>
                           </td>
                           <td>
-                            <span
-                              className={`badge ${task.jobName ? "neutral" : "warning"}`}
-                            >
+                            <span className={`badge ${task.jobName ? "neutral" : "warning"}`}>
                               <span className="mini-dot" />
                               {task.jobName ? "Saved" : "Needs job"}
                             </span>
@@ -607,8 +541,7 @@ export function Dashboard() {
                                 onClick={() => runTask.mutate(task.taskId)}
                                 aria-label={`Run task ${task.taskId}`}
                               >
-                                {runTask.isPending &&
-                                runTask.variables === task.taskId ? (
+                                {runTask.isPending && runTask.variables === task.taskId ? (
                                   <Loader2 size={12} className="animate-spin" />
                                 ) : (
                                   <Play size={12} />
@@ -656,14 +589,11 @@ export function Dashboard() {
               {jobsQuery.isPending ? (
                 <Loading label="Loading jobs…" />
               ) : jobsQuery.isError ? (
-                <ErrorBox
-                  error={jobsQuery.error}
-                  retry={() => void jobsQuery.refetch()}
-                />
+                <ErrorBox error={jobsQuery.error} retry={() => void jobsQuery.refetch()} />
               ) : !jobs.length ? (
                 <Empty icon={<Server size={27} />} title="No jobs configured">
-                  Create a Cloud Run job in the configured project and region,
-                  then refresh this workspace.
+                  Create a Cloud Run job in the configured project and region, then refresh this
+                  workspace.
                 </Empty>
               ) : !filteredJobs.length ? (
                 <Empty icon={<Search size={26} />} title="No matching jobs">
@@ -686,9 +616,7 @@ export function Dashboard() {
           {view === "overview" && (
             <div className="bottom-note">
               <Database size={13} />
-              <span>
-                Tasks define the work. Jobs execute it. Sessions tell the story.
-              </span>
+              <span>Tasks define the work. Jobs execute it. Sessions tell the story.</span>
               <a href="/docs" target="_blank" rel="noreferrer">
                 Explore the API <ArrowRight size={12} />
               </a>
@@ -758,10 +686,7 @@ export function Dashboard() {
             <strong>{notice.title}</strong>
             {notice.message && <p>{notice.message}</p>}
           </div>
-          <button
-            aria-label="Dismiss notification"
-            onClick={() => setNotice(null)}
-          >
+          <button aria-label="Dismiss notification" onClick={() => setNotice(null)}>
             <X size={15} />
           </button>
         </div>
@@ -824,13 +749,7 @@ function RegisterAgentsButton({
   );
 }
 
-function AgentContract({
-  agent,
-  className = "",
-}: {
-  agent: AgentInfo;
-  className?: string;
-}) {
+function AgentContract({ agent, className = "" }: { agent: AgentInfo; className?: string }) {
   const rows: [string, JsonSchema | undefined][] = [
     ["Input", agent.inputSchema],
     ["Output", agent.outputSchema],
@@ -861,10 +780,7 @@ function JobCard({
 }) {
   const location = job.name?.split("/locations/")[1]?.split("/")[0];
   const name = shortJobName(job);
-  const { agents: registered, register } = useAgentRegistration(
-    name,
-    !!job.name,
-  );
+  const { agents: registered, register } = useAgentRegistration(name, !!job.name);
   return (
     <article className="job-card">
       <div className="job-card-top">
@@ -881,9 +797,7 @@ function JobCard({
           {name}
         </button>
       </h3>
-      <p>
-        {job.description || "An agent worker available for task execution."}
-      </p>
+      <p>{job.description || "An agent worker available for task execution."}</p>
       <div className="job-card-meta">
         <span>
           <Box size={12} />
@@ -899,11 +813,7 @@ function JobCard({
       <div className="job-agents" aria-label="Registered agents">
         {registered.length ? (
           registered.map((agent) => (
-            <span
-              key={agent.name}
-              className="job-chip"
-              title={agent.description}
-            >
+            <span key={agent.name} className="job-chip" title={agent.description}>
               <Workflow size={12} />
               {agent.name}
             </span>
@@ -963,9 +873,7 @@ function JobInspector({
             {location ?? "Cloud Run"}
           </span>
           {status && (
-            <span
-              className={`badge ${status === "Ready" ? "neutral" : "warning"}`}
-            >
+            <span className={`badge ${status === "Ready" ? "neutral" : "warning"}`}>
               <span className="mini-dot" />
               {status}
             </span>
@@ -976,32 +884,16 @@ function JobInspector({
           </Button>
         </div>
       </div>
-      <div
-        className="inspector-tabs"
-        role="tablist"
-        aria-label="Job detail sections"
-      >
-        <button
-          role="tab"
-          aria-selected={tab === "overview"}
-          onClick={() => setTab("overview")}
-        >
+      <div className="inspector-tabs" role="tablist" aria-label="Job detail sections">
+        <button role="tab" aria-selected={tab === "overview"} onClick={() => setTab("overview")}>
           <Database size={15} />
           Overview
         </button>
-        <button
-          role="tab"
-          aria-selected={tab === "agents"}
-          onClick={() => setTab("agents")}
-        >
+        <button role="tab" aria-selected={tab === "agents"} onClick={() => setTab("agents")}>
           <Workflow size={15} />
           Agents<span>{agents.length}</span>
         </button>
-        <button
-          role="tab"
-          aria-selected={tab === "tasks"}
-          onClick={() => setTab("tasks")}
-        >
+        <button role="tab" aria-selected={tab === "tasks"} onClick={() => setTab("tasks")}>
           <FileText size={15} />
           Tasks<span>{jobTasks.length}</span>
         </button>
@@ -1009,9 +901,7 @@ function JobInspector({
       <div className="inspector-body" role="tabpanel">
         {tab === "overview" ? (
           <>
-            {job.description && (
-              <p className="job-description">{job.description}</p>
-            )}
+            {job.description && <p className="job-description">{job.description}</p>}
             <dl className="job-details">
               {jobDetails(job).map(([label, value]) => (
                 <div key={label}>
@@ -1041,10 +931,7 @@ function JobInspector({
               </div>
             </div>
             {query.isError ? (
-              <ErrorBox
-                error={query.error}
-                retry={() => void query.refetch()}
-              />
+              <ErrorBox error={query.error} retry={() => void query.refetch()} />
             ) : query.isPending ? (
               <Loading label="Loading agents…" />
             ) : !agents.length ? (
@@ -1201,11 +1088,7 @@ function NewTask({
   // A structured agent gets a form; its values are sent as the JSON prompt.
   const fields = schemaFields(selectedAgent?.inputSchema);
   const built = fields ? buildPrompt(fields, values) : undefined;
-  const effectivePrompt = built
-    ? "prompt" in built
-      ? built.prompt
-      : ""
-    : prompt;
+  const effectivePrompt = built ? ("prompt" in built ? built.prompt : "") : prompt;
   const touched = Object.values(values).some((v) => v !== "" && v !== false);
   const promptProblem = built
     ? "error" in built && touched
@@ -1214,11 +1097,7 @@ function NewTask({
     : promptError(selectedAgent?.inputSchema, prompt);
   const invalid = built ? "error" in built : !!promptProblem;
   const jobOptions = [
-    ...new Set(
-      [...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(
-        Boolean,
-      ),
-    ),
+    ...new Set([...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(Boolean)),
   ];
   const mutation = useMutation({
     mutationFn: api.create,
@@ -1265,9 +1144,7 @@ function NewTask({
           </Button>
         </div>
         <h2 id="new-task-title">Create a task</h2>
-        <p className="dialog-description">
-          A prompt, a worker, and room to do great work.
-        </p>
+        <p className="dialog-description">A prompt, a worker, and room to do great work.</p>
         <label className="form-label" htmlFor="job-name">
           Cloud Run job<span>Required</span>
         </label>
@@ -1331,9 +1208,7 @@ function NewTask({
                 key={field.key}
                 field={field}
                 value={values[field.key]}
-                onChange={(value) =>
-                  setValues((current) => ({ ...current, [field.key]: value }))
-                }
+                onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
               />
             ))}
           </div>
@@ -1355,9 +1230,7 @@ function NewTask({
               maxLength={10_000}
               rows={7}
             />
-            <div className="prompt-counter">
-              {prompt.length.toLocaleString()} / 10,000
-            </div>
+            <div className="prompt-counter">{prompt.length.toLocaleString()} / 10,000</div>
           </>
         )}
         {promptProblem && (
@@ -1381,12 +1254,7 @@ function NewTask({
           </Button>
           <Button
             type="submit"
-            disabled={
-              !effectivePrompt.trim() ||
-              invalid ||
-              !jobName ||
-              mutation.isPending
-            }
+            disabled={!effectivePrompt.trim() || invalid || !jobName || mutation.isPending}
           >
             {mutation.isPending ? (
               <Loader2 size={15} className="animate-spin" />
@@ -1486,11 +1354,7 @@ function ConfirmDelete({
         disabled={mutation.isPending}
         onClick={() => mutation.mutate()}
       >
-        {mutation.isPending ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : (
-          <Trash2 size={13} />
-        )}
+        {mutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
         Delete
       </Button>
     </div>
@@ -1521,13 +1385,7 @@ function DeleteSession({
   );
 }
 
-function ContinueSession({
-  taskId,
-  sessionId,
-}: {
-  taskId: string;
-  sessionId: string;
-}) {
+function ContinueSession({ taskId, sessionId }: { taskId: string; sessionId: string }) {
   const client = useQueryClient();
   const [message, setMessage] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -1566,8 +1424,7 @@ function ContinueSession({
           placeholder="Message the agent…"
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
-              return;
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
             e.preventDefault();
             e.currentTarget.form?.requestSubmit();
           }}
@@ -1595,9 +1452,7 @@ function ContinueSession({
           Sent. New events appear when the agent responds.
         </p>
       ) : (
-        <p className="composer-hint">
-          Enter to send · Shift+Enter for a new line
-        </p>
+        <p className="composer-hint">Enter to send · Shift+Enter for a new line</p>
       )}
     </form>
   );
@@ -1607,10 +1462,7 @@ const INSPECTOR_MIN = 420;
 const INSPECTOR_KEY = "inspector-width";
 const clampWidth = (width: number) =>
   Math.round(
-    Math.min(
-      Math.max(width, INSPECTOR_MIN),
-      Math.max(INSPECTOR_MIN, window.innerWidth * 0.9),
-    ),
+    Math.min(Math.max(width, INSPECTOR_MIN), Math.max(INSPECTOR_MIN, window.innerWidth * 0.9)),
   );
 const savedWidth = () => {
   try {
@@ -1646,13 +1498,10 @@ function useResizableWidth() {
       save(next);
     },
     onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const step =
-        e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
+      const step = e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
       if (!step) return;
       e.preventDefault();
-      const next = clampWidth(
-        (width ?? e.currentTarget.closest("dialog")!.offsetWidth) + step,
-      );
+      const next = clampWidth((width ?? e.currentTarget.closest("dialog")!.offsetWidth) + step);
       setWidth(next);
       save(next);
     },
@@ -1709,8 +1558,7 @@ function LastOutput({
     enabled: !!sessionId,
   });
   useSessionStream(taskId, sessionId);
-  if (loading || (sessionId && session.isPending))
-    return <Loading label="Loading output…" />;
+  if (loading || (sessionId && session.isPending)) return <Loading label="Loading output…" />;
   if (!latest)
     return (
       <Empty icon={<Terminal size={25} />} title="No output yet">
@@ -1718,9 +1566,7 @@ function LastOutput({
       </Empty>
     );
   if (session.isError)
-    return (
-      <ErrorBox error={session.error} retry={() => void session.refetch()} />
-    );
+    return <ErrorBox error={session.error} retry={() => void session.refetch()} />;
   const output = lastOutput(session.data!.events);
   return (
     <>
@@ -1741,8 +1587,7 @@ function LastOutput({
         </>
       ) : (
         <Empty icon={<Terminal size={25} />} title="No answer yet">
-          The latest session has not produced a text answer. It may still be
-          running.
+          The latest session has not produced a text answer. It may still be running.
         </Empty>
       )}
     </>
@@ -1771,9 +1616,7 @@ function InspectorShell({
       className="inspector"
       aria-labelledby="inspector-title"
       onClose={onClose}
-      style={
-        width ? ({ "--inspector-w": `${width}px` } as React.CSSProperties) : {}
-      }
+      style={width ? ({ "--inspector-w": `${width}px` } as React.CSSProperties) : {}}
     >
       <div className="inspector-resize">
         <div
@@ -1843,11 +1686,7 @@ function TaskInspector({
     (a, b) => b.lastUpdateTime - a.lastUpdateTime,
   );
   return (
-    <InspectorShell
-      eyebrow="TASK DETAILS"
-      label="task details"
-      onClose={onClose}
-    >
+    <InspectorShell eyebrow="TASK DETAILS" label="task details" onClose={onClose}>
       {task.isPending ? (
         <Loading label="Loading task…" />
       ) : task.isError ? (
@@ -1875,16 +1714,8 @@ function TaskInspector({
                 <Workflow size={12} />
                 {task.data.agentName ?? "Default agent"}
               </span>
-              <Button
-                size="sm"
-                onClick={onRun}
-                disabled={!task.data.jobName || running}
-              >
-                {running ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Play size={13} />
-                )}
+              <Button size="sm" onClick={onRun} disabled={!task.data.jobName || running}>
+                {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
                 Run task
               </Button>
               <ConfirmDelete
@@ -1900,11 +1731,7 @@ function TaskInspector({
               />
             </div>
           </div>
-          <div
-            className="inspector-tabs"
-            role="tablist"
-            aria-label="Task detail sections"
-          >
+          <div className="inspector-tabs" role="tablist" aria-label="Task detail sections">
             <button
               role="tab"
               aria-selected={tab === "sessions"}
@@ -1913,19 +1740,11 @@ function TaskInspector({
               <Terminal size={15} />
               Sessions<span>{list.length}</span>
             </button>
-            <button
-              role="tab"
-              aria-selected={tab === "output"}
-              onClick={() => setTab("output")}
-            >
+            <button role="tab" aria-selected={tab === "output"} onClick={() => setTab("output")}>
               <Sparkles size={15} />
               Output
             </button>
-            <button
-              role="tab"
-              aria-selected={tab === "prompt"}
-              onClick={() => setTab("prompt")}
-            >
+            <button role="tab" aria-selected={tab === "prompt"} onClick={() => setTab("prompt")}>
               <FileText size={15} />
               Prompt
             </button>
@@ -1941,10 +1760,7 @@ function TaskInspector({
                   <strong>{notice.title}</strong>
                   <p>{notice.message}</p>
                 </div>
-                <button
-                  aria-label="Dismiss notification"
-                  onClick={onDismissNotice}
-                >
+                <button aria-label="Dismiss notification" onClick={onDismissNotice}>
                   <X size={14} />
                 </button>
               </div>
@@ -1966,20 +1782,14 @@ function TaskInspector({
               </>
             ) : sessionId ? (
               <>
-                <button
-                  className="back-link"
-                  onClick={() => setSessionId(null)}
-                >
+                <button className="back-link" onClick={() => setSessionId(null)}>
                   <ArrowLeft size={14} />
                   All sessions
                 </button>
                 {detail.isPending ? (
                   <Loading label="Loading session…" />
                 ) : detail.isError ? (
-                  <ErrorBox
-                    error={detail.error}
-                    retry={() => void detail.refetch()}
-                  />
+                  <ErrorBox error={detail.error} retry={() => void detail.refetch()} />
                 ) : (
                   <>
                     <div className="session-detail-title">
@@ -2008,34 +1818,22 @@ function TaskInspector({
                       <summary>
                         <Database size={14} />
                         Session state
-                        <span>
-                          {Object.keys(detail.data.state).length} keys
-                        </span>
+                        <span>{Object.keys(detail.data.state).length} keys</span>
                       </summary>
                       <pre>{JSON.stringify(detail.data.state, null, 2)}</pre>
                     </details>
                     {detail.data.events.length ? (
                       <div className="event-timeline">
                         {detail.data.events.map((event, i) => (
-                          <EventCard
-                            key={event.id ?? i}
-                            event={event}
-                            index={i}
-                          />
+                          <EventCard key={event.id ?? i} event={event} index={i} />
                         ))}
                       </div>
                     ) : (
-                      <Empty
-                        icon={<Terminal size={25} />}
-                        title="No events yet"
-                      >
+                      <Empty icon={<Terminal size={25} />} title="No events yet">
                         Events will appear here as the agent works.
                       </Empty>
                     )}
-                    <ContinueSession
-                      taskId={taskId}
-                      sessionId={detail.data.id}
-                    />
+                    <ContinueSession taskId={taskId} sessionId={detail.data.id} />
                   </>
                 )}
               </>
@@ -2053,26 +1851,17 @@ function TaskInspector({
                     aria-label="Refresh sessions"
                     disabled={sessions.isFetching}
                   >
-                    <RefreshCw
-                      size={15}
-                      className={sessions.isFetching ? "animate-spin" : ""}
-                    />
+                    <RefreshCw size={15} className={sessions.isFetching ? "animate-spin" : ""} />
                   </Button>
                 </div>
                 {sessions.isPending ? (
                   <Loading label="Loading sessions…" />
                 ) : sessions.isError ? (
-                  <ErrorBox
-                    error={sessions.error}
-                    retry={() => void sessions.refetch()}
-                  />
+                  <ErrorBox error={sessions.error} retry={() => void sessions.refetch()} />
                 ) : !list.length ? (
-                  <Empty
-                    icon={<Terminal size={27} />}
-                    title="The conversation starts with a run"
-                  >
-                    Run this task to create a session. New sessions appear
-                    automatically when the agent starts.
+                  <Empty icon={<Terminal size={27} />} title="The conversation starts with a run">
+                    Run this task to create a session. New sessions appear automatically when the
+                    agent starts.
                   </Empty>
                 ) : (
                   <div className="sessions-list">
@@ -2089,9 +1878,7 @@ function TaskInspector({
                           <strong>Session {session.id.slice(0, 8)}</strong>
                           <small>{formatTime(session.lastUpdateTime)}</small>
                         </span>
-                        {i === 0 && (
-                          <span className="badge violet-badge">Latest</span>
-                        )}
+                        {i === 0 && <span className="badge violet-badge">Latest</span>}
                         <ChevronRight size={16} />
                       </button>
                     ))}
@@ -2109,33 +1896,19 @@ function TaskInspector({
 function EventCard({ event, index }: { event: SessionEvent; index: number }) {
   const parts = event.content?.parts ?? [];
   return (
-    <article
-      className={`event-card ${event.errorMessage ? "event-error" : ""}`}
-    >
+    <article className={`event-card ${event.errorMessage ? "event-error" : ""}`}>
       <div className="event-marker">
-        <span>
-          {event.author === "user" ? (
-            <ArrowRight size={12} />
-          ) : (
-            <Sparkles size={12} />
-          )}
-        </span>
+        <span>{event.author === "user" ? <ArrowRight size={12} /> : <Sparkles size={12} />}</span>
       </div>
       <div className="event-header">
         <strong>{event.author ?? event.content?.role ?? "Event"}</strong>
-        <span>
-          {event.timestamp ? formatTime(event.timestamp) : `Event ${index + 1}`}
-        </span>
+        <span>{event.timestamp ? formatTime(event.timestamp) : `Event ${index + 1}`}</span>
       </div>
-      {event.errorMessage && (
-        <p className="event-error-message">{event.errorMessage}</p>
-      )}
+      {event.errorMessage && <p className="event-error-message">{event.errorMessage}</p>}
       {parts.map((part, i) => (
         <div key={i}>
           {part.text != null && (
-            <div
-              className={`event-text ${part.thought ? "event-thought" : ""}`}
-            >
+            <div className={`event-text ${part.thought ? "event-thought" : ""}`}>
               {part.thought && <span className="thought-label">Reasoning</span>}
               {part.text}
             </div>
@@ -2155,9 +1928,7 @@ function EventCard({ event, index }: { event: SessionEvent; index: number }) {
                 <Check size={13} />
                 {part.functionResponse.name ?? "Tool response"}
               </summary>
-              <pre>
-                {JSON.stringify(part.functionResponse.response ?? {}, null, 2)}
-              </pre>
+              <pre>{JSON.stringify(part.functionResponse.response ?? {}, null, 2)}</pre>
             </details>
           )}
         </div>

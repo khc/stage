@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+
 import { createLiveEvents } from "./live-events";
 
 const setup = () => {
@@ -8,9 +9,7 @@ const setup = () => {
       handlers[name] = fn;
     },
   };
-  const createSubscription = mock(async (_name: string, _opts: unknown) => [
-    subscription,
-  ]);
+  const createSubscription = mock(async (_name: string, _opts: unknown) => [subscription]);
   const get = mock(async (_opts: unknown) => [{ createSubscription }]);
   const topic = mock((_name: string) => ({ get }));
   const live = createLiveEvents({ topic } as never, "events", "sub-1");
@@ -42,10 +41,7 @@ test("acks and delivers events only to listeners of that task and session", asyn
   await live("t1", "s1", mine);
   await live("t1", "s2", other);
 
-  const ack = deliver(
-    { taskId: "t1", sessionId: "s1", eventId: "e1" },
-    '{"id":"e1"}',
-  );
+  const ack = deliver({ taskId: "t1", sessionId: "s1", eventId: "e1" }, '{"id":"e1"}');
   deliver({ taskId: "t2", sessionId: "s1", eventId: "e2" });
 
   expect(ack).toHaveBeenCalled();

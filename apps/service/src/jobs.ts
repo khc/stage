@@ -1,11 +1,7 @@
 import type { JobsClient, protos } from "@google-cloud/run";
 
 export type Resume = { sessionId: string; message: string };
-export type RunJob = (
-  job: string,
-  taskId: string,
-  resume?: Resume,
-) => Promise<string>;
+export type RunJob = (job: string, taskId: string, resume?: Resume) => Promise<string>;
 export type RegisterJob = (job: string) => Promise<string>;
 export type ListJobs = () => Promise<protos.google.cloud.run.v2.IJob[]>;
 

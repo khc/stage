@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { jobEnvironment } from "./cloud-run-job";
 
 test("supplies the job with Firestore configuration and model credentials", () => {
@@ -85,9 +86,7 @@ test("create and update send configured job resources without printing credentia
     expect(requests.map((r) => r.method)).toEqual(["POST", "PATCH"]);
     expect(requests[0]!.url.pathname).toBe("/v2/projects/p/locations/l/jobs");
     expect(requests[0]!.url.searchParams.get("jobId")).toBe("test-job");
-    expect(requests[1]!.url.pathname).toBe(
-      "/v2/projects/p/locations/l/jobs/test-job",
-    );
+    expect(requests[1]!.url.pathname).toBe("/v2/projects/p/locations/l/jobs/test-job");
     expect(requests[1]!.url.searchParams.get("updateMask")).toBe("template");
     expect(requests[1]!.body.name).toBe("projects/p/locations/l/jobs/test-job");
     for (const { body } of requests) {
@@ -229,10 +228,7 @@ test("update stops without patching when the existing job cannot be read", async
       stdout: "pipe",
       stderr: "pipe",
     });
-    const [stderr, exitCode] = await Promise.all([
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
+    const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
     expect(exitCode).toBe(1);
     expect(stderr).toContain("Cloud Run job read failed: HTTP 404");
     expect(methods).toEqual(["GET"]);

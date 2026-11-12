@@ -1,16 +1,15 @@
-import { createEvent } from "@google/adk";
 import { expect, mock, spyOn, test } from "bun:test";
+
+import { createEvent } from "@google/adk";
 import { LlmAgent } from "@google/adk";
 import { z } from "zod";
+
 import { createRunAgent, createTaskAgent } from "./runtime";
 import type { AgentSet } from "./spec";
 
-const reply = (text: string) =>
-  createEvent({ content: { role: "model", parts: [{ text }] } });
+const reply = (text: string) => createEvent({ content: { role: "model", parts: [{ text }] } });
 
-const setup = (
-  runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>,
-) => {
+const setup = (runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>) => {
   const sessionService = {
     createSession: mock(async () => ({ id: "s1" })),
   };
@@ -71,9 +70,7 @@ test("resumes an existing session of the same task without creating one", async 
 
   expect(await run("more", taskId, "s9")).toBe("again");
   expect(sessionService.createSession).not.toHaveBeenCalled();
-  expect(runAsync).toHaveBeenCalledWith(
-    expect.objectContaining({ sessionId: "s9" }),
-  );
+  expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "s9" }));
 });
 
 test("refuses to resume a missing session or one linked to another task", async () => {
@@ -86,9 +83,7 @@ test("refuses to resume a missing session or one linked to another task", async 
       yield reply("no");
     });
     const run = createTaskAgent({ sessionService, runAsync } as never);
-    await expect(run("more", "task-1", "s9")).rejects.toThrow(
-      "Session not found",
-    );
+    await expect(run("more", "task-1", "s9")).rejects.toThrow("Session not found");
     expect(runAsync).not.toHaveBeenCalled();
   }
 });
@@ -126,20 +121,17 @@ const set: AgentSet = {
     },
   },
 };
-const runner = () =>
-  createRunAgent(set, { db: {} as never, publish: undefined });
+const runner = () => createRunAgent(set, { db: {} as never, publish: undefined });
 
 test("createRunAgent rejects an agent name the set does not hold", async () => {
-  await expect(runner()("hi", undefined, undefined, "nope")).rejects.toThrow(
-    "Unknown agent: nope",
-  );
+  await expect(runner()("hi", undefined, undefined, "nope")).rejects.toThrow("Unknown agent: nope");
 });
 
 test("createRunAgent rejects a message that does not match a structured agent's input", async () => {
-  await expect(
-    runner()("not json", undefined, undefined, "structured"),
-  ).rejects.toThrow("must be JSON");
-  await expect(
-    runner()("{}", undefined, undefined, "structured"),
-  ).rejects.toThrow("does not match");
+  await expect(runner()("not json", undefined, undefined, "structured")).rejects.toThrow(
+    "must be JSON",
+  );
+  await expect(runner()("{}", undefined, undefined, "structured")).rejects.toThrow(
+    "does not match",
+  );
 });

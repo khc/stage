@@ -7,10 +7,7 @@ export type AgentInfo = {
   inputSchema?: JsonSchema;
   outputSchema?: JsonSchema;
 };
-export type RegisterAgents = (
-  jobName: string,
-  agents: AgentInfo[],
-) => Promise<void>;
+export type RegisterAgents = (jobName: string, agents: AgentInfo[]) => Promise<void>;
 export type ListAgents = (jobName: string) => Promise<AgentInfo[]>;
 
 const COLLECTION = "agents";
@@ -24,8 +21,7 @@ export const createRegisterAgents =
     const stored = await collection.where("jobName", "==", jobName).get();
     const keep = new Set(agents.map((agent) => agent.name));
     const batch = db.batch();
-    for (const doc of stored.docs)
-      if (!keep.has(doc.get("name"))) batch.delete(doc.ref);
+    for (const doc of stored.docs) if (!keep.has(doc.get("name"))) batch.delete(doc.ref);
     // Schemas are stored as JSON text: Firestore restricts nested arrays and
     // some key names that JSON Schema can contain.
     for (const { name, description, inputSchema, outputSchema } of agents)

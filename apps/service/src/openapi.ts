@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import {
   jobParamSchema,
   resumeSchema,
@@ -21,8 +22,7 @@ const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const error = (...codes: string[]) =>
   schema(z.object({ error: z.enum(codes as [string, ...string[]]) }));
 const invalid = {
-  description:
-    "Invalid parameters or JSON input; returns validation error details.",
+  description: "Invalid parameters or JSON input; returns validation error details.",
 };
 const body = (validator: z.ZodType) => ({
   required: true,
@@ -81,10 +81,7 @@ export const openApiDocument = {
         operationId: "health",
         summary: "Check service health",
         responses: {
-          200: response(
-            "Healthy",
-            schema(z.object({ status: z.literal("ok") })),
-          ),
+          200: response("Healthy", schema(z.object({ status: z.literal("ok") }))),
         },
       },
     },
@@ -132,8 +129,7 @@ export const openApiDocument = {
                     inputSchema: {
                       type: "object",
                       additionalProperties: true,
-                      description:
-                        "JSON Schema of the message a task sends to the agent.",
+                      description: "JSON Schema of the message a task sends to the agent.",
                     },
                     outputSchema: {
                       type: "object",
@@ -239,14 +235,8 @@ export const openApiDocument = {
             schema(z.object({ operation: z.string() })),
           ),
           400: invalid,
-          404: response(
-            "Task or session not found",
-            error("task_not_found", "session_not_found"),
-          ),
-          409: response(
-            "Stored jobName is missing or invalid",
-            error("task_not_executable"),
-          ),
+          404: response("Task or session not found", error("task_not_found", "session_not_found")),
+          409: response("Stored jobName is missing or invalid", error("task_not_executable")),
           502: response(
             "Firestore lookup or Cloud Run submission failure",
             error("task_error", "session_error", "job_error"),

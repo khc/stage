@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import config, { createWebFetch } from "./index";
 
 test("dashboard loads at /, /web and /web/ with working assets and proxies API requests", async () => {
@@ -27,14 +28,10 @@ test("dashboard loads at /, /web and /web/ with working assets and proxies API r
       expect(html).toContain("Agent Jobs");
       const assets = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
         .map((match) => match[1])
-        .filter(
-          (value): value is string => !!value && !value.startsWith("http"),
-        );
+        .filter((value): value is string => !!value && !value.startsWith("http"));
       expect(assets.length).toBeGreaterThan(0);
       for (const asset of assets) {
-        expect(
-          (await fetch(new URL(asset, new URL(path, server.url)))).status,
-        ).toBe(200);
+        expect((await fetch(new URL(asset, new URL(path, server.url)))).status).toBe(200);
       }
     }
     expect(await (await fetch(new URL("/health", server.url))).json()).toEqual({

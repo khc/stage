@@ -1,5 +1,7 @@
-import type { Firestore } from "@google-cloud/firestore";
 import { expect, mock, test } from "bun:test";
+
+import type { Firestore } from "@google-cloud/firestore";
+
 import { createGetTask } from "./task-contract";
 
 const reader = (get: () => Promise<unknown>) => {

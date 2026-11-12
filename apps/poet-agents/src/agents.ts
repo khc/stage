@@ -1,4 +1,5 @@
 import type { AgentSet } from "@agent-jobs/agents/spec";
+
 import { haikuAgent, haikuInput, haikuOutput } from "./haiku-agent";
 
 export const agentSet: AgentSet = {

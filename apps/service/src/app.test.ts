@@ -1,9 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
+
+import { createApp } from "./app";
+import type { ListJobs, RunJob } from "./jobs";
+import type { openApiDocument } from "./openapi";
 import type { TaskSessions } from "./sessions";
 import type { CreateTask, TaskContract } from "./tasks";
-import { createApp } from "./app";
-import type { openApiDocument } from "./openapi";
-import type { ListJobs, RunJob } from "./jobs";
 
 const noJob: RunJob = async () => "";
 const noJobs: ListJobs = async () => [];
@@ -18,8 +19,7 @@ const noSessions: TaskSessions = {
   get: async () => undefined,
   delete: async () => false,
 };
-const makeApp = () =>
-  createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
+const makeApp = () => createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
 
 const post = (body: unknown) => ({
   method: "POST",
@@ -40,14 +40,9 @@ test("GET /jobs returns all listed job resources", async () => {
     { name: "projects/p/locations/l/jobs/second" },
   ];
   const listJobs = mock(async () => jobs);
-  const res = await createApp(
-    noJob,
-    listJobs,
-    noCreate,
-    noTasks,
-    noTask,
-    noSessions,
-  ).request("/jobs");
+  const res = await createApp(noJob, listJobs, noCreate, noTasks, noTask, noSessions).request(
+    "/jobs",
+  );
 
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ jobs });
@@ -55,14 +50,9 @@ test("GET /jobs returns all listed job resources", async () => {
 });
 
 test("GET /jobs returns an empty jobs array", async () => {
-  const res = await createApp(
-    noJob,
-    noJobs,
-    noCreate,
-    noTasks,
-    noTask,
-    noSessions,
-  ).request("/jobs");
+  const res = await createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions).request(
+    "/jobs",
+  );
 
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ jobs: [] });
@@ -72,14 +62,9 @@ test("GET /jobs returns 502 job_error without upstream details", async () => {
   const listJobs = mock(async (): ReturnType<ListJobs> => {
     throw new Error("secret listing detail");
   });
-  const res = await createApp(
-    noJob,
-    listJobs,
-    noCreate,
-    noTasks,
-    noTask,
-    noSessions,
-  ).request("/jobs");
+  const res = await createApp(noJob, listJobs, noCreate, noTasks, noTask, noSessions).request(
+    "/jobs",
+  );
 
   expect(res.status).toBe(502);
   expect(await res.json()).toEqual({ error: "job_error" });
@@ -97,9 +82,7 @@ const taskApp = () => {
     ...input,
   }));
   const list = mock(async () => [savedTask]);
-  const get = mock(
-    async (_id: string) => savedTask as TaskContract | undefined,
-  );
+  const get = mock(async (_id: string) => savedTask as TaskContract | undefined);
   return {
     app: createApp(job, noJobs, create, list, get, noSessions),
     job,
@@ -130,12 +113,7 @@ test("POST /tasks saves a trimmed prompt and returns 201 without executing", asy
 test("POST /tasks accepts the maximum prompt length", async () => {
   const { app, create } = taskApp();
   expect(
-    (
-      await app.request(
-        "/tasks",
-        post({ jobName: "my-job", prompt: "x".repeat(10_000) }),
-      )
-    ).status,
+    (await app.request("/tasks", post({ jobName: "my-job", prompt: "x".repeat(10_000) }))).status,
   ).toBe(201);
   expect(create).toHaveBeenCalledWith({
     prompt: "x".repeat(10_000),
@@ -153,10 +131,7 @@ test("POST /tasks rejects invalid bodies without saving", async () => {
     { prompt: null },
     { prompt: "x".repeat(10_001) },
   ]) {
-    expect(
-      (await app.request("/tasks", post({ jobName: "my-job", ...body })))
-        .status,
-    ).toBe(400);
+    expect((await app.request("/tasks", post({ jobName: "my-job", ...body }))).status).toBe(400);
   }
   expect(
     (
@@ -183,14 +158,9 @@ test("GET /tasks returns a collection without executing or creating", async () =
 });
 
 test("GET /tasks returns an empty collection", async () => {
-  const response = await createApp(
-    noJob,
-    noJobs,
-    noCreate,
-    noTasks,
-    noTask,
-    noSessions,
-  ).request("/tasks");
+  const response = await createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions).request(
+    "/tasks",
+  );
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ tasks: [] });
 });
@@ -228,9 +198,7 @@ for (const operation of ["create", "list", "get"] as const) {
     fixtures[operation].mockRejectedValue(new Error("private storage detail"));
     const response = await fixtures.app.request(
       operation === "get" ? `/tasks/${savedTask.taskId}` : "/tasks",
-      operation === "create"
-        ? post({ jobName: "my-job", prompt: "hello" })
-        : undefined,
+      operation === "create" ? post({ jobName: "my-job", prompt: "hello" }) : undefined,
     );
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "task_error" });
@@ -250,9 +218,7 @@ for (const jobName of [
 ]) {
   test(`creation rejects invalid jobName ${String(jobName)}`, async () => {
     const { app, create } = taskApp();
-    expect(
-      (await app.request("/tasks", post({ prompt: "hello", jobName }))).status,
-    ).toBe(400);
+    expect((await app.request("/tasks", post({ prompt: "hello", jobName }))).status).toBe(400);
     expect(create).not.toHaveBeenCalled();
   });
 }
@@ -260,9 +226,7 @@ for (const jobName of [
 test("creation accepts a 63-character job name", async () => {
   const { app, create } = taskApp();
   const jobName = "a".repeat(63);
-  expect(
-    (await app.request("/tasks", post({ prompt: "hello", jobName }))).status,
-  ).toBe(201);
+  expect((await app.request("/tasks", post({ prompt: "hello", jobName }))).status).toBe(201);
   expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName });
 });
 
@@ -297,9 +261,7 @@ test("run ignores conflicting prompt/message/jobName supplied in its body", asyn
 
 test("run rejects invalid UUIDs without reading or submitting", async () => {
   const { app, get, job } = taskApp();
-  expect(
-    (await app.request("/tasks/invalid/run", { method: "POST" })).status,
-  ).toBe(400);
+  expect((await app.request("/tasks/invalid/run", { method: "POST" })).status).toBe(400);
   expect(get).not.toHaveBeenCalled();
   expect(job).not.toHaveBeenCalled();
 });
@@ -313,14 +275,7 @@ test("run returns 404 for an absent contract without submission", async () => {
   expect(job).not.toHaveBeenCalled();
 });
 
-for (const jobName of [
-  undefined,
-  "",
-  "Invalid_Name",
-  "a".repeat(64),
-  "../bad",
-  42,
-]) {
+for (const jobName of [undefined, "", "Invalid_Name", "a".repeat(64), "../bad", 42]) {
   test(`run rejects missing or invalid stored jobName ${String(jobName)}`, async () => {
     const { app, get, job } = taskApp();
     get.mockResolvedValue({ ...savedTask, jobName } as TaskContract);
@@ -350,9 +305,7 @@ test("run submission failure returns job_error", async () => {
 
 test("old execution URL is removed", async () => {
   const { app, job, get } = taskApp();
-  expect(
-    (await app.request("/jobs/my-job/run", { method: "POST" })).status,
-  ).toBe(404);
+  expect((await app.request("/jobs/my-job/run", { method: "POST" })).status).toBe(404);
   expect(job).not.toHaveBeenCalled();
   expect(get).not.toHaveBeenCalled();
 });
@@ -361,16 +314,9 @@ test("former run-contract URLs are removed", async () => {
   const { app, get, list, job } = taskApp();
   expect((await app.request("/jobs/runs")).status).toBe(404);
   expect(
-    (
-      await app.request(
-        "/jobs/runs",
-        post({ prompt: "hello", jobName: "my-job" }),
-      )
-    ).status,
+    (await app.request("/jobs/runs", post({ prompt: "hello", jobName: "my-job" }))).status,
   ).toBe(404);
-  expect((await app.request(`/jobs/runs/${savedTask.taskId}`)).status).toBe(
-    404,
-  );
+  expect((await app.request(`/jobs/runs/${savedTask.taskId}`)).status).toBe(404);
   expect(
     (
       await app.request(`/jobs/runs/${savedTask.taskId}/exec`, {
@@ -394,9 +340,7 @@ const session = {
   events: [],
 };
 const sessionsApp = () => {
-  const getTask = mock(
-    async (_id: string): Promise<TaskContract | undefined> => savedTask,
-  );
+  const getTask = mock(async (_id: string): Promise<TaskContract | undefined> => savedTask);
   const list = mock(async (_id: string) => [
     {
       id: session.id,
@@ -407,10 +351,7 @@ const sessionsApp = () => {
     },
   ]);
   const get = mock(
-    async (
-      _taskId: string,
-      _sessionId: string,
-    ): Promise<typeof session | undefined> => session,
+    async (_taskId: string, _sessionId: string): Promise<typeof session | undefined> => session,
   );
   return {
     app: createApp(noJob, noJobs, noCreate, noTasks, getTask, {
@@ -426,9 +367,7 @@ const sessionsApp = () => {
 
 test("GET task sessions returns summaries for the normalized task UUID", async () => {
   const { app, list } = sessionsApp();
-  const response = await app.request(
-    `/tasks/${savedTask.taskId.toUpperCase()}/sessions`,
-  );
+  const response = await app.request(`/tasks/${savedTask.taskId.toUpperCase()}/sessions`);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
     sessions: [
@@ -454,9 +393,7 @@ test("GET task sessions returns an empty list", async () => {
 
 test("GET task session returns full state and events", async () => {
   const { app, get } = sessionsApp();
-  const response = await app.request(
-    `/tasks/${savedTask.taskId}/sessions/${sessionId}`,
-  );
+  const response = await app.request(`/tasks/${savedTask.taskId}/sessions/${sessionId}`);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual(session);
   expect(get).toHaveBeenCalledWith(savedTask.taskId, sessionId);
@@ -476,11 +413,7 @@ for (const detail of [false, true]) {
   test(`session ${detail ? "detail" : "list"} rejects invalid task UUIDs`, async () => {
     const { app, getTask, list, get } = sessionsApp();
     expect(
-      (
-        await app.request(
-          `/tasks/invalid/sessions${detail ? `/${sessionId}` : ""}`,
-        )
-      ).status,
+      (await app.request(`/tasks/invalid/sessions${detail ? `/${sessionId}` : ""}`)).status,
     ).toBe(400);
     expect(getTask).not.toHaveBeenCalled();
     expect(list).not.toHaveBeenCalled();
@@ -499,9 +432,7 @@ for (const detail of [false, true]) {
 test("GET task session returns 404 for absent or non-owned sessions", async () => {
   const { app, get } = sessionsApp();
   get.mockResolvedValue(undefined);
-  const response = await app.request(
-    `/tasks/${savedTask.taskId}/sessions/${sessionId}`,
-  );
+  const response = await app.request(`/tasks/${savedTask.taskId}/sessions/${sessionId}`);
   expect(response.status).toBe(404);
   expect(await response.json()).toEqual({ error: "session_not_found" });
 });
@@ -525,10 +456,7 @@ test("GET /openapi.json describes every API operation and its task input", async
     ...new Set(
       app.routes
         .filter((r) => !["/docs", "/openapi.json"].includes(r.path))
-        .map(
-          (r) =>
-            `${r.method.toLowerCase()} ${r.path.replace(/:([^/]+)/g, "{$1}")}`,
-        ),
+        .map((r) => `${r.method.toLowerCase()} ${r.path.replace(/:([^/]+)/g, "{$1}")}`),
     ),
   ].sort();
   const described = Object.entries(document.paths)
@@ -539,46 +467,32 @@ test("GET /openapi.json describes every API operation and its task input", async
     )
     .sort();
   expect(described).toEqual(actual);
-  const input =
-    document.paths["/tasks"].post.requestBody.content["application/json"]
-      .schema;
+  const input = document.paths["/tasks"].post.requestBody.content["application/json"].schema;
   expect(input.required).toEqual(["prompt", "jobName"]);
   expect(input.properties?.prompt).toMatchObject({ maxLength: 10_000 });
   expect(input.properties?.jobName).toMatchObject({ maxLength: 63 });
   const resume =
-    document.paths["/tasks/{taskId}/run"].post.requestBody.content[
-      "application/json"
-    ].schema;
+    document.paths["/tasks/{taskId}/run"].post.requestBody.content["application/json"].schema;
   expect(resume.required).toEqual(["sessionId", "message"]);
-  expect(
-    document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"],
-  ).toBeDefined();
+  expect(document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"]).toBeDefined();
 });
 
 const resumeApp = (found: boolean) => {
-  const job = mock(
-    async (_name: string, _taskId: string, _resume?: unknown) => "op-1",
-  );
+  const job = mock(async (_name: string, _taskId: string, _resume?: unknown) => "op-1");
   const get = mock(async (_taskId: string, _sessionId: string) =>
     found ? ({ id: "s1" } as never) : undefined,
   );
-  const app = createApp(
-    job,
-    noJobs,
-    noCreate,
-    noTasks,
-    async () => savedTask as TaskContract,
-    { list: async () => [], get, delete: async () => false },
-  );
+  const app = createApp(job, noJobs, noCreate, noTasks, async () => savedTask as TaskContract, {
+    list: async () => [],
+    get,
+    delete: async () => false,
+  });
   return { app, job, get };
 };
 
 test("run with sessionId and message resumes an owned session", async () => {
   const { app, job, get } = resumeApp(true);
-  const response = await app.request(
-    runPath,
-    post({ sessionId: "s1", message: "  answer  " }),
-  );
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "  answer  " }));
   expect(response.status).toBe(202);
   expect(get).toHaveBeenCalledWith(savedTask.taskId, "s1");
   expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId, {
@@ -589,10 +503,7 @@ test("run with sessionId and message resumes an owned session", async () => {
 
 test("run returns 404 session_not_found for a missing or foreign session", async () => {
   const { app, job } = resumeApp(false);
-  const response = await app.request(
-    runPath,
-    post({ sessionId: "s1", message: "answer" }),
-  );
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
   expect(response.status).toBe(404);
   expect(await response.json()).toEqual({ error: "session_not_found" });
   expect(job).not.toHaveBeenCalled();
@@ -615,8 +526,7 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
       noJobs,
       noCreate,
       noTasks,
-      async (id: string) =>
-        id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      async (id: string) => (id === savedTask.taskId ? (savedTask as TaskContract) : undefined),
       { list: async () => [], get: async () => undefined, delete: del },
     );
     return { app, del };
@@ -637,10 +547,9 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
     expect(await res.json()).toEqual({ error: "session_not_found" });
 
     const noTask = deleteApp(async () => true);
-    const other = await noTask.app.request(
-      `/tasks/${crypto.randomUUID()}/sessions/s1`,
-      { method: "DELETE" },
-    );
+    const other = await noTask.app.request(`/tasks/${crypto.randomUUID()}/sessions/s1`, {
+      method: "DELETE",
+    });
     expect(other.status).toBe(404);
     expect(await other.json()).toEqual({ error: "task_not_found" });
     expect(noTask.del).not.toHaveBeenCalled();
@@ -650,10 +559,9 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
     const { app, del } = deleteApp(async () => {
       throw new Error("private storage detail");
     });
-    expect(
-      (await app.request("/tasks/invalid/sessions/s1", { method: "DELETE" }))
-        .status,
-    ).toBe(400);
+    expect((await app.request("/tasks/invalid/sessions/s1", { method: "DELETE" })).status).toBe(
+      400,
+    );
     const res = await app.request(path, { method: "DELETE" });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "session_error" });
@@ -669,8 +577,7 @@ describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
       noJobs,
       noCreate,
       noTasks,
-      async (id: string) =>
-        id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      async (id: string) => (id === savedTask.taskId ? (savedTask as TaskContract) : undefined),
       {
         list: async () => [],
         get: async () =>
@@ -709,9 +616,7 @@ describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
     const res = await statsApp(false).request(path);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "session_not_found" });
-    const noTask = await statsApp(true).request(
-      `/tasks/${crypto.randomUUID()}/sessions/s1/stats`,
-    );
+    const noTask = await statsApp(true).request(`/tasks/${crypto.randomUUID()}/sessions/s1/stats`);
     expect(await noTask.json()).toEqual({ error: "task_not_found" });
   });
 });
@@ -733,12 +638,7 @@ test("POST /tasks passes a valid agentName and rejects an invalid one", async ()
   });
   for (const agentName of ["", "has space", "1abc", "x".repeat(65), 7])
     expect(
-      (
-        await app.request(
-          "/tasks",
-          post({ jobName: "my-job", prompt: "hi", agentName }),
-        )
-      ).status,
+      (await app.request("/tasks", post({ jobName: "my-job", prompt: "hi", agentName }))).status,
     ).toBe(400);
   expect(create).toHaveBeenCalledTimes(1);
 });
@@ -747,24 +647,13 @@ describe("agent registry routes", () => {
   const registered = [{ name: "assistant" }, { name: "researcher" }];
   const registryApp = (
     registry?: Parameters<typeof createApp>[7],
-    create = mock(
-      async (i: { prompt: string; jobName: string; agentName?: string }) => ({
-        taskId: savedTask.taskId,
-        ...i,
-      }),
-    ),
+    create = mock(async (i: { prompt: string; jobName: string; agentName?: string }) => ({
+      taskId: savedTask.taskId,
+      ...i,
+    })),
   ) => ({
     create,
-    app: createApp(
-      noJob,
-      noJobs,
-      create,
-      noTasks,
-      noTask,
-      noSessions,
-      undefined,
-      registry,
-    ),
+    app: createApp(noJob, noJobs, create, noTasks, noTask, noSessions, undefined, registry),
   });
 
   test("GET /jobs/:jobName/agents lists the registered agents", async () => {
@@ -774,9 +663,9 @@ describe("agent registry routes", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ agents: registered });
     expect(list).toHaveBeenCalledWith("my-job");
-    expect(
-      await (await registryApp().app.request("/jobs/my-job/agents")).json(),
-    ).toEqual({ agents: [] });
+    expect(await (await registryApp().app.request("/jobs/my-job/agents")).json()).toEqual({
+      agents: [],
+    });
     expect((await app.request("/jobs/Bad_Name/agents")).status).toBe(400);
   });
 
@@ -842,16 +731,10 @@ test("GET /jobs/:jobName/agents passes each agent's schemas through", async () =
       outputSchema: { type: "string" },
     },
   ];
-  const app = createApp(
-    noJob,
-    noJobs,
-    noCreate,
-    noTasks,
-    noTask,
-    noSessions,
-    undefined,
-    { register: async () => "", list: async () => agents },
-  );
+  const app = createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions, undefined, {
+    register: async () => "",
+    list: async () => agents,
+  });
   expect(await (await app.request("/jobs/j/agents")).json()).toEqual({
     agents,
   });
@@ -879,8 +762,7 @@ describe("DELETE /tasks/:taskId", () => {
       noJobs,
       noCreate,
       noTasks,
-      async () =>
-        opts.exists === false ? undefined : (savedTask as TaskContract),
+      async () => (opts.exists === false ? undefined : (savedTask as TaskContract)),
       {
         list: async () => {
           if (opts.listFails) throw new Error("private storage detail");
@@ -932,9 +814,7 @@ describe("DELETE /tasks/:taskId", () => {
 
   test("rejects an invalid id, hides storage failures and keeps the task", async () => {
     const { app, removeTask } = deleteApp({ listFails: true });
-    expect(
-      (await app.request("/tasks/invalid", { method: "DELETE" })).status,
-    ).toBe(400);
+    expect((await app.request("/tasks/invalid", { method: "DELETE" })).status).toBe(400);
     const res = await app.request(path, { method: "DELETE" });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "task_error" });
