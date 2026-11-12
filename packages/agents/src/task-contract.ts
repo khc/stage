@@ -5,17 +5,20 @@ export type TaskContract = {
   prompt: string;
   jobName?: string;
   agentName?: string;
+  documents?: { documentId: string }[];
 };
 export type GetTask = (taskId: string) => Promise<TaskContract | undefined>;
 
 export const toContract = (doc: DocumentSnapshot): TaskContract => {
   const jobName = doc.get("jobName");
   const agentName = doc.get("agentName");
+  const documents = doc.get("documents");
   return {
     taskId: doc.id,
     prompt: doc.get("prompt"),
     ...(jobName !== undefined && { jobName }),
     ...(agentName !== undefined && { agentName }),
+    ...(documents !== undefined && { documents }),
   };
 };
 

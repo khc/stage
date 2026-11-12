@@ -3,6 +3,13 @@ export type Task = {
   prompt: string;
   jobName?: string;
   agentName?: string;
+  documents?: { documentId: string }[];
+};
+export type DocumentSummary = {
+  documentId: string;
+  filename: string;
+  checksum: string;
+  contentType: string;
 };
 // Cloud Run timestamps and durations arrive as { seconds, nanos }.
 export type Timestamp = {
@@ -107,6 +114,13 @@ const messages: Record<string, string> = {
   job_error: "Cloud Run could not complete the request. Check the job configuration and try again.",
   task_error: "Tasks could not be loaded. Check the service connection and try again.",
   session_error: "Sessions could not be loaded. Try again in a moment.",
+  document_error: "Documents could not be loaded or saved. Try again in a moment.",
+  document_not_found: "This document could not be found for this task.",
+  file_required: "Choose a file to upload.",
+  file_too_large: "This file is too large to upload (25 MB maximum).",
+  document_too_large: "The text extracted from this file is too large to store.",
+  extraction_failed: "The content of this file could not be extracted.",
+  not_supported: "Document upload is not configured on the server.",
 };
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, options);
@@ -153,6 +167,16 @@ export const api = {
   deleteTask: (id: string) => request<void>(taskPath(id), { method: "DELETE" }),
   deleteSession: (taskId: string, sessionId: string) =>
     request<void>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+    }),
+  documents: (id: string) => request<{ documents: DocumentSummary[] }>(`${taskPath(id)}/documents`),
+  uploadDocument: (id: string, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<DocumentSummary>(`${taskPath(id)}/documents`, { method: "POST", body });
+  },
+  deleteDocument: (id: string, documentId: string) =>
+    request<void>(`${taskPath(id)}/documents/${encodeURIComponent(documentId)}`, {
       method: "DELETE",
     }),
   sessions: (id: string) => request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),

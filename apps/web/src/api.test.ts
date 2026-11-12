@@ -19,6 +19,21 @@ import {
 let fetchSpy: ReturnType<typeof spyOn> | undefined;
 afterEach(() => fetchSpy?.mockRestore());
 
+test("document upload posts multipart form data without a content-type header", async () => {
+  const fetch = mock(async () =>
+    Response.json({ documentId: "d", filename: "a.txt", checksum: "d", contentType: "text/plain" }),
+  );
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  await api.uploadDocument("task-1", new File(["hi"], "a.txt"));
+  const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(path).toBe("/tasks/task-1/documents");
+  expect(init.method).toBe("POST");
+  expect(init.headers).toBeUndefined();
+  expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+});
+
 test("task creation sends only the saved contract input", async () => {
   const task = { taskId: "task-1", prompt: "hello", jobName: "worker" };
   const fetch = mock(async () => Response.json(task, { status: 201 }));

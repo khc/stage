@@ -2045,7 +2045,9 @@ tbody tr:hover {
 :root[data-theme="light"] :is(.error-box p, .notice-error p) {
   color: #9d775d;
 }
-:root[data-theme="light"] :root[data-theme="light"] :is(.event-error-message, .toast-error .toast-icon) {
+:root[data-theme="light"]
+  :root[data-theme="light"]
+  :is(.event-error-message, .toast-error .toast-icon) {
   color: #b8644f;
 }
 :root[data-theme="light"] .toast-error {

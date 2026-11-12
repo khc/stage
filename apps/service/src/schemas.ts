@@ -21,6 +21,10 @@ export const taskParamSchema = z.object({
   taskId: z.uuid().transform((id) => id.toLowerCase()),
 });
 
+export const documentParamSchema = taskParamSchema.extend({
+  documentId: z.string().regex(/^[0-9a-f]{64}$/),
+});
+
 export const sessionParamSchema = taskParamSchema.extend({
   sessionId: z.string().min(1).max(1500),
 });

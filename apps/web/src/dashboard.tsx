@@ -26,6 +26,7 @@ import {
   Sparkles,
   Terminal,
   Trash2,
+  Upload,
   Workflow,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 
 import {
   api,
+  type DocumentSummary,
   formatTime,
   shortJobName,
   buildPrompt,
@@ -1667,7 +1669,7 @@ function TaskInspector({
   onDismissNotice: () => void;
 }) {
   const client = useQueryClient();
-  const [tab, setTab] = useState<"sessions" | "output" | "prompt">("sessions");
+  const [tab, setTab] = useState<"sessions" | "output" | "prompt" | "documents">("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const task = useQuery({
     queryKey: ["task", taskId],
@@ -1678,6 +1680,11 @@ function TaskInspector({
     queryFn: () => api.sessions(taskId),
     enabled: !!task.data,
     refetchInterval: tab === "output" ? 5000 : false,
+  });
+  const documents = useQuery({
+    queryKey: ["documents", taskId],
+    queryFn: () => api.documents(taskId),
+    enabled: !!task.data,
   });
   const detail = useQuery({
     queryKey: ["session", taskId, sessionId],
@@ -1751,6 +1758,14 @@ function TaskInspector({
               <FileText size={15} />
               Prompt
             </button>
+            <button
+              role="tab"
+              aria-selected={tab === "documents"}
+              onClick={() => setTab("documents")}
+            >
+              <Upload size={15} />
+              Documents<span>{documents.data?.documents.length ?? 0}</span>
+            </button>
           </div>
           <div className="inspector-body" role="tabpanel">
             {notice && (
@@ -1778,6 +1793,8 @@ function TaskInspector({
                   setTab("sessions");
                 }}
               />
+            ) : tab === "documents" ? (
+              <TaskDocuments taskId={taskId} query={documents} />
             ) : tab === "prompt" ? (
               <>
                 <p className="section-overline">SAVED PROMPT</p>
@@ -1893,6 +1910,77 @@ function TaskInspector({
         </>
       )}
     </InspectorShell>
+  );
+}
+
+function TaskDocuments({
+  taskId,
+  query,
+}: {
+  taskId: string;
+  query: ReturnType<typeof useQuery<{ documents: DocumentSummary[] }>>;
+}) {
+  const client = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const refresh = () => client.invalidateQueries({ queryKey: ["documents", taskId] });
+  const upload = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(taskId, file),
+    onSuccess: refresh,
+  });
+  return (
+    <>
+      <div className="sessions-heading">
+        <div>
+          <p className="section-overline">DOCUMENTS</p>
+          <p>Uploaded files are extracted to text and attached to this task.</p>
+        </div>
+        <input
+          ref={input}
+          type="file"
+          hidden
+          aria-label="Choose a document"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) upload.mutate(file);
+          }}
+        />
+        <Button size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
+          {upload.isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          Upload
+        </Button>
+      </div>
+      {upload.isError && <ErrorBox error={upload.error} />}
+      {query.isPending ? (
+        <Loading label="Loading documents…" />
+      ) : query.isError ? (
+        <ErrorBox error={query.error} retry={() => void query.refetch()} />
+      ) : !query.data.documents.length ? (
+        <Empty icon={<FileText size={27} />} title="No documents yet">
+          Upload a file to make its extracted content available to this task.
+        </Empty>
+      ) : (
+        <div className="sessions-list">
+          {query.data.documents.map((doc) => (
+            <div key={doc.documentId} className="session-list-item">
+              <span className="session-icon">
+                <FileText size={17} />
+              </span>
+              <span>
+                <strong>{doc.filename}</strong>
+                <small>{doc.contentType}</small>
+              </span>
+              <ConfirmDelete
+                label="Remove document"
+                question="Remove this document?"
+                remove={() => api.deleteDocument(taskId, doc.documentId)}
+                onDeleted={() => void refresh()}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

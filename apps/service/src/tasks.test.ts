@@ -25,7 +25,7 @@ test("creates UUID-keyed contracts in runs and preserves the supplied prompt", a
   );
   expect(contract.prompt).toBe("  hello  ");
   expect(contract.jobName).toBe("my-job");
-  expect(Object.keys(contract).toSorted()).toEqual(["jobName", "prompt", "taskId"]);
+  expect(Object.keys(contract).toSorted()).toEqual(["documents", "jobName", "prompt", "taskId"]);
   expect(collection).toHaveBeenCalledWith("tasks");
   expect(doc).toHaveBeenCalledWith(contract.taskId);
   expect(create).toHaveBeenCalledWith(contract);

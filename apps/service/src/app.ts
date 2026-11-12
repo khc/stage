@@ -2,14 +2,17 @@ import type { ListAgents } from "@agent-jobs/agents/agent-registry";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 
+import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
 import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
 import type { LiveEvents } from "./live-events";
 import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
+  documentParamSchema,
   jobParamSchema,
   resumeSchema,
   taskSchema,
@@ -21,6 +24,7 @@ import { sessionStats } from "./stats";
 import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 
 const KEEPALIVE_MS = 5_000;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const noop = () => {};
 
 export type AgentRegistry = { register: RegisterJob; list: ListAgents };
@@ -35,6 +39,7 @@ export const createApp = (
   liveEvents?: LiveEvents,
   registry?: AgentRegistry,
   deleteTask?: DeleteTask,
+  documents?: TaskDocuments,
 ) =>
   new Hono()
     .get("/openapi.json", (c) => c.json(openApiDocument))
@@ -117,10 +122,16 @@ export const createApp = (
       if (!deleteTask) return c.json({ error: "not_supported" }, 501);
       const { taskId } = c.req.valid("param");
       try {
-        if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+        const task = await getTask(taskId);
+        if (!task) return c.json({ error: "task_not_found" }, 404);
         // Sessions go first, so a failure leaves the task in place to retry.
         for (const { id } of await sessions.list(taskId)) await sessions.delete(taskId, id);
         await deleteTask(taskId);
+        // Documents no other task uses are removed; a failure here is only
+        // logged, since the task is already gone.
+        await documents
+          ?.release((task.documents ?? []).map((d) => d.documentId))
+          .catch((err) => console.error(err));
         return c.body(null, 204);
       } catch (err) {
         console.error(err);
@@ -129,6 +140,83 @@ export const createApp = (
         });
       }
     })
+    .get("/tasks/:taskId/documents", zValidator("param", taskParamSchema), async (c) => {
+      if (!documents) return c.json({ error: "not_supported" }, 501);
+      const { taskId } = c.req.valid("param");
+      try {
+        if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+        return c.json({ documents: await documents.list(taskId) });
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, {
+          res: c.json({ error: "document_error" }, 502),
+        });
+      }
+    })
+    .post(
+      "/tasks/:taskId/documents",
+      bodyLimit({
+        maxSize: MAX_UPLOAD_BYTES,
+        onError: (c) => c.json({ error: "file_too_large" }, 413),
+      }),
+      zValidator("param", taskParamSchema),
+      async (c) => {
+        if (!documents) return c.json({ error: "not_supported" }, 501);
+        const { taskId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+          const file = (await c.req.parseBody().catch(() => undefined))?.file;
+          if (!(file instanceof File)) return c.json({ error: "file_required" }, 400);
+          return c.json(await documents.add(taskId, file), 201);
+        } catch (err) {
+          if (err instanceof DocumentTooLargeError)
+            return c.json({ error: "document_too_large" }, 413);
+          if (err instanceof ExtractionError) return c.json({ error: "extraction_failed" }, 422);
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "document_error" }, 502),
+          });
+        }
+      },
+    )
+    .get(
+      "/tasks/:taskId/documents/:documentId",
+      zValidator("param", documentParamSchema),
+      async (c) => {
+        if (!documents) return c.json({ error: "not_supported" }, 501);
+        const { taskId, documentId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+          const document = await documents.get(taskId, documentId);
+          if (!document) return c.json({ error: "document_not_found" }, 404);
+          return c.json(document);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "document_error" }, 502),
+          });
+        }
+      },
+    )
+    .delete(
+      "/tasks/:taskId/documents/:documentId",
+      zValidator("param", documentParamSchema),
+      async (c) => {
+        if (!documents) return c.json({ error: "not_supported" }, 501);
+        const { taskId, documentId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);
+          if (!(await documents.remove(taskId, documentId)))
+            return c.json({ error: "document_not_found" }, 404);
+          return c.body(null, 204);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "document_error" }, 502),
+          });
+        }
+      },
+    )
     .get("/tasks/:taskId/sessions", zValidator("param", taskParamSchema), async (c) => {
       const { taskId } = c.req.valid("param");
       try {

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createApp } from "./app";
 import { createJobsClient } from "./cloud-run";
+import { createExtractDocument, createTaskDocuments } from "./documents";
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
 import { createLiveEvents } from "./live-events";
 import { createTaskSessions } from "./sessions";
@@ -34,6 +35,9 @@ const app = createApp(
   process.env.PUBSUB_TOPIC ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC) : undefined,
   { register: registerJob, list: createListAgents(db) },
   createDeleteTask(db),
+  process.env.EXTRACT_URL
+    ? createTaskDocuments(db, createExtractDocument(process.env.EXTRACT_URL))
+    : undefined,
 );
 
 export default {

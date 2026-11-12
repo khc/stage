@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  documentParamSchema,
   jobParamSchema,
   resumeSchema,
   taskSchema,
@@ -49,6 +50,15 @@ const sessionId = {
   description: "Exact session ID (case sensitive).",
   schema: schema(sessionParamSchema.shape.sessionId),
 };
+const documentId = {
+  name: "documentId",
+  in: "path",
+  required: true,
+  description: "SHA-256 checksum of the uploaded file (lowercase hex).",
+  schema: schema(documentParamSchema.shape.documentId),
+};
+const documentFailure = response("Storage or extraction service failure", error("document_error"));
+const noDocuments = response("Not configured (EXTRACT_URL unset)", error("not_supported"));
 const taskFailure = response("Firestore failure", error("task_error"));
 const missingTask = response("Task not found", error("task_not_found"));
 const sessionResponses = {
@@ -244,6 +254,93 @@ export const openApiDocument = {
         },
       },
     },
+    "/tasks/{taskId}/documents": {
+      get: {
+        operationId: "listTaskDocuments",
+        summary: "List the documents attached to a task",
+        description: "Metadata only; fetch one document to read its extracted content.",
+        parameters: [taskId],
+        responses: {
+          200: response("Attached documents", {
+            type: "object",
+            required: ["documents"],
+            properties: { documents: { type: "array", items: ref("DocumentSummary") } },
+          }),
+          400: invalid,
+          404: missingTask,
+          501: noDocuments,
+          502: documentFailure,
+        },
+      },
+      post: {
+        operationId: "uploadTaskDocument",
+        summary: "Upload a file, extract its content and attach it to the task",
+        description:
+          "Multipart form data with one file field named file (max 25 MiB). The SHA-256 of the bytes is the documentId: a file already stored (by any task) is not extracted again, only attached. Attaching the same file twice is a no-op.",
+        parameters: [taskId],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["file"],
+                properties: { file: { type: "string", format: "binary" } },
+              },
+            },
+          },
+        },
+        responses: {
+          201: response("Attached document", ref("DocumentSummary")),
+          400: response("Invalid task ID or missing file", error("file_required")),
+          404: missingTask,
+          413: response(
+            "File or extracted text too large",
+            error("file_too_large", "document_too_large"),
+          ),
+          422: response(
+            "The extraction service could not read the file",
+            error("extraction_failed"),
+          ),
+          501: noDocuments,
+          502: documentFailure,
+        },
+      },
+    },
+    "/tasks/{taskId}/documents/{documentId}": {
+      get: {
+        operationId: "getTaskDocument",
+        summary: "Get an attached document with its extracted content",
+        parameters: [taskId, documentId],
+        responses: {
+          200: response("Document", ref("Document")),
+          400: invalid,
+          404: response(
+            "Task or document not found",
+            error("task_not_found", "document_not_found"),
+          ),
+          501: noDocuments,
+          502: documentFailure,
+        },
+      },
+      delete: {
+        operationId: "deleteTaskDocument",
+        summary: "Detach a document from the task",
+        description:
+          "Removes the document from this task. The stored document is deleted too once no other task references it.",
+        parameters: [taskId, documentId],
+        responses: {
+          204: { description: "Document detached" },
+          400: invalid,
+          404: response(
+            "Task or document not found",
+            error("task_not_found", "document_not_found"),
+          ),
+          501: noDocuments,
+          502: documentFailure,
+        },
+      },
+    },
     "/tasks/{taskId}/sessions": {
       get: {
         operationId: "listTaskSessions",
@@ -342,6 +439,7 @@ export const openApiDocument = {
           prompt: z.string(),
           jobName: z.string().optional(),
           agentName: z.string().optional(),
+          documents: z.array(z.object({ documentId: z.string() })).optional(),
         }),
       ),
       CreatedTask: schema(
@@ -350,6 +448,24 @@ export const openApiDocument = {
           prompt: z.string(),
           jobName: z.string(),
           agentName: z.string().optional(),
+          documents: z.array(z.object({ documentId: z.string() })),
+        }),
+      ),
+      DocumentSummary: schema(
+        z.object({
+          documentId: z.string(),
+          filename: z.string(),
+          checksum: z.string(),
+          contentType: z.string(),
+        }),
+      ),
+      Document: schema(
+        z.object({
+          documentId: z.string(),
+          filename: z.string(),
+          checksum: z.string(),
+          contentType: z.string(),
+          content: z.string(),
         }),
       ),
       SessionSummary: {

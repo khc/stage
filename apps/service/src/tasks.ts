@@ -19,6 +19,7 @@ export const createCreateTask =
       taskId: crypto.randomUUID(),
       prompt,
       jobName,
+      documents: [],
       ...(agentName !== undefined && { agentName }),
     };
     await db.collection("tasks").doc(contract.taskId).create(contract);

@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 
 import { createApp } from "./app";
+import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
 import type { ListJobs, RunJob } from "./jobs";
 import type { openApiDocument } from "./openapi";
 import type { TaskSessions } from "./sessions";
@@ -824,5 +825,117 @@ describe("DELETE /tasks/:taskId", () => {
   test("returns 501 when deletion is not configured", async () => {
     const { app } = deleteApp({ withDelete: false });
     expect((await app.request(path, { method: "DELETE" })).status).toBe(501);
+  });
+});
+
+describe("task documents", () => {
+  const taskId = crypto.randomUUID();
+  const documentId = "a".repeat(64);
+  const summary = {
+    documentId,
+    filename: "a.txt",
+    checksum: documentId,
+    contentType: "text/plain",
+  };
+  const stub = (over: Partial<TaskDocuments> = {}): TaskDocuments => ({
+    list: async () => [summary],
+    get: async () => ({ ...summary, content: "hi" }),
+    add: async () => summary,
+    remove: async () => true,
+    release: async () => {},
+    ...over,
+  });
+  const found = async (id: string) => (id === taskId ? { taskId, prompt: "p" } : undefined);
+  const appWith = (documents?: TaskDocuments, deleteTask?: () => Promise<void>) =>
+    createApp(
+      noJob,
+      noJobs,
+      noCreate,
+      noTasks,
+      found,
+      noSessions,
+      undefined,
+      undefined,
+      deleteTask,
+      documents,
+    );
+  const upload = (form: FormData) => ({ method: "POST", body: form });
+  const form = (f?: File) => {
+    const data = new FormData();
+    if (f) data.set("file", f);
+    return data;
+  };
+
+  test("uploads a file and returns 201 with the summary", async () => {
+    const add = mock(async (_t: string, _f: File) => summary);
+    const res = await appWith(stub({ add })).request(
+      `/tasks/${taskId}/documents`,
+      upload(form(new File(["hi"], "a.txt"))),
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual(summary);
+    expect(add.mock.calls[0]?.[1].name).toBe("a.txt");
+  });
+
+  test("maps upload failures", async () => {
+    const run = (err: Error) =>
+      appWith(
+        stub({
+          add: async () => {
+            throw err;
+          },
+        }),
+      ).request(`/tasks/${taskId}/documents`, upload(form(new File(["x"], "a.txt"))));
+    const missing = await appWith(stub()).request(`/tasks/${taskId}/documents`, upload(form()));
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: "file_required" });
+    expect((await run(new DocumentTooLargeError())).status).toBe(413);
+    expect((await run(new ExtractionError("bad"))).status).toBe(422);
+    const failed = await run(new Error("secret"));
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ error: "document_error" });
+  });
+
+  test("404 for an unknown task, 501 when unconfigured", async () => {
+    const other = crypto.randomUUID();
+    expect((await appWith(stub()).request(`/tasks/${other}/documents`)).status).toBe(404);
+    expect((await appWith().request(`/tasks/${taskId}/documents`)).status).toBe(501);
+  });
+
+  test("lists, gets and detaches documents", async () => {
+    const app = appWith(stub());
+    expect(await (await app.request(`/tasks/${taskId}/documents`)).json()).toEqual({
+      documents: [summary],
+    });
+    expect(
+      (await (await app.request(`/tasks/${taskId}/documents/${documentId}`)).json()).content,
+    ).toBe("hi");
+    const del = await app.request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
+    expect(del.status).toBe(204);
+    const gone = await appWith(
+      stub({ remove: async () => false, get: async () => undefined }),
+    ).request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
+    expect(gone.status).toBe(404);
+    expect((await app.request(`/tasks/${taskId}/documents/nope`)).status).toBe(400);
+  });
+
+  test("deleting a task releases its documents", async () => {
+    const release = mock(async (_ids: string[]) => {});
+    const withDocs = async (id: string) =>
+      id === taskId ? { taskId, prompt: "p", documents: [{ documentId }] } : undefined;
+    const app = createApp(
+      noJob,
+      noJobs,
+      noCreate,
+      noTasks,
+      withDocs,
+      noSessions,
+      undefined,
+      undefined,
+      async () => {},
+      stub({ release }),
+    );
+    expect((await app.request(`/tasks/${taskId}`, { method: "DELETE" })).status).toBe(204);
+    expect(release).toHaveBeenCalledWith([documentId]);
   });
 });
