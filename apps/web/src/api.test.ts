@@ -157,3 +157,21 @@ test("session stats are fetched from the encoded stats path", async () => {
     undefined,
   );
 });
+
+test("task creation sends agentName only when provided", async () => {
+  const fetch = mock(async () =>
+    Response.json({ taskId: "t", prompt: "p", jobName: "j" }, { status: 201 }),
+  );
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  await api.create({ prompt: "p", jobName: "j", agentName: "researcher" });
+  await api.create({ prompt: "p", jobName: "j", agentName: undefined });
+  const bodies = fetch.mock.calls.map((c) =>
+    JSON.parse((c as unknown as [string, RequestInit])[1].body as string),
+  );
+  expect(bodies).toEqual([
+    { prompt: "p", jobName: "j", agentName: "researcher" },
+    { prompt: "p", jobName: "j" },
+  ]);
+});

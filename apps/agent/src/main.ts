@@ -25,7 +25,7 @@ export const main = async (
     const message = sessionId ? env.MESSAGE : contract.prompt;
     if (!promptSchema.safeParse(message).success)
       throw new Error("MESSAGE is required to resume a session");
-    console.log(await run(message!, id.data, sessionId));
+    console.log(await run(message!, id.data, sessionId, contract.agentName));
     return 0;
   } catch (err) {
     console.error(err);

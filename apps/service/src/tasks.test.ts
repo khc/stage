@@ -138,3 +138,35 @@ test("propagates list failures", async () => {
   );
   await expect(createListTasks(db)()).rejects.toThrow("read failed");
 });
+
+test("stores agentName only when supplied and lists it", async () => {
+  const { db, create } = writer();
+  const named = await createCreateTask(db)({
+    prompt: "p",
+    jobName: "my-job",
+    agentName: "researcher",
+  });
+  expect(named.agentName).toBe("researcher");
+  expect(create).toHaveBeenCalledWith(named);
+  const plain = await createCreateTask(db)({ prompt: "p", jobName: "my-job" });
+  expect(Object.keys(plain)).not.toContain("agentName");
+
+  const reader = readerWith(
+    async () => undefined,
+    async () => ({
+      docs: [
+        {
+          id: "a",
+          exists: true,
+          get: (f: string) =>
+            ({ prompt: "p", jobName: "my-job", agentName: "researcher" })[
+              f as "prompt"
+            ],
+        },
+      ],
+    }),
+  );
+  expect(await createListTasks(reader.db)()).toEqual([
+    { taskId: "a", prompt: "p", jobName: "my-job", agentName: "researcher" },
+  ]);
+});

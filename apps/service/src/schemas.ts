@@ -7,7 +7,15 @@ export const jobNameSchema = z
   .string()
   .regex(/^[a-z]([-a-z0-9]*[a-z0-9])?$/)
   .max(63);
-export const taskSchema = z.object({ prompt: message, jobName: jobNameSchema });
+export const agentNameSchema = z
+  .string()
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+  .max(64);
+export const taskSchema = z.object({
+  prompt: message,
+  jobName: jobNameSchema,
+  agentName: agentNameSchema.optional(),
+});
 export const taskParamSchema = z.object({
   taskId: z.uuid().transform((id) => id.toLowerCase()),
 });

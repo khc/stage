@@ -1,6 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
-import { rootAgent } from "./agent";
+import { agents, rootAgent } from "./agent";
 import { FirestoreSessionService } from "./session-service";
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 
@@ -15,6 +15,7 @@ export type RunAgent = (
   message: string,
   taskId?: string,
   sessionId?: string,
+  agentName?: string,
 ) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<FirestoreSessionService, "createSession" | "getSession">;
@@ -63,11 +64,19 @@ export const createTaskAgent =
     return reply;
   };
 
-export const runAgent = createTaskAgent(
-  new Runner({
-    appName,
-    agent: rootAgent,
-    sessionService: new FirestoreSessionService(new Firestore()),
-  }),
-  publisherFromEnv(process.env),
-);
+const sessionService = new FirestoreSessionService(new Firestore());
+const publish = publisherFromEnv(process.env);
+
+export const runAgent: RunAgent = async (
+  message,
+  taskId,
+  sessionId,
+  agentName,
+) => {
+  const agent = agents[agentName ?? rootAgent.name];
+  if (!agent) throw new Error(`Unknown agent: ${agentName}`);
+  return createTaskAgent(
+    new Runner({ appName, agent, sessionService }),
+    publish,
+  )(message, taskId, sessionId);
+};

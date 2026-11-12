@@ -715,3 +715,30 @@ describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
     expect(await noTask.json()).toEqual({ error: "task_not_found" });
   });
 });
+
+test("POST /tasks passes a valid agentName and rejects an invalid one", async () => {
+  const { app, create } = taskApp();
+  expect(
+    (
+      await app.request(
+        "/tasks",
+        post({ jobName: "my-job", prompt: "hi", agentName: "researcher_2" }),
+      )
+    ).status,
+  ).toBe(201);
+  expect(create).toHaveBeenCalledWith({
+    prompt: "hi",
+    jobName: "my-job",
+    agentName: "researcher_2",
+  });
+  for (const agentName of ["", "has space", "1abc", "x".repeat(65), 7])
+    expect(
+      (
+        await app.request(
+          "/tasks",
+          post({ jobName: "my-job", prompt: "hi", agentName }),
+        )
+      ).status,
+    ).toBe(400);
+  expect(create).toHaveBeenCalledTimes(1);
+});

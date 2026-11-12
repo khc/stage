@@ -2,7 +2,9 @@ import { createEvent } from "@google/adk";
 import { expect, mock, test } from "bun:test";
 import { createEventPublisher, publisherFromEnv } from "./event-publisher";
 
-const event = createEvent({ content: { role: "model", parts: [{ text: "hi" }] } });
+const event = createEvent({
+  content: { role: "model", parts: [{ text: "hi" }] },
+});
 
 test("publishes the event JSON with session, task and event attributes", async () => {
   const publishMessage = mock(async (_message: unknown) => "1");

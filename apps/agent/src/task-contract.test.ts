@@ -55,3 +55,22 @@ test("propagates lookup failures", async () => {
   });
   await expect(createGetTask(db)("a")).rejects.toThrow("read failed");
 });
+
+test("includes agentName when stored", async () => {
+  const data: Record<string, unknown> = {
+    prompt: "hello",
+    jobName: "my-job",
+    agentName: "researcher",
+  };
+  const { db } = reader(async () => ({
+    id: "a",
+    exists: true,
+    get: (key: string) => data[key],
+  }));
+  expect(await createGetTask(db)("a")).toEqual({
+    taskId: "a",
+    prompt: "hello",
+    jobName: "my-job",
+    agentName: "researcher",
+  });
+});

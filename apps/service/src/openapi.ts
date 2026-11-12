@@ -106,7 +106,7 @@ export const openApiDocument = {
         operationId: "createTask",
         summary: "Save a task",
         description:
-          "Saves prompt and jobName without executing. Prompt is trimmed to 1–10,000 characters; extra fields are ignored.",
+          "Saves prompt, jobName and an optional agentName without executing. agentName selects which agent in the job container runs the task (an identifier of at most 64 characters); omit it for the container's default agent. Prompt is trimmed to 1–10,000 characters; extra fields are ignored.",
         requestBody: body(taskSchema),
         responses: {
           201: response("Saved task", ref("CreatedTask")),
@@ -267,10 +267,16 @@ export const openApiDocument = {
           taskId: z.uuid(),
           prompt: z.string(),
           jobName: z.string().optional(),
+          agentName: z.string().optional(),
         }),
       ),
       CreatedTask: schema(
-        z.object({ taskId: z.uuid(), prompt: z.string(), jobName: z.string() }),
+        z.object({
+          taskId: z.uuid(),
+          prompt: z.string(),
+          jobName: z.string(),
+          agentName: z.string().optional(),
+        }),
       ),
       SessionSummary: {
         type: "object",

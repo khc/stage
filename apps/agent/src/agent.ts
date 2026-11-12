@@ -1,4 +1,4 @@
-import { FunctionTool, LlmAgent } from "@google/adk";
+import { FunctionTool, LlmAgent, type BaseAgent } from "@google/adk";
 import { z } from "zod";
 import { createModel } from "./model";
 
@@ -19,3 +19,8 @@ export const rootAgent = new LlmAgent({
     "You are a helpful assistant. Use get_current_time when asked about the time in a city.",
   tools: [getCurrentTime],
 });
+
+// Agents a task can select by its `agentName`; rootAgent is the default.
+export const agents: Record<string, BaseAgent> = {
+  [rootAgent.name]: rootAgent,
+};

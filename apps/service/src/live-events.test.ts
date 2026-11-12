@@ -42,7 +42,10 @@ test("acks and delivers events only to listeners of that task and session", asyn
   await live("t1", "s1", mine);
   await live("t1", "s2", other);
 
-  const ack = deliver({ taskId: "t1", sessionId: "s1", eventId: "e1" }, '{"id":"e1"}');
+  const ack = deliver(
+    { taskId: "t1", sessionId: "s1", eventId: "e1" },
+    '{"id":"e1"}',
+  );
   deliver({ taskId: "t2", sessionId: "s1", eventId: "e2" });
 
   expect(ack).toHaveBeenCalled();

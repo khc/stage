@@ -229,7 +229,7 @@ export function Dashboard() {
     setMobileNav(false);
   };
   const filtered = tasks.filter((task) =>
-    `${task.prompt} ${task.jobName} ${task.taskId}`
+    `${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
@@ -777,11 +777,13 @@ function NewTask({
 }) {
   const [prompt, setPrompt] = useState("");
   const [jobName, setJobName] = useState("");
+  const [agentName, setAgentName] = useState("");
   const mutation = useMutation({
     mutationFn: api.create,
     onSuccess: (task) => {
       setPrompt("");
       setJobName("");
+      setAgentName("");
       onCreated(task);
     },
   });
@@ -791,7 +793,11 @@ function NewTask({
   }, [initialJob]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    mutation.mutate({ prompt: prompt.trim(), jobName });
+    mutation.mutate({
+      prompt: prompt.trim(),
+      jobName,
+      agentName: agentName.trim() || undefined,
+    });
   };
   return (
     <dialog
@@ -841,6 +847,23 @@ function NewTask({
         </datalist>
         <p className="field-note">
           Choose a configured job or enter its short name.
+        </p>
+        <label className="form-label" htmlFor="agent-name">
+          Agent<span>Optional</span>
+        </label>
+        <input
+          id="agent-name"
+          className="form-input"
+          placeholder="assistant"
+          value={agentName}
+          onChange={(e) => setAgentName(e.target.value)}
+          maxLength={64}
+          pattern="[A-Za-z_][A-Za-z0-9_]*"
+          autoComplete="off"
+        />
+        <p className="field-note">
+          Which agent in the job container runs this task. Leave empty for its
+          default agent.
         </p>
         <label className="form-label prompt-label" htmlFor="task-prompt">
           Prompt<span>Required</span>
@@ -1233,6 +1256,12 @@ function TaskInspector({
                 <Box size={12} />
                 {task.data.jobName ?? "Unassigned job"}
               </span>
+              {task.data.agentName && (
+                <span className="job-chip">
+                  <Workflow size={12} />
+                  {task.data.agentName}
+                </span>
+              )}
               <Button
                 size="sm"
                 onClick={onRun}

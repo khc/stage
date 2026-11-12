@@ -1,6 +1,6 @@
 import { createEvent } from "@google/adk";
 import { expect, mock, spyOn, test } from "bun:test";
-import { createTaskAgent } from "./index";
+import { createTaskAgent, runAgent } from "./index";
 
 const reply = (text: string) =>
   createEvent({ content: { role: "model", parts: [{ text }] } });
@@ -109,4 +109,10 @@ test("publishes every yielded event and survives a publish failure", async () =>
     taskId: "t1",
   });
   spy.mockRestore();
+});
+
+test("runAgent rejects a task that names an unknown agent", async () => {
+  await expect(
+    runAgent("hi", undefined, undefined, "does_not_exist"),
+  ).rejects.toThrow("Unknown agent: does_not_exist");
 });

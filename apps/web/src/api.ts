@@ -1,4 +1,9 @@
-export type Task = { taskId: string; prompt: string; jobName?: string };
+export type Task = {
+  taskId: string;
+  prompt: string;
+  jobName?: string;
+  agentName?: string;
+};
 export type Job = {
   name?: string;
   description?: string;
@@ -99,7 +104,7 @@ export const api = {
   tasks: () => request<{ tasks: Task[] }>("/tasks"),
   jobs: () => request<{ jobs: Job[] }>("/jobs"),
   task: (id: string) => request<Task>(taskPath(id)),
-  create: (input: { prompt: string; jobName: string }) =>
+  create: (input: { prompt: string; jobName: string; agentName?: string }) =>
     request<Task>("/tasks", json(input)),
   run: (id: string) =>
     request<{ operation: string }>(`${taskPath(id)}/run`, { method: "POST" }),

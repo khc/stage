@@ -25,10 +25,9 @@ export const createLiveEvents = (
   const start = () =>
     (started ??= (async () => {
       const [topic] = await pubsub.topic(topicName).get({ autoCreate: true });
-      const [subscription] = await topic.createSubscription(
-        subscriptionName,
-        { expirationPolicy: { ttl: { seconds: SUBSCRIPTION_TTL_SECONDS } } },
-      );
+      const [subscription] = await topic.createSubscription(subscriptionName, {
+        expirationPolicy: { ttl: { seconds: SUBSCRIPTION_TTL_SECONDS } },
+      });
       subscription.on("error", (err) =>
         console.error("Event subscription error", err),
       );
