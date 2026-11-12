@@ -4,10 +4,10 @@ vars:
   FLOCI: http://localhost:4588
   PROJECT: floci-local
   REGION: us-central1
-  # One Cloud Run job per agent app (apps/<name>); the job, the app and the
+  # One Cloud Run job per agent app (agents/<name>); the job, the app and the
   # image (stage-<name>:latest) share its name. Override to pick some,
-  # e.g. `task rebuild JOBS=poet-agents`.
-  JOBS: generic-agents poet-agents
+  # e.g. `task rebuild JOBS=poet`.
+  JOBS: generic poet
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
 
@@ -48,7 +48,7 @@ tasks:
       - curl -fsS {{.JOBS_URL | shellQuote}}
 
   remove-job:
-    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic-agents, --yes to skip the prompt)
+    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic, --yes to skip the prompt)
     requires:
       vars: [JOB]
     prompt: Remove job {{.JOB}} from Floci?

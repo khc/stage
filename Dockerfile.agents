@@ -1,6 +1,6 @@
-# Cloud Run Job image for one ADK agent app (apps/<APP>/src/main.ts):
-#   docker build -f Dockerfile.agents --build-arg APP=generic-agents -t stage-generic-agents .
-#   docker build -f Dockerfile.agents --build-arg APP=poet-agents -t stage-poet-agents .
+# Cloud Run Job image for one ADK agent app (agents/<APP>/src/main.ts):
+#   docker build -f Dockerfile.agents --build-arg APP=generic -t stage-generic .
+#   docker build -f Dockerfile.agents --build-arg APP=poet -t stage-poet .
 # The HTTP service image is ./Dockerfile.service.
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
@@ -12,8 +12,8 @@ FROM ${BUN_IMAGE} AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
-COPY apps/generic-agents/package.json ./apps/generic-agents/package.json
-COPY apps/poet-agents/package.json ./apps/poet-agents/package.json
+COPY agents/generic/package.json ./agents/generic/package.json
+COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
 COPY apps/web/package.json ./apps/web/package.json
@@ -28,12 +28,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY packages/agents ./packages/agents
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
-COPY apps/${APP} ./apps/${APP}
-COPY --from=deps /app/apps/${APP}/node_modules ./apps/${APP}/node_modules
+COPY agents/${APP} ./agents/${APP}
+COPY --from=deps /app/agents/${APP}/node_modules ./agents/${APP}/node_modules
 
 # A fixed entrypoint path: exec-form ENTRYPOINT cannot expand ARG, and extra
 # arguments (such as `register`) must still reach the program.
-RUN ln -s /app/apps/${APP}/src/main.ts /app/main.ts
+RUN ln -s /app/agents/${APP}/src/main.ts /app/main.ts
 
 USER bun
 ENTRYPOINT ["bun", "/app/main.ts"]
