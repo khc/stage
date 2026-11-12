@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@agent-jobs/agents": "workspace:*",
+    "@google-cloud/firestore": "^9.4.1",
     "@google/adk": "^2.4.0",
     "zod": "^4.6.7"
   },

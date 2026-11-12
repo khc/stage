@@ -45,6 +45,7 @@ import {
   parseJsonObject,
   promptError,
   schemaFields,
+  takesNoInput,
   schemaSummary,
   streamMessages,
   withEvent,
@@ -1091,7 +1092,8 @@ function NewTask({
   // A structured agent gets a form; its values are sent as the JSON prompt.
   const fields = schemaFields(selectedAgent?.inputSchema);
   const built = fields ? buildPrompt(fields, values) : undefined;
-  const effectivePrompt = built ? ("prompt" in built ? built.prompt : "") : prompt;
+  const noInput = takesNoInput(selectedAgent?.inputSchema);
+  const effectivePrompt = noInput ? "{}" : built ? ("prompt" in built ? built.prompt : "") : prompt;
   const touched = Object.values(values).some((v) => v !== "" && v !== false);
   const promptProblem = built
     ? "error" in built && touched
@@ -1206,7 +1208,11 @@ function NewTask({
                 : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
         </p>
         {selectedAgent && <AgentContract agent={selectedAgent} />}
-        {fields ? (
+        {noInput ? (
+          <p className="field-note">
+            This agent takes no input. Upload documents to the task after creating it.
+          </p>
+        ) : fields ? (
           <div className="schema-form">
             <p className="section-overline">INPUT</p>
             {fields.map((field) => (

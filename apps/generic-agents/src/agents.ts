@@ -3,6 +3,12 @@ import type { AgentSet } from "@agent-jobs/agents/spec";
 import { FunctionTool, LlmAgent } from "@google/adk";
 import { z } from "zod";
 
+import {
+  documentAnalyserAgent,
+  documentAnalyserInput,
+  documentAnalyserOutput,
+} from "./document-analyser";
+
 export const getCurrentTime = new FunctionTool({
   name: "get_current_time",
   description: "Returns the current time for a city.",
@@ -28,6 +34,11 @@ export const agentSet: AgentSet = {
       agent: assistantAgent,
       inputSchema: z.string().describe("A question or request, in plain text."),
       outputSchema: z.string().describe("The assistant's plain-text reply."),
+    },
+    [documentAnalyserAgent.name]: {
+      agent: documentAnalyserAgent,
+      inputSchema: documentAnalyserInput,
+      outputSchema: documentAnalyserOutput,
     },
   },
 };

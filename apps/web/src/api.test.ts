@@ -13,6 +13,7 @@ import {
   schemaFields,
   schemaSummary,
   streamMessages,
+  takesNoInput,
   withEvent,
 } from "./api";
 
@@ -390,4 +391,11 @@ test("deleting a task sends DELETE to its path and accepts 204", async () => {
   );
   expect(await api.deleteTask("task-1")).toBeUndefined();
   expect(fetch).toHaveBeenCalledWith("/tasks/task-1", { method: "DELETE" });
+});
+
+test("takesNoInput is true only for an object schema without properties", () => {
+  expect(takesNoInput({ type: "object", properties: {} })).toBe(true);
+  expect(takesNoInput({ type: "object", properties: { topic: { type: "string" } } })).toBe(false);
+  expect(takesNoInput({ type: "string" })).toBe(false);
+  expect(takesNoInput(undefined)).toBe(false);
 });

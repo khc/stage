@@ -256,6 +256,9 @@ export const inputExample = (schema?: JsonSchema) =>
         Object.fromEntries(Object.keys(schema?.properties ?? {}).map((key) => [key, ""])),
       )
     : undefined;
+// A structured agent with no properties takes no input: its message is {}.
+export const takesNoInput = (schema?: JsonSchema) =>
+  isStructured(schema) && !Object.keys(schema?.properties ?? {}).length;
 // Structured agents take a JSON message; text agents take anything.
 export const promptError = (schema: JsonSchema | undefined, prompt: string) => {
   if (!isStructured(schema) || !prompt.trim()) return undefined;
