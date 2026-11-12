@@ -30,8 +30,8 @@
 
   "overrides": [
     {
-      // The dashboard: React with the automatic JSX runtime, running in a browser.
-      "files": ["apps/web/**/*.{ts,tsx}"],
+      // Browser React apps with the automatic JSX runtime.
+      "files": ["apps/web/**/*.{ts,tsx}", "apps/ui/**/*.{ts,tsx}"],
       "plugins": ["react", "jsx-a11y"],
       "env": { "browser": true },
       "rules": {

@@ -4,6 +4,7 @@ node_modules
 # agents
 .plans
 .sidecar
+skills/system/
 
 # output
 out
