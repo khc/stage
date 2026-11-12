@@ -36,6 +36,7 @@ export type SessionEvent = {
     }[];
   };
 };
+export type AgentInfo = { name: string; description?: string };
 export type SessionStats = {
   events: number;
   llmCalls: number;
@@ -112,6 +113,15 @@ export const api = {
     request<{ operation: string }>(
       `${taskPath(taskId)}/run`,
       json({ sessionId, message }),
+    ),
+  registerAgents: (jobName: string) =>
+    request<{ operation: string }>(
+      `/jobs/${encodeURIComponent(jobName)}/register`,
+      { method: "POST" },
+    ),
+  agents: (jobName: string) =>
+    request<{ agents: AgentInfo[] }>(
+      `/jobs/${encodeURIComponent(jobName)}/agents`,
     ),
   stats: (taskId: string, sessionId: string) =>
     request<SessionStats>(

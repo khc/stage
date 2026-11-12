@@ -6,18 +6,22 @@ import { Scalar } from "@scalar/hono-api-reference";
 import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
+  jobParamSchema,
   resumeSchema,
   taskSchema,
   taskParamSchema,
   sessionParamSchema,
 } from "./schemas";
-import type { ListJobs, Resume, RunJob } from "./jobs";
+import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
+import type { ListAgents } from "@agent-jobs/agent/agent-registry";
 import type { CreateTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
 import type { LiveEvents } from "./live-events";
 import { sessionStats } from "./stats";
 
 const KEEPALIVE_MS = 5_000;
+
+export type AgentRegistry = { register: RegisterJob; list: ListAgents };
 
 export const createApp = (
   runJob: RunJob,
@@ -27,6 +31,7 @@ export const createApp = (
   getTask: GetTask,
   sessions: TaskSessions,
   liveEvents?: LiveEvents,
+  registry?: AgentRegistry,
 ) =>
   new Hono()
     .get("/openapi.json", (c) => c.json(openApiDocument))
@@ -42,9 +47,51 @@ export const createApp = (
         });
       }
     })
+    .get(
+      "/jobs/:jobName/agents",
+      zValidator("param", jobParamSchema),
+      async (c) => {
+        try {
+          const agents =
+            (await registry?.list(c.req.valid("param").jobName)) ?? [];
+          return c.json({ agents });
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "agents_error" }, 502),
+          });
+        }
+      },
+    )
+    .post(
+      "/jobs/:jobName/register",
+      zValidator("param", jobParamSchema),
+      async (c) => {
+        if (!registry) return c.json({ error: "not_supported" }, 501);
+        try {
+          const operation = await registry.register(
+            c.req.valid("param").jobName,
+          );
+          return c.json({ operation }, 202);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "job_error" }, 502),
+          });
+        }
+      },
+    )
     .post("/tasks", zValidator("json", taskSchema), async (c) => {
+      const input = c.req.valid("json");
       try {
-        return c.json(await createTask(c.req.valid("json")), 201);
+        // A job with registered agents only accepts those; a job without a
+        // registration cannot be verified and keeps accepting any valid name.
+        if (input.agentName !== undefined) {
+          const known = (await registry?.list(input.jobName)) ?? [];
+          if (known.length && !known.some((a) => a.name === input.agentName))
+            return c.json({ error: "unknown_agent" }, 400);
+        }
+        return c.json(await createTask(input), 201);
       } catch (err) {
         console.error(err);
         throw new HTTPException(502, {

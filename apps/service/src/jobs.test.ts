@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { createListJobs, createTaskJob } from "./jobs";
+import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
 
 const config = { project: "p", location: "l" };
 const jobPath = (project: string, location: string, job: string) =>
@@ -110,6 +110,23 @@ test("adds SESSION_ID and MESSAGE overrides when resuming a session", async () =
             { name: "MESSAGE", value: "answer" },
           ],
         },
+      ],
+    },
+  });
+});
+
+test("register runs the job with the register argument and its JOB_NAME", async () => {
+  const runJob = mock(async (_request: unknown) => [
+    { name: "operations/op-9" },
+  ]);
+  const register = createRegisterJob({ jobPath, runJob } as never, config);
+
+  expect(await register("my-job")).toBe("operations/op-9");
+  expect(runJob).toHaveBeenCalledWith({
+    name: "projects/p/locations/l/jobs/my-job",
+    overrides: {
+      containerOverrides: [
+        { args: ["register"], env: [{ name: "JOB_NAME", value: "my-job" }] },
       ],
     },
   });

@@ -1,6 +1,12 @@
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 import { createGetTask, type GetTask } from "./task-contract";
+import { describeAgents } from "./agent";
+import {
+  createRegisterAgents,
+  type AgentInfo,
+  type RegisterAgents,
+} from "./agent-registry";
 import { runAgent, type RunAgent } from "./index";
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());
@@ -33,7 +39,38 @@ export const main = async (
   }
 };
 
-if (import.meta.main)
+const jobNameSchema = z.string().min(1);
+
+// `register` execution mode: records this container's agents for its job.
+export const registerMain = async (
+  env: Record<string, string | undefined>,
+  register: RegisterAgents,
+  agents: AgentInfo[],
+): Promise<number> => {
+  const job = jobNameSchema.safeParse(env.JOB_NAME);
+  if (!job.success) {
+    console.error("JOB_NAME is required to register agents");
+    return 1;
+  }
+  try {
+    await register(job.data, agents);
+    console.log(`Registered ${agents.map((a) => a.name).join(", ")}`);
+    return 0;
+  } catch (err) {
+    console.error(err);
+    return 1;
+  }
+};
+
+if (import.meta.main) {
+  const db = new Firestore();
   process.exit(
-    await main(process.env, runAgent, createGetTask(new Firestore())),
+    process.argv[2] === "register"
+      ? await registerMain(
+          process.env,
+          createRegisterAgents(db),
+          describeAgents(),
+        )
+      : await main(process.env, runAgent, createGetTask(db)),
   );
+}

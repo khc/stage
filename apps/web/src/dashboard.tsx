@@ -726,8 +726,25 @@ export function Dashboard() {
   );
 }
 
+const REGISTRATION_POLL_MS = 30_000;
+
 function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
   const location = job.name?.split("/locations/")[1]?.split("/")[0];
+  const name = shortJobName(job);
+  // Registration is asynchronous, so poll the registry for a while after submitting.
+  const [pollUntil, setPollUntil] = useState(0);
+  const agents = useQuery({
+    queryKey: ["agents", name],
+    queryFn: () => api.agents(name),
+    enabled: !!job.name,
+    retry: false,
+    refetchInterval: () => (Date.now() < pollUntil ? 3000 : false),
+  });
+  const register = useMutation({
+    mutationFn: () => api.registerAgents(name),
+    onSuccess: () => setPollUntil(Date.now() + REGISTRATION_POLL_MS),
+  });
+  const registered = agents.data?.agents ?? [];
   return (
     <article className="job-card">
       <div className="job-card-top">
@@ -736,7 +753,7 @@ function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
         </span>
         <span className="badge neutral">Configured</span>
       </div>
-      <h3>{shortJobName(job)}</h3>
+      <h3>{name}</h3>
       <p>
         {job.description || "An agent worker available for task execution."}
       </p>
@@ -752,10 +769,48 @@ function JobCard({ job, onCreate }: { job: Job; onCreate: () => void }) {
           </span>
         )}
       </div>
+      <div className="job-agents" aria-label="Registered agents">
+        {registered.length ? (
+          registered.map((agent) => (
+            <span
+              key={agent.name}
+              className="job-chip"
+              title={agent.description}
+            >
+              <Workflow size={12} />
+              {agent.name}
+            </span>
+          ))
+        ) : (
+          <small>No agents registered yet</small>
+        )}
+      </div>
       <div className="job-resource">
         <code>{job.name ?? "Resource name unavailable"}</code>
         {job.name && <CopyButton value={job.name} />}
       </div>
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={!job.name || register.isPending}
+        onClick={() => register.mutate()}
+      >
+        {register.isPending ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <RefreshCw size={14} />
+        )}
+        Register agents
+      </Button>
+      {register.isError ? (
+        <p className="job-register-note job-register-error" role="alert">
+          {register.error.message}
+        </p>
+      ) : register.isSuccess ? (
+        <p className="job-register-note" role="status">
+          Registration submitted. Agents appear here when the job finishes.
+        </p>
+      ) : null}
       <Button variant="outline" className="w-full" onClick={onCreate}>
         <Plus size={14} />
         Create task for this job
@@ -778,6 +833,20 @@ function NewTask({
   const [prompt, setPrompt] = useState("");
   const [jobName, setJobName] = useState("");
   const [agentName, setAgentName] = useState("");
+  const registered = useQuery({
+    queryKey: ["agents", jobName],
+    queryFn: () => api.agents(jobName),
+    enabled: !!jobName,
+    retry: false,
+  });
+  const jobAgents = registered.data?.agents ?? [];
+  const jobOptions = [
+    ...new Set(
+      [...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(
+        Boolean,
+      ),
+    ),
+  ];
   const mutation = useMutation({
     mutationFn: api.create,
     onSuccess: (task) => {
@@ -828,42 +897,52 @@ function NewTask({
         <label className="form-label" htmlFor="job-name">
           Cloud Run job<span>Required</span>
         </label>
-        <input
+        <select
           id="job-name"
           className="form-input"
-          list="job-options"
-          placeholder="my-agent-job"
           value={jobName}
-          onChange={(e) => setJobName(e.target.value)}
+          onChange={(e) => {
+            setJobName(e.target.value);
+            setAgentName("");
+          }}
           required
-          maxLength={63}
-          pattern="[a-z]([-a-z0-9]*[a-z0-9])?"
-          autoComplete="off"
-        />
-        <datalist id="job-options">
-          {jobs.map((job) => (
-            <option key={job.name} value={shortJobName(job)} />
+        >
+          <option value="" disabled>
+            {jobOptions.length ? "Choose a job" : "No jobs available"}
+          </option>
+          {jobOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
           ))}
-        </datalist>
-        <p className="field-note">
-          Choose a configured job or enter its short name.
-        </p>
+        </select>
+        <p className="field-note">The Cloud Run job that executes this task.</p>
         <label className="form-label" htmlFor="agent-name">
           Agent<span>Optional</span>
         </label>
-        <input
+        <select
           id="agent-name"
           className="form-input"
-          placeholder="assistant"
           value={agentName}
+          disabled={!jobName}
           onChange={(e) => setAgentName(e.target.value)}
-          maxLength={64}
-          pattern="[A-Za-z_][A-Za-z0-9_]*"
-          autoComplete="off"
-        />
+        >
+          <option value="">Default agent</option>
+          {jobAgents.map((agent) => (
+            <option key={agent.name} value={agent.name}>
+              {agent.name}
+              {agent.description ? ` — ${agent.description}` : ""}
+            </option>
+          ))}
+        </select>
         <p className="field-note">
-          Which agent in the job container runs this task. Leave empty for its
-          default agent.
+          {!jobName
+            ? "Choose a job first."
+            : registered.isPending
+              ? "Loading agents…"
+              : jobAgents.length
+                ? "Agents registered for this job."
+                : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
         </p>
         <label className="form-label prompt-label" htmlFor="task-prompt">
           Prompt<span>Required</span>

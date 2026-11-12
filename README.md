@@ -120,6 +120,14 @@ The agent publishes every event the ADK runner yields (model responses, tool cal
 
 Live events need `PUBSUB_TOPIC` (and `PUBSUB_EMULATOR_HOST=localhost:4588` locally) in the service environment, matching the agent's topic (`agent-events` by default). The service creates one ephemeral subscription per process on the first stream and shares it between clients; it expires after 24 hours without a consumer. Without `PUBSUB_TOPIC` only the stored events are sent and the connection stays open (it never ends on its own, so `EventSource` does not reconnect in a loop). Events published before the first stream are served from Firestore, so nothing is missed. Browsers can read it with `new EventSource(url)`.
 
+### Agent registry
+
+A job container can hold several agents (registered in `apps/agent/src/agent.ts`). The registry records which ones each job image holds, in the Firestore `agents` collection, so the service and dashboard can offer and check a task's `agentName`.
+
+`POST /jobs/:jobName/register` (or `task register-agents`, which calls it; override `JOB`) starts the job in its `register` mode: the Cloud Run execution gets the argument `register` and `JOB_NAME`, and the container writes its agents (name and description) for that job instead of running a task. Registration replaces the job's entries, so agents removed from the image disappear. It returns HTTP 202 `{ "operation": "..." }`, which acknowledges submission only; run it again after every image change, since `update-job` does not. The same mode runs by hand as `bun apps/agent/src/main.ts register` with `JOB_NAME` set.
+
+`GET /jobs/:jobName/agents` returns `{ "agents": [{ "name": "...", "description": "..." }] }`, empty when the job was never registered. `POST /tasks` with an `agentName` then returns 400 `{ "error": "unknown_agent" }` if the job has registered agents and the name is not one of them; for an unregistered job any valid name is accepted. In the dashboard, each job card has a "Register agents" button (the same as `POST /jobs/:jobName/register`) and lists the job's registered agents, refreshing every 3 seconds for 30 seconds after you register; the create-task dialog picks the job and then the agent from dropdowns (the agent list shows the chosen job's registered agents, or just "Default agent" if none are registered).
+
 ### Resuming a session
 
 `POST /tasks/:taskId/run` with `{ "sessionId": "...", "message": "..." }` resumes an existing session of that task and sends `message` as the next user turn, instead of creating a new session from the stored prompt. The service sends `SESSION_ID` and `MESSAGE` as per-execution overrides next to `TASK_ID`. `sessionId` and `message` must be sent together (400 otherwise); an absent session, or one linked to another task, returns 404 `session_not_found`. The agent rechecks that the session belongs to the task. A body without `sessionId` is ignored, as before.

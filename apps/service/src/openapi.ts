@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  jobParamSchema,
   resumeSchema,
   taskSchema,
   taskParamSchema,
@@ -33,6 +34,13 @@ const taskId = {
   required: true,
   description: "Task UUID; normalized to lowercase.",
   schema: schema(taskParamSchema.shape.taskId),
+};
+const jobName = {
+  name: "jobName",
+  in: "path",
+  required: true,
+  description: "Short Cloud Run job name.",
+  schema: schema(jobParamSchema.shape.jobName),
 };
 const sessionId = {
   name: "sessionId",
@@ -101,6 +109,52 @@ export const openApiDocument = {
         },
       },
     },
+    "/jobs/{jobName}/agents": {
+      get: {
+        operationId: "listJobAgents",
+        summary: "List the agents registered for a job",
+        description:
+          "Reads the registry written by the job's register execution. Empty when the job has not been registered.",
+        parameters: [jobName],
+        responses: {
+          200: response("Registered agents", {
+            type: "object",
+            required: ["agents"],
+            properties: {
+              agents: {
+                type: "array",
+                items: schema(
+                  z.object({
+                    name: z.string(),
+                    description: z.string().optional(),
+                  }),
+                ),
+              },
+            },
+          }),
+          400: invalid,
+          502: response("Registry failure", error("agents_error")),
+        },
+      },
+    },
+    "/jobs/{jobName}/register": {
+      post: {
+        operationId: "registerJobAgents",
+        summary: "Register the agents inside a job's container",
+        description:
+          "Starts the job in its register mode, which records the container's agents so tasks can be checked against them. Acknowledges submission, not completion; read the result from the agents route.",
+        parameters: [jobName],
+        responses: {
+          202: response(
+            "Cloud Run submission accepted",
+            schema(z.object({ operation: z.string() })),
+          ),
+          400: invalid,
+          501: response("Not configured", error("not_supported")),
+          502: response("Cloud Run failure", error("job_error")),
+        },
+      },
+    },
     "/tasks": {
       post: {
         operationId: "createTask",
@@ -110,7 +164,10 @@ export const openApiDocument = {
         requestBody: body(taskSchema),
         responses: {
           201: response("Saved task", ref("CreatedTask")),
-          400: invalid,
+          400: {
+            description:
+              "Invalid JSON input (validation error details), or unknown_agent when the job has registered agents and agentName is not one of them.",
+          },
           502: taskFailure,
         },
       },

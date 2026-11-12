@@ -6,6 +6,7 @@ export type RunJob = (
   taskId: string,
   resume?: Resume,
 ) => Promise<string>;
+export type RegisterJob = (job: string) => Promise<string>;
 export type ListJobs = () => Promise<protos.google.cloud.run.v2.IJob[]>;
 
 export const createListJobs =
@@ -21,12 +22,24 @@ export const createListJobs =
   };
 
 type JobsApi = Pick<JobsClient, "runJob" | "jobPath">;
+type Config = { project: string; location: string };
+type Env = { name: string; value: string }[];
+
+const execute = async (
+  client: JobsApi,
+  { project, location }: Config,
+  job: string,
+  override: { env: Env; args?: string[] },
+) => {
+  const [operation] = await client.runJob({
+    name: client.jobPath(project, location, job),
+    overrides: { containerOverrides: [override] },
+  });
+  return operation.name ?? "";
+};
 
 export const createTaskJob =
-  (
-    client: JobsApi,
-    { project, location }: { project: string; location: string },
-  ): RunJob =>
+  (client: JobsApi, config: Config): RunJob =>
   async (job, taskId, resume) => {
     const env = [{ name: "TASK_ID", value: taskId }];
     if (resume)
@@ -34,10 +47,14 @@ export const createTaskJob =
         { name: "SESSION_ID", value: resume.sessionId },
         { name: "MESSAGE", value: resume.message },
       );
-    const [operation] = await client.runJob({
-      name: client.jobPath(project, location, job),
-      overrides: { containerOverrides: [{ env }] },
-    });
-
-    return operation.name ?? "";
+    return execute(client, config, job, { env });
   };
+
+// Runs the job image in its `register` mode, which records its agents.
+export const createRegisterJob =
+  (client: JobsApi, config: Config): RegisterJob =>
+  (job) =>
+    execute(client, config, job, {
+      args: ["register"],
+      env: [{ name: "JOB_NAME", value: job }],
+    });

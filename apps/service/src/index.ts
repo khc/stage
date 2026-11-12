@@ -5,7 +5,8 @@ import { createApp } from "./app";
 import { createTaskSessions } from "./sessions";
 import { createLiveEvents } from "./live-events";
 import { createJobsClient } from "./cloud-run";
-import { createListJobs, createTaskJob } from "./jobs";
+import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
+import { createListAgents } from "@agent-jobs/agent/agent-registry";
 import { createCreateTask, createListTasks, createGetTask } from "./tasks";
 
 const env = z
@@ -18,6 +19,7 @@ const config = {
   location: env.GCP_REGION,
 };
 const runJob = createTaskJob(client, config);
+const registerJob = createRegisterJob(client, config);
 const listJobs = createListJobs(client, config);
 
 const db = new Firestore();
@@ -31,6 +33,7 @@ const app = createApp(
   process.env.PUBSUB_TOPIC
     ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC)
     : undefined,
+  { register: registerJob, list: createListAgents(db) },
 );
 
 export default {

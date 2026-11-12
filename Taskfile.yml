@@ -27,6 +27,11 @@ tasks:
     cmds:
       - bun scripts/cloud-run-job.ts update
 
+  register-agents:
+    desc: Record the agents inside the job image in the registry (needs the service running; override JOB, SERVICE_URL)
+    cmds:
+      - curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.JOB | urlquery}}/register
+
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
     silent: true

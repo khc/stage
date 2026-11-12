@@ -5,6 +5,7 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./agent-registry": "./src/agent-registry.ts",
     "./session-service": "./src/session-service.ts",
     "./task-contract": "./src/task-contract.ts"
   },

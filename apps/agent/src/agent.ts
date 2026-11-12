@@ -1,5 +1,6 @@
 import { FunctionTool, LlmAgent, type BaseAgent } from "@google/adk";
 import { z } from "zod";
+import type { AgentInfo } from "./agent-registry";
 import { createModel } from "./model";
 
 export const getCurrentTime = new FunctionTool({
@@ -24,3 +25,9 @@ export const rootAgent = new LlmAgent({
 export const agents: Record<string, BaseAgent> = {
   [rootAgent.name]: rootAgent,
 };
+
+export const describeAgents = (): AgentInfo[] =>
+  Object.entries(agents).map(([name, agent]) => ({
+    name,
+    ...(agent.description && { description: agent.description }),
+  }));

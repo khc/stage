@@ -175,3 +175,26 @@ test("task creation sends agentName only when provided", async () => {
     { prompt: "p", jobName: "j" },
   ]);
 });
+
+test("job agents are fetched from the encoded job path", async () => {
+  const body = { agents: [{ name: "assistant" }] };
+  const fetch = mock(async () => Response.json(body));
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.agents("my-job")).toEqual(body);
+  expect(fetch).toHaveBeenCalledWith("/jobs/my-job/agents", undefined);
+});
+
+test("registering a job's agents posts to the encoded register path", async () => {
+  const fetch = mock(async () =>
+    Response.json({ operation: "op-3" }, { status: 202 }),
+  );
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.registerAgents("my-job")).toEqual({ operation: "op-3" });
+  expect(fetch).toHaveBeenCalledWith("/jobs/my-job/register", {
+    method: "POST",
+  });
+});

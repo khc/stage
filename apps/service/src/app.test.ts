@@ -742,3 +742,93 @@ test("POST /tasks passes a valid agentName and rejects an invalid one", async ()
     ).toBe(400);
   expect(create).toHaveBeenCalledTimes(1);
 });
+
+describe("agent registry routes", () => {
+  const registered = [{ name: "assistant" }, { name: "researcher" }];
+  const registryApp = (
+    registry?: Parameters<typeof createApp>[7],
+    create = mock(
+      async (i: { prompt: string; jobName: string; agentName?: string }) => ({
+        taskId: savedTask.taskId,
+        ...i,
+      }),
+    ),
+  ) => ({
+    create,
+    app: createApp(
+      noJob,
+      noJobs,
+      create,
+      noTasks,
+      noTask,
+      noSessions,
+      undefined,
+      registry,
+    ),
+  });
+
+  test("GET /jobs/:jobName/agents lists the registered agents", async () => {
+    const list = mock(async (_job: string) => registered);
+    const { app } = registryApp({ register: async () => "", list });
+    const res = await app.request("/jobs/my-job/agents");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ agents: registered });
+    expect(list).toHaveBeenCalledWith("my-job");
+    expect(
+      await (await registryApp().app.request("/jobs/my-job/agents")).json(),
+    ).toEqual({ agents: [] });
+    expect((await app.request("/jobs/Bad_Name/agents")).status).toBe(400);
+  });
+
+  test("POST /jobs/:jobName/register submits the register run", async () => {
+    const register = mock(async (_job: string) => "op-7");
+    const { app } = registryApp({ register, list: async () => [] });
+    const res = await app.request("/jobs/my-job/register", { method: "POST" });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ operation: "op-7" });
+    expect(register).toHaveBeenCalledWith("my-job");
+
+    register.mockRejectedValueOnce(new Error("private"));
+    const failed = await app.request("/jobs/my-job/register", {
+      method: "POST",
+    });
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ error: "job_error" });
+
+    const none = await registryApp().app.request("/jobs/my-job/register", {
+      method: "POST",
+    });
+    expect(none.status).toBe(501);
+  });
+
+  test("POST /tasks rejects an agent the job has not registered", async () => {
+    const { app, create } = registryApp({
+      register: async () => "",
+      list: async () => registered,
+    });
+    const bad = await app.request(
+      "/tasks",
+      post({ prompt: "p", jobName: "my-job", agentName: "ghost" }),
+    );
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: "unknown_agent" });
+    expect(create).not.toHaveBeenCalled();
+    const ok = await app.request(
+      "/tasks",
+      post({ prompt: "p", jobName: "my-job", agentName: "researcher" }),
+    );
+    expect(ok.status).toBe(201);
+  });
+
+  test("POST /tasks accepts any valid agent for a job with no registration", async () => {
+    const { app } = registryApp({
+      register: async () => "",
+      list: async () => [],
+    });
+    const res = await app.request(
+      "/tasks",
+      post({ prompt: "p", jobName: "my-job", agentName: "anything" }),
+    );
+    expect(res.status).toBe(201);
+  });
+});

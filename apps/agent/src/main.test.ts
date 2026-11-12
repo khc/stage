@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import type { TaskContract } from "./task-contract";
-import { main } from "./main";
+import { main, registerMain } from "./main";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
 let log: ReturnType<typeof spyOn>;
@@ -120,4 +120,20 @@ test("runs the agent named by the task contract, also when resuming", async () =
     await main({ TASK_ID: taskId, SESSION_ID: "s1", MESSAGE: "m" }, run, get),
   ).toBe(0);
   expect(run).toHaveBeenLastCalledWith("m", taskId, "s1", "researcher");
+});
+
+test("register mode records the agents for JOB_NAME and reports success", async () => {
+  const register = mock(async (_job: string, _agents: unknown[]) => {});
+  const agents = [{ name: "assistant" }, { name: "researcher" }];
+  expect(await registerMain({ JOB_NAME: "my-job" }, register, agents)).toBe(0);
+  expect(register).toHaveBeenCalledWith("my-job", agents);
+  expect(log).toHaveBeenCalledWith("Registered assistant, researcher");
+});
+
+test("register mode needs JOB_NAME and fails when storing fails", async () => {
+  const register = mock(async (_job: string, _agents: unknown[]) => {});
+  expect(await registerMain({}, register, [])).toBe(1);
+  expect(register).not.toHaveBeenCalled();
+  register.mockRejectedValueOnce(new Error("store down"));
+  expect(await registerMain({ JOB_NAME: "j" }, register, [])).toBe(1);
 });
