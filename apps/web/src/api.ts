@@ -238,6 +238,15 @@ export const schemaSummary = (schema?: JsonSchema): string => {
   if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
   return type || "any";
 };
+// One row per top-level property of an object schema, for showing each
+// field's type, whether it is required and its description.
+export const schemaRows = (schema?: JsonSchema) =>
+  Object.entries(schema?.properties ?? {}).map(([name, value]) => ({
+    name,
+    type: schemaSummary(value),
+    required: !!schema?.required?.includes(name),
+    description: value.description,
+  }));
 export const parseJsonObject = (text: string) => {
   try {
     const value: unknown = JSON.parse(text);

@@ -2382,6 +2382,29 @@ select.form-input:disabled {
   color: #c0c8db;
   overflow-wrap: anywhere;
 }
+.schema-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schema-rows code {
+  color: #e2e7f3;
+}
+.schema-rows span {
+  color: #8c98b2;
+}
+.schema-rows em {
+  margin-left: 8px;
+  color: #b49bdb;
+  font-size: var(--text-xs);
+  font-style: normal;
+}
+.schema-rows p {
+  margin: 2px 0 0;
+  color: #9ba7c0;
+}
 :root[data-theme="light"] .agent-contract {
   background: var(--light-surface);
   border-color: var(--light-border);

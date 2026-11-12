@@ -45,6 +45,7 @@ import {
   parseJsonObject,
   promptError,
   schemaFields,
+  schemaRows,
   takesNoInput,
   schemaSummary,
   streamMessages,
@@ -764,8 +765,22 @@ function AgentContract({ agent, className = "" }: { agent: AgentInfo; className?
         <div key={label}>
           <dt>{label}</dt>
           <dd>
-            {schemaSummary(schema)}
-            {schema?.description && ` — ${schema.description}`}
+            {schemaRows(schema).length ? (
+              <ul className="schema-rows">
+                {schemaRows(schema).map((row) => (
+                  <li key={row.name}>
+                    <code>{row.name}</code> <span>{row.type}</span>
+                    {row.required && <em>required</em>}
+                    {row.description && <p>{row.description}</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                {schemaSummary(schema)}
+                {schema?.description && ` — ${schema.description}`}
+              </>
+            )}
           </dd>
         </div>
       ))}

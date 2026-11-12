@@ -11,6 +11,7 @@ import {
   parseJsonObject,
   promptError,
   schemaFields,
+  schemaRows,
   schemaSummary,
   streamMessages,
   takesNoInput,
@@ -398,4 +399,21 @@ test("takesNoInput is true only for an object schema without properties", () => 
   expect(takesNoInput({ type: "object", properties: { topic: { type: "string" } } })).toBe(false);
   expect(takesNoInput({ type: "string" })).toBe(false);
   expect(takesNoInput(undefined)).toBe(false);
+});
+
+test("schemaRows lists each property with type, required flag and description", () => {
+  expect(
+    schemaRows({
+      type: "object",
+      required: ["summary"],
+      properties: {
+        summary: { type: "string", description: "A summary." },
+        bulletpoints: { type: "array", items: { type: "string" } },
+      },
+    }),
+  ).toEqual([
+    { name: "summary", type: "string", required: true, description: "A summary." },
+    { name: "bulletpoints", type: "string[]", required: false, description: undefined },
+  ]);
+  expect(schemaRows({ type: "string" })).toEqual([]);
 });
