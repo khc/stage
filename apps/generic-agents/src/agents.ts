@@ -1,5 +1,5 @@
-import { createModel } from "@agent-jobs/agents/model";
-import type { AgentSet } from "@agent-jobs/agents/spec";
+import { createModel } from "@stage/agents/model";
+import type { AgentSet } from "@stage/agents/spec";
 import { FunctionTool, LlmAgent } from "@google/adk";
 import { z } from "zod";
 

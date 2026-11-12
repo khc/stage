@@ -1,5 +1,5 @@
 {
-  "name": "agent-jobs",
+  "name": "stage",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -7,10 +7,10 @@
   ],
   "type": "module",
   "scripts": {
-    "start": "bun --filter @agent-jobs/service start",
-    "dev": "bun --filter '@agent-jobs/*' dev",
-    "dev:service": "bun --filter @agent-jobs/service dev",
-    "dev:web": "bun --filter @agent-jobs/web dev",
+    "start": "bun --filter @stage/service start",
+    "dev": "bun --filter '@stage/*' dev",
+    "dev:service": "bun --filter @stage/service dev",
+    "dev:web": "bun --filter @stage/web dev",
     "test": "bun test",
     "typecheck": "bun check",
     "format": "oxfmt",

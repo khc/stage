@@ -334,7 +334,7 @@ const sessionId = crypto.randomUUID();
 const session = {
   id: sessionId,
   taskId: savedTask.taskId,
-  appName: "agent-jobs",
+  appName: "stage",
   userId: "user",
   lastUpdateTime: 123,
   state: { count: 1 },

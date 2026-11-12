@@ -1,6 +1,6 @@
 export type ThemePreference = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
-export const THEME_STORAGE_KEY = "agent-jobs-theme";
+export const THEME_STORAGE_KEY = "stage-theme";
 export const normalizePreference = (value: unknown): ThemePreference =>
   value === "light" || value === "dark" ? value : "system";
 

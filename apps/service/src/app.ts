@@ -1,4 +1,4 @@
-import type { ListAgents } from "@agent-jobs/agents/agent-registry";
+import type { ListAgents } from "@stage/agents/agent-registry";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";

@@ -1,6 +1,6 @@
 # Cloud Run Job image for one ADK agent app (apps/<APP>/src/main.ts):
-#   docker build -f Dockerfile.agents --build-arg APP=generic-agents -t agent-jobs-generic-agents .
-#   docker build -f Dockerfile.agents --build-arg APP=poet-agents -t agent-jobs-poet-agents .
+#   docker build -f Dockerfile.agents --build-arg APP=generic-agents -t stage-generic-agents .
+#   docker build -f Dockerfile.agents --build-arg APP=poet-agents -t stage-poet-agents .
 # The HTTP service image is ./Dockerfile.service.
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),

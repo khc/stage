@@ -1,4 +1,4 @@
-import type { AgentSet } from "@agent-jobs/agents/spec";
+import type { AgentSet } from "@stage/agents/spec";
 
 import { haikuAgent, haikuInput, haikuOutput } from "./haiku-agent";
 

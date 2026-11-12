@@ -15,7 +15,7 @@ type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<FirestoreSessionService, "createSession" | "getSession">;
 };
 
-const appName = "agent-jobs";
+const appName = "stage";
 const userId = "user";
 
 const resumeSession = async (

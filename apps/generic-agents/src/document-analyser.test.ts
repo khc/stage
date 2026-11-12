@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { describeAgents } from "@agent-jobs/agents/spec";
+import { describeAgents } from "@stage/agents/spec";
 
 import { agentSet } from "./agents";
 import { createDocumentAnalyser, renderInstruction } from "./document-analyser";

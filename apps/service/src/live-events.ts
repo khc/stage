@@ -17,7 +17,7 @@ const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessi
 export const createLiveEvents = (
   pubsub: Pick<PubSub, "topic">,
   topicName: string,
-  subscriptionName = `agent-jobs-service-${crypto.randomUUID()}`,
+  subscriptionName = `stage-service-${crypto.randomUUID()}`,
 ): LiveEvents => {
   const listeners = new Map<string, Set<EventListener>>();
   let started: Promise<void> | undefined;

@@ -21,7 +21,7 @@ services:
       FLOCI_GCP_ENDPOINT: http://floci-gcp:4588
 
   extract:
-    image: agent-jobs-extract:latest
+    image: stage-extract:latest
     build:
       context: .
       dockerfile: Dockerfile.extract

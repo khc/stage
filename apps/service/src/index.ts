@@ -1,4 +1,4 @@
-import { createListAgents } from "@agent-jobs/agents/agent-registry";
+import { createListAgents } from "@stage/agents/agent-registry";
 import { Firestore } from "@google-cloud/firestore";
 import { PubSub } from "@google-cloud/pubsub";
 import { z } from "zod";

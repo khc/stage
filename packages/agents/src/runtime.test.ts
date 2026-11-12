@@ -23,7 +23,7 @@ test("creates a session, returns the final response text and keeps the session",
 
   expect(await run("hi")).toBe("hello");
   expect(sessionService.createSession).toHaveBeenCalledWith({
-    appName: "agent-jobs",
+    appName: "stage",
     userId: "user",
   });
 });
@@ -50,7 +50,7 @@ test("passes taskId as session metadata for a job invocation", async () => {
   const taskId = crypto.randomUUID();
   await run("hi", taskId);
   expect(sessionService.createSession).toHaveBeenCalledWith({
-    appName: "agent-jobs",
+    appName: "stage",
     userId: "user",
     taskId,
   });

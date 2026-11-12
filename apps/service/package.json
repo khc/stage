@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/service",
+  "name": "@stage/service",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@agent-jobs/agents": "workspace:*",
+    "@stage/agents": "workspace:*",
     "@google-cloud/firestore": "^9.4.1",
     "@google-cloud/pubsub": "^6.4.1",
     "@google-cloud/run": "^4.2.0",

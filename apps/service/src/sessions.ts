@@ -1,4 +1,4 @@
-import { FirestoreSessionService } from "@agent-jobs/agents/session-service";
+import { FirestoreSessionService } from "@stage/agents/session-service";
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
 

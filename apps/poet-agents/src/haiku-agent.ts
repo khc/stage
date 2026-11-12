@@ -1,4 +1,4 @@
-import { createModel } from "@agent-jobs/agents/model";
+import { createModel } from "@stage/agents/model";
 import { LlmAgent } from "@google/adk";
 import { z } from "zod";
 

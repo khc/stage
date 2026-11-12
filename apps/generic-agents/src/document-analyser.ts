@@ -1,5 +1,5 @@
-import { createModel } from "@agent-jobs/agents/model";
-import { createLoadTaskDocuments, type LoadTaskDocuments } from "@agent-jobs/agents/task-documents";
+import { createModel } from "@stage/agents/model";
+import { createLoadTaskDocuments, type LoadTaskDocuments } from "@stage/agents/task-documents";
 import { Firestore } from "@google-cloud/firestore";
 import { LlmAgent } from "@google/adk";
 import { z } from "zod";

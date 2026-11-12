@@ -5,7 +5,7 @@ vars:
   PROJECT: floci-local
   REGION: us-central1
   # One Cloud Run job per agent app (apps/<name>); the job, the app and the
-  # image (agent-jobs-<name>:latest) share its name. Override to pick some,
+  # image (stage-<name>:latest) share its name. Override to pick some,
   # e.g. `task rebuild JOBS=poet-agents`.
   JOBS: generic-agents poet-agents
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
@@ -21,19 +21,19 @@ tasks:
     desc: Rebuild the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
       - for: { var: JOBS }
-        cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t agent-jobs-{{.ITEM}}:latest .
+        cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
 
   create-job:
     desc: Create the agent Cloud Run jobs in Floci (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=agent-jobs-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
+        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
 
   update-job:
     desc: Update the agent jobs' image and environment in Floci from .env (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=agent-jobs-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
+        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
 
   register-agents:
     desc: Record the agents inside each job image in the registry (needs the service running; override JOBS, SERVICE_URL)
@@ -56,7 +56,7 @@ tasks:
       - curl -fsS -X DELETE {{.JOBS_URL | shellQuote}}/{{.JOB | urlquery}}
 
   rebuild-extract:
-    desc: Rebuild the extract service image (agent-jobs-extract:latest)
+    desc: Rebuild the extract service image (stage-extract:latest)
     cmds:
       - docker compose build extract
 
@@ -66,7 +66,7 @@ tasks:
       - >-
         curl -fsS -X POST {{printf "%s?serviceId=extract" .SERVICES_URL | shellQuote}}
         -H 'content-type: application/json'
-        -d '{"template":{"containers":[{"image":"agent-jobs-extract:latest","ports":[{"containerPort":8080}]}]}}'
+        -d '{"template":{"containers":[{"image":"stage-extract:latest","ports":[{"containerPort":8080}]}]}}'
         | jq -r '.metadata.uri // .metadata.urls[0]'
 
   remove-extract:
