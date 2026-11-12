@@ -88,9 +88,9 @@ function ErrorBox({ error, retry }: { error: Error | null; retry?: () => void })
         <strong>Something went wrong</strong>
         <p>{error?.message ?? "The request could not be completed."}</p>
         {retry && (
-          <button onClick={retry}>
+          <Button variant="ghost" size="sm" onClick={retry}>
             Try again <ArrowRight size={12} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -294,9 +294,9 @@ export function Dashboard() {
           </span>
           <h3>From prompt to progress.</h3>
           <p>Create a task, run your job, and follow the conversation.</p>
-          <button onClick={() => openCreate()}>
+          <Button variant="ghost" size="sm" onClick={() => openCreate()}>
             Create your next task <ArrowRight size={14} />
-          </button>
+          </Button>
         </div>
         <div className="sidebar-bottom">
           <a href="/docs" target="_blank" rel="noreferrer" className="nav-item">
