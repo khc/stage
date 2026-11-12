@@ -8,6 +8,7 @@ vars:
   # image (agent-jobs-<name>:latest) share its name. Override to pick some,
   # e.g. `task rebuild JOBS=poet-agents`.
   JOBS: generic-agents poet-agents
+  SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
 
 env:
@@ -53,3 +54,22 @@ tasks:
     prompt: Remove job {{.JOB}} from Floci?
     cmds:
       - curl -fsS -X DELETE {{.JOBS_URL | shellQuote}}/{{.JOB | urlquery}}
+
+  rebuild-extract:
+    desc: Rebuild the extract service image (agent-jobs-extract:latest)
+    cmds:
+      - docker compose build extract
+
+  create-extract:
+    desc: Create the extract Cloud Run service in Floci; prints its URL (fails if it already exists)
+    cmds:
+      - >-
+        curl -fsS -X POST {{printf "%s?serviceId=extract" .SERVICES_URL | shellQuote}}
+        -H 'content-type: application/json'
+        -d '{"template":{"containers":[{"image":"agent-jobs-extract:latest","ports":[{"containerPort":8080}]}]}}'
+        | jq -r '.metadata.uri // .metadata.urls[0]'
+
+  remove-extract:
+    desc: Delete the extract Cloud Run service from Floci
+    cmds:
+      - curl -fsS -X DELETE {{printf "%s/extract" .SERVICES_URL | shellQuote}}

@@ -18,6 +18,17 @@
         "typescript": "^7",
       },
     },
+    "apps/extract": {
+      "name": "@agent-jobs/extract",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xberg-io/xberg": "^1.3.10",
+        "hono": "^4.13.18",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
     "apps/generic-agents": {
       "name": "@agent-jobs/generic-agents",
       "version": "0.1.0",
@@ -99,6 +110,8 @@
     "@a2a-js/sdk": ["@a2a-js/sdk@0.3.14", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "@bufbuild/protobuf": "^2.10.2", "@grpc/grpc-js": "^1.11.0", "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["@bufbuild/protobuf", "@grpc/grpc-js", "express"] }, "sha512-F6Ew1AtPzCLhTn8h9yiqTe7DiDf6XVrSnq9V1YqSl9eWqPm6anMveTiKdCSb/76cW0YiJc24rNaUrVezFFHbqQ=="],
 
     "@agent-jobs/agents": ["@agent-jobs/agents@workspace:packages/agents"],
+
+    "@agent-jobs/extract": ["@agent-jobs/extract@workspace:apps/extract"],
 
     "@agent-jobs/generic-agents": ["@agent-jobs/generic-agents@workspace:apps/generic-agents"],
 
@@ -361,6 +374,20 @@
     "@typescript/typescript-win32-arm64": ["@typescript/typescript-win32-arm64@7.0.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ=="],
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
+
+    "@xberg-io/xberg": ["@xberg-io/xberg@1.3.10", "", { "optionalDependencies": { "@xberg-io/xberg-darwin-arm64": "1.3.10", "@xberg-io/xberg-linux-arm64-gnu": "1.3.10", "@xberg-io/xberg-linux-arm64-musl": "1.3.10", "@xberg-io/xberg-linux-x64-gnu": "1.3.10", "@xberg-io/xberg-linux-x64-musl": "1.3.10", "@xberg-io/xberg-win32-x64-msvc": "1.3.10" } }, "sha512-OfzX0SD5/oFpIPapTBxPbxK3T64OLg+7SA5Vo4v8krNLum5PRWpTjLYHWHgB2ylXZcNR9nG7iz7N4+nzQFNWvg=="],
+
+    "@xberg-io/xberg-darwin-arm64": ["@xberg-io/xberg-darwin-arm64@1.3.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-hLtCWVglMEtCkGKFgqmtzcT06oWaZx6QNa0sRe0WuexR2dpdVRBw2daYWvAgUTE+r4KUYPMyJow+iMrBj4lMcw=="],
+
+    "@xberg-io/xberg-linux-arm64-gnu": ["@xberg-io/xberg-linux-arm64-gnu@1.3.10", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-T4TiHYTxcyVslF+VwLR+2Va9AsUqn0fBH6WD+XN67ZpRK4VjGvyDhLuc/737mc9x+bsfN8iPweSZF+PEdx2Tcw=="],
+
+    "@xberg-io/xberg-linux-arm64-musl": ["@xberg-io/xberg-linux-arm64-musl@1.3.10", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-T2j4C5XI7Khz+Nn2M3bBDiHRrDBt4dzsSUO4MpA8aiSPpLX6yS+A4PeV2mxZHvA8CIwcWbEjGA1DaePXlZtmJg=="],
+
+    "@xberg-io/xberg-linux-x64-gnu": ["@xberg-io/xberg-linux-x64-gnu@1.3.10", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-d+WifY8sTToRrsEeadFOiScfjro15UjCuEarPwzdumX80MJky21DOFflrJvpV4fCR1llMFVJyrzC14q3ZGIbEA=="],
+
+    "@xberg-io/xberg-linux-x64-musl": ["@xberg-io/xberg-linux-x64-musl@1.3.10", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-uFp1J0Jae8hPZ1u6QpejJ2DZEOCRODzj3P+nJmmEmylfOE4Y3QPD9ivNS920ffQ+EhdJV72YNZTeZs34tIwerw=="],
+
+    "@xberg-io/xberg-win32-x64-msvc": ["@xberg-io/xberg-win32-x64-msvc@1.3.10", "", { "os": "win32", "cpu": "x64" }, "sha512-JypK+tfBKWPGuHbz+3hcSKejcboINisr5Jmt7B25AymaN3rz+MiXbz3lVHgZvzYDKuH17fFigHi5P3SvHfmUmA=="],
 
     "adm-zip": ["adm-zip@0.6.1", "", {}, "sha512-Xwrja8nx9e5o2N1my4DsKCeKpdrnACyr1wtbPxBDgGzKzKyE9kRtBFA8mWldI+RVlD7CBZNWY/wQ2+ydwOR6kQ=="],
 

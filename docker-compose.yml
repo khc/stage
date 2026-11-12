@@ -20,6 +20,14 @@ services:
     environment:
       FLOCI_GCP_ENDPOINT: http://floci-gcp:4588
 
+  extract:
+    image: agent-jobs-extract:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.extract
+    ports:
+      - "127.0.0.1:8081:8080"
+
   # service:
   #   build:
   #     context: .

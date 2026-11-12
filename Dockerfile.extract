@@ -1,0 +1,26 @@
+# Stateless document extraction service (apps/extract). Listens on PORT (default 8080).
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
+
+FROM ${BUN_IMAGE} AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY packages/agents/package.json ./packages/agents/package.json
+COPY apps/generic-agents/package.json ./apps/generic-agents/package.json
+COPY apps/poet-agents/package.json ./apps/poet-agents/package.json
+COPY apps/extract/package.json ./apps/extract/package.json
+COPY apps/service/package.json ./apps/service/package.json
+COPY apps/web/package.json ./apps/web/package.json
+RUN bun install --frozen-lockfile --production
+
+FROM ${BUN_IMAGE} AS runtime
+WORKDIR /app
+ENV NODE_ENV=production PORT=8080
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY apps/extract ./apps/extract
+COPY --from=deps /app/apps/extract/node_modules ./apps/extract/node_modules
+
+USER bun
+EXPOSE 8080
+CMD ["bun", "apps/extract/src/index.ts"]
