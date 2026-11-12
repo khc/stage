@@ -2352,3 +2352,43 @@ select.form-input:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
+
+.job-chip.chip-muted {
+  opacity: 0.6;
+}
+
+.agent-contract {
+  display: grid;
+  gap: 6px;
+  margin: -14px 0 18px;
+  padding: 10px 12px;
+  background: #0c121e;
+  border: 1px solid #2d3549;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.agent-contract > div {
+  display: flex;
+  gap: 10px;
+}
+.agent-contract dt {
+  flex: none;
+  width: 44px;
+  color: #7c88a1;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding-top: 2px;
+}
+.agent-contract dd {
+  margin: 0;
+  color: #c0c8db;
+  overflow-wrap: anywhere;
+}
+:root[data-theme="light"] .agent-contract {
+  background: #f8fafd;
+  border-color: #dee5f0;
+}
+:root[data-theme="light"] .agent-contract dd {
+  color: #465875;
+}

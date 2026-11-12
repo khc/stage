@@ -41,10 +41,13 @@ import {
   api,
   formatTime,
   shortJobName,
+  lastOutput,
+  schemaSummary,
   streamMessages,
   withEvent,
   type Job,
   type Session,
+  type SessionSummary,
   type SessionEvent,
   type Task,
 } from "./api";
@@ -523,6 +526,7 @@ export function Dashboard() {
                       <tr>
                         <th>Task / prompt</th>
                         <th>Job</th>
+                        <th>Agent</th>
                         <th>Contract</th>
                         <th className="text-right">Actions</th>
                       </tr>
@@ -553,6 +557,14 @@ export function Dashboard() {
                             <span className="job-chip">
                               <Box size={12} />
                               {task.jobName ?? "Unassigned"}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`job-chip ${task.agentName ? "" : "chip-muted"}`}
+                            >
+                              <Workflow size={12} />
+                              {task.agentName ?? "Default"}
                             </span>
                           </td>
                           <td>
@@ -840,6 +852,7 @@ function NewTask({
     retry: false,
   });
   const jobAgents = registered.data?.agents ?? [];
+  const selectedAgent = jobAgents.find((agent) => agent.name === agentName);
   const jobOptions = [
     ...new Set(
       [...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(
@@ -944,6 +957,26 @@ function NewTask({
                 ? "Agents registered for this job."
                 : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
         </p>
+        {selectedAgent && (
+          <dl className="agent-contract">
+            <div>
+              <dt>Input</dt>
+              <dd>
+                {schemaSummary(selectedAgent.inputSchema)}
+                {selectedAgent.inputSchema?.description &&
+                  ` — ${selectedAgent.inputSchema.description}`}
+              </dd>
+            </div>
+            <div>
+              <dt>Output</dt>
+              <dd>
+                {schemaSummary(selectedAgent.outputSchema)}
+                {selectedAgent.outputSchema?.description &&
+                  ` — ${selectedAgent.outputSchema.description}`}
+              </dd>
+            </div>
+          </dl>
+        )}
         <label className="form-label prompt-label" htmlFor="task-prompt">
           Prompt<span>Required</span>
         </label>
@@ -1231,6 +1264,78 @@ function useResizableWidth() {
   return { width, dragging, handle };
 }
 
+// Keeps the cached session in step with the live message stream.
+function useSessionStream(taskId: string, sessionId: string | null) {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!sessionId) return;
+    return streamMessages(taskId, sessionId, (event) =>
+      client.setQueryData<Session>(
+        ["session", taskId, sessionId],
+        (old) => old && withEvent(old, event),
+      ),
+    );
+  }, [client, taskId, sessionId]);
+}
+
+function LastOutput({
+  taskId,
+  latest,
+  loading,
+  onOpen,
+}: {
+  taskId: string;
+  latest?: SessionSummary;
+  loading: boolean;
+  onOpen: (sessionId: string) => void;
+}) {
+  const sessionId = latest?.id ?? null;
+  const session = useQuery({
+    queryKey: ["session", taskId, sessionId],
+    queryFn: () => api.session(taskId, sessionId!),
+    enabled: !!sessionId,
+  });
+  useSessionStream(taskId, sessionId);
+  if (loading || (sessionId && session.isPending))
+    return <Loading label="Loading output…" />;
+  if (!latest)
+    return (
+      <Empty icon={<Terminal size={25} />} title="No output yet">
+        Run this task to create a session. Its last answer appears here.
+      </Empty>
+    );
+  if (session.isError)
+    return (
+      <ErrorBox error={session.error} retry={() => void session.refetch()} />
+    );
+  const output = lastOutput(session.data!.events);
+  return (
+    <>
+      <div className="session-detail-title">
+        <h3>Last output</h3>
+        <button className="back-link" onClick={() => onOpen(latest.id)}>
+          View session
+          <ArrowRight size={14} />
+        </button>
+      </div>
+      {output ? (
+        <>
+          <div className="prompt-preview">{output.text}</div>
+          <p className="session-time">
+            <Clock3 size={12} />
+            {formatTime(output.timestamp ?? latest.lastUpdateTime)}
+          </p>
+        </>
+      ) : (
+        <Empty icon={<Terminal size={25} />} title="No answer yet">
+          The latest session has not produced a text answer. It may still be
+          running.
+        </Empty>
+      )}
+    </>
+  );
+}
+
 function TaskInspector({
   taskId,
   onClose,
@@ -1248,7 +1353,7 @@ function TaskInspector({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { width, dragging, handle } = useResizableWidth();
-  const [tab, setTab] = useState<"sessions" | "prompt">("sessions");
+  const [tab, setTab] = useState<"sessions" | "output" | "prompt">("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const task = useQuery({
     queryKey: ["task", taskId],
@@ -1258,22 +1363,14 @@ function TaskInspector({
     queryKey: ["sessions", taskId],
     queryFn: () => api.sessions(taskId),
     enabled: !!task.data,
+    refetchInterval: tab === "output" ? 5000 : false,
   });
   const detail = useQuery({
     queryKey: ["session", taskId, sessionId],
     queryFn: () => api.session(taskId, sessionId!),
     enabled: !!sessionId,
   });
-  const client = useQueryClient();
-  useEffect(() => {
-    if (!sessionId) return;
-    return streamMessages(taskId, sessionId, (event) =>
-      client.setQueryData<Session>(
-        ["session", taskId, sessionId],
-        (old) => old && withEvent(old, event),
-      ),
-    );
-  }, [client, taskId, sessionId]);
+  useSessionStream(taskId, tab === "sessions" ? sessionId : null);
   useEffect(() => {
     ref.current?.showModal();
   }, []);
@@ -1335,12 +1432,13 @@ function TaskInspector({
                 <Box size={12} />
                 {task.data.jobName ?? "Unassigned job"}
               </span>
-              {task.data.agentName && (
-                <span className="job-chip">
-                  <Workflow size={12} />
-                  {task.data.agentName}
-                </span>
-              )}
+              <span
+                className={`job-chip ${task.data.agentName ? "" : "chip-muted"}`}
+                title="Agent that runs this task"
+              >
+                <Workflow size={12} />
+                {task.data.agentName ?? "Default agent"}
+              </span>
               <Button
                 size="sm"
                 onClick={onRun}
@@ -1370,6 +1468,14 @@ function TaskInspector({
             </button>
             <button
               role="tab"
+              aria-selected={tab === "output"}
+              onClick={() => setTab("output")}
+            >
+              <Sparkles size={15} />
+              Output
+            </button>
+            <button
+              role="tab"
               aria-selected={tab === "prompt"}
               onClick={() => setTab("prompt")}
             >
@@ -1396,7 +1502,17 @@ function TaskInspector({
                 </button>
               </div>
             )}
-            {tab === "prompt" ? (
+            {tab === "output" ? (
+              <LastOutput
+                taskId={taskId}
+                latest={list[0]}
+                loading={sessions.isPending}
+                onOpen={(id) => {
+                  setSessionId(id);
+                  setTab("sessions");
+                }}
+              />
+            ) : tab === "prompt" ? (
               <>
                 <p className="section-overline">SAVED PROMPT</p>
                 <div className="prompt-preview">{task.data.prompt}</div>

@@ -1,6 +1,12 @@
 import type { Firestore } from "@google-cloud/firestore";
 
-export type AgentInfo = { name: string; description?: string };
+export type JsonSchema = Record<string, unknown>;
+export type AgentInfo = {
+  name: string;
+  description?: string;
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
+};
 export type RegisterAgents = (
   jobName: string,
   agents: AgentInfo[],
@@ -20,15 +26,28 @@ export const createRegisterAgents =
     const batch = db.batch();
     for (const doc of stored.docs)
       if (!keep.has(doc.get("name"))) batch.delete(doc.ref);
-    for (const { name, description } of agents)
+    // Schemas are stored as JSON text: Firestore restricts nested arrays and
+    // some key names that JSON Schema can contain.
+    for (const { name, description, inputSchema, outputSchema } of agents)
       batch.set(collection.doc(`${jobName}:${name}`), {
         jobName,
         name,
         ...(description && { description }),
+        ...(inputSchema && { inputSchema: JSON.stringify(inputSchema) }),
+        ...(outputSchema && { outputSchema: JSON.stringify(outputSchema) }),
         registeredAt: Date.now(),
       });
     await batch.commit();
   };
+
+const parseSchema = (value: unknown): JsonSchema | undefined => {
+  if (typeof value !== "string") return undefined;
+  try {
+    return JSON.parse(value) as JsonSchema;
+  } catch {
+    return undefined;
+  }
+};
 
 export const createListAgents =
   (db: Pick<Firestore, "collection">): ListAgents =>
@@ -36,9 +55,13 @@ export const createListAgents =
     (await db.collection(COLLECTION).where("jobName", "==", jobName).get()).docs
       .map((doc): AgentInfo => {
         const description = doc.get("description");
+        const inputSchema = parseSchema(doc.get("inputSchema"));
+        const outputSchema = parseSchema(doc.get("outputSchema"));
         return {
           name: doc.get("name"),
           ...(description !== undefined && { description }),
+          ...(inputSchema && { inputSchema }),
+          ...(outputSchema && { outputSchema }),
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));

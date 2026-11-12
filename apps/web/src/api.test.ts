@@ -1,5 +1,12 @@
 import { afterEach, expect, mock, spyOn, test } from "bun:test";
-import { api, ApiError, streamMessages, withEvent } from "./api";
+import {
+  api,
+  ApiError,
+  lastOutput,
+  schemaSummary,
+  streamMessages,
+  withEvent,
+} from "./api";
 
 let fetchSpy: ReturnType<typeof spyOn> | undefined;
 afterEach(() => fetchSpy?.mockRestore());
@@ -197,4 +204,44 @@ test("registering a job's agents posts to the encoded register path", async () =
   expect(fetch).toHaveBeenCalledWith("/jobs/my-job/register", {
     method: "POST",
   });
+});
+
+test("lastOutput returns the newest visible agent text, skipping tools, thoughts and the user", () => {
+  const text = (t: string, extra = {}) => ({
+    author: "assistant",
+    content: { role: "model", parts: [{ text: t, ...extra }] },
+  });
+  const events = [
+    { author: "user", content: { role: "user", parts: [{ text: "hi" }] } },
+    text("first answer", { timestamp: 1 }),
+    { ...text("newest answer"), timestamp: 7 },
+    {
+      author: "assistant",
+      content: { role: "model", parts: [{ functionCall: { name: "t" } }] },
+    },
+    {
+      author: "assistant",
+      content: { role: "user", parts: [{ functionResponse: { name: "t" } }] },
+    },
+    text("hidden thought", { thought: true }),
+  ];
+  expect(lastOutput(events)).toEqual({ text: "newest answer", timestamp: 7 });
+  expect(lastOutput([])).toBeUndefined();
+  expect(lastOutput([events[0]!])).toBeUndefined();
+});
+
+test("schemaSummary describes primitives, objects, arrays and enums", () => {
+  expect(schemaSummary(undefined)).toBe("Not described");
+  expect(schemaSummary({ type: "string" })).toBe("string");
+  expect(
+    schemaSummary({
+      type: "object",
+      properties: {
+        city: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+        unit: { enum: ["c", "f"] },
+      },
+    }),
+  ).toBe('{ city: string, tags: string[], unit: "c" | "f" }');
+  expect(schemaSummary({})).toBe("any");
 });

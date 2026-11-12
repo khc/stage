@@ -832,3 +832,27 @@ describe("agent registry routes", () => {
     expect(res.status).toBe(201);
   });
 });
+
+test("GET /jobs/:jobName/agents passes each agent's schemas through", async () => {
+  const agents = [
+    {
+      name: "haiku",
+      description: "d",
+      inputSchema: { type: "string" },
+      outputSchema: { type: "string" },
+    },
+  ];
+  const app = createApp(
+    noJob,
+    noJobs,
+    noCreate,
+    noTasks,
+    noTask,
+    noSessions,
+    undefined,
+    { register: async () => "", list: async () => agents },
+  );
+  expect(await (await app.request("/jobs/j/agents")).json()).toEqual({
+    agents,
+  });
+});

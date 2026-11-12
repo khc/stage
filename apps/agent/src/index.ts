@@ -73,8 +73,9 @@ export const runAgent: RunAgent = async (
   sessionId,
   agentName,
 ) => {
-  const agent = agents[agentName ?? rootAgent.name];
-  if (!agent) throw new Error(`Unknown agent: ${agentName}`);
+  const spec = agents[agentName ?? rootAgent.name];
+  if (!spec) throw new Error(`Unknown agent: ${agentName}`);
+  const { agent } = spec;
   return createTaskAgent(
     new Runner({ appName, agent, sessionService }),
     publish,

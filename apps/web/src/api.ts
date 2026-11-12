@@ -36,7 +36,19 @@ export type SessionEvent = {
     }[];
   };
 };
-export type AgentInfo = { name: string; description?: string };
+export type JsonSchema = {
+  type?: string | string[];
+  description?: string;
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  enum?: unknown[];
+};
+export type AgentInfo = {
+  name: string;
+  description?: string;
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
+};
 export type SessionStats = {
   events: number;
   llmCalls: number;
@@ -166,6 +178,34 @@ export const withEvent = (session: Session, event: SessionEvent): Session =>
         events: [...session.events, event],
         lastUpdateTime: event.timestamp ?? session.lastUpdateTime,
       };
+// The last text the agent produced: the newest non-user event with visible
+// text and no tool call or tool result.
+export const lastOutput = (events: SessionEvent[]) => {
+  for (const event of [...events].reverse()) {
+    if (event.author === "user" || event.content?.role === "user") continue;
+    const parts = event.content?.parts ?? [];
+    if (parts.some((p) => p.functionCall || p.functionResponse)) continue;
+    const text = parts
+      .filter((p) => p.text && !p.thought)
+      .map((p) => p.text)
+      .join("")
+      .trim();
+    if (text) return { text, timestamp: event.timestamp };
+  }
+};
+// A short human description of a JSON Schema: its own description for plain
+// values, otherwise its shape, e.g. "{ city: string, days: number }".
+export const schemaSummary = (schema?: JsonSchema): string => {
+  if (!schema) return "Not described";
+  const type = [schema.type].flat().join(" | ");
+  if (schema.properties)
+    return `{ ${Object.entries(schema.properties)
+      .map(([key, value]) => `${key}: ${schemaSummary(value)}`)
+      .join(", ")} }`;
+  if (schema.items) return `${schemaSummary(schema.items)}[]`;
+  if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
+  return type || "any";
+};
 export const shortJobName = (job: Job) =>
   job.name?.split("/").at(-1) ?? "Unnamed job";
 // ADK records event/session timestamps in milliseconds in this repository.

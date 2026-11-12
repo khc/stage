@@ -69,3 +69,28 @@ test("lists a job's agents sorted by name", async () => {
   ]);
   expect(where).toHaveBeenCalledWith("jobName", "==", "my-job");
 });
+
+test("stores schemas as JSON text and parses them back when listing", async () => {
+  const input = {
+    type: "object",
+    properties: { a: { type: "array", items: { type: "string" } } },
+  };
+  const { db, batch } = registerSetup([]);
+  await createRegisterAgents(db)("my-job", [
+    { name: "x", inputSchema: input, outputSchema: { type: "string" } },
+    { name: "y" },
+  ]);
+  const sets = batch.set.mock.calls as [unknown, Record<string, unknown>][];
+  expect(sets[0]![1].inputSchema).toBe(JSON.stringify(input));
+  expect(sets[0]![1].outputSchema).toBe('{"type":"string"}');
+  expect(sets[1]![1]).not.toHaveProperty("inputSchema");
+
+  const docs = [
+    { name: "x", inputSchema: JSON.stringify(input), outputSchema: "not json" },
+  ].map((d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }));
+  const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
+  const listed = await createListAgents({
+    collection: () => ({ where }),
+  } as never)("my-job");
+  expect(listed).toEqual([{ name: "x", inputSchema: input }]);
+});

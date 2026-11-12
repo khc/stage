@@ -114,7 +114,7 @@ export const openApiDocument = {
         operationId: "listJobAgents",
         summary: "List the agents registered for a job",
         description:
-          "Reads the registry written by the job's register execution. Empty when the job has not been registered.",
+          "Reads the registry written by the job's register execution: each agent's name, description and the JSON Schema of its input and output. Empty when the job has not been registered. The schemas describe the contract; the service does not enforce them.",
         parameters: [jobName],
         responses: {
           200: response("Registered agents", {
@@ -123,12 +123,25 @@ export const openApiDocument = {
             properties: {
               agents: {
                 type: "array",
-                items: schema(
-                  z.object({
-                    name: z.string(),
-                    description: z.string().optional(),
-                  }),
-                ),
+                items: {
+                  type: "object",
+                  required: ["name"],
+                  properties: {
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    inputSchema: {
+                      type: "object",
+                      additionalProperties: true,
+                      description:
+                        "JSON Schema of the message a task sends to the agent.",
+                    },
+                    outputSchema: {
+                      type: "object",
+                      additionalProperties: true,
+                      description: "JSON Schema of the agent's final reply.",
+                    },
+                  },
+                },
               },
             },
           }),
