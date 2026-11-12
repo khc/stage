@@ -247,6 +247,13 @@ export const schemaRows = (schema?: JsonSchema) =>
     required: !!schema?.required?.includes(name),
     description: value.description,
   }));
+// A task's heading: its prompt, or for agents that take no input (prompt {})
+// the agent's name.
+export const taskTitle = (task: Task) => {
+  if (task.prompt.trim() !== "{}") return task.prompt;
+  const name = task.agentName?.replaceAll("_", " ");
+  return name ? name[0]!.toUpperCase() + name.slice(1) : "Untitled task";
+};
 export const parseJsonObject = (text: string) => {
   try {
     const value: unknown = JSON.parse(text);

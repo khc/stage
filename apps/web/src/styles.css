@@ -1016,7 +1016,15 @@ tbody tr:hover {
   background: #29203565;
   color: #b09bd9;
   border-radius: var(--radius-lg);
-  margin-bottom: 20px;
+  flex: none;
+}
+.task-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.task-detail-title {
+  min-width: 0;
 }
 .inspector-heading h2 {
   font-size: var(--text-lg);
@@ -1027,7 +1035,7 @@ tbody tr:hover {
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  margin: 0 0 14px;
+  margin: 0 0 6px;
 }
 .task-id {
   display: flex;
@@ -1042,10 +1050,26 @@ tbody tr:hover {
 }
 .task-detail-meta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin-top: 24px;
+  gap: 12px 16px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #262c3b;
+}
+.task-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  min-width: 0;
+}
+.task-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 .inspector-tabs {
   display: flex;
@@ -2556,4 +2580,7 @@ select.form-input:disabled {
 }
 .schema-check input {
   accent-color: var(--accent);
+}
+:root[data-theme="light"] .task-detail-meta {
+  border-top-color: var(--light-border);
 }

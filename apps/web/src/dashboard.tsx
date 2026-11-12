@@ -46,6 +46,7 @@ import {
   promptError,
   schemaFields,
   schemaRows,
+  taskTitle,
   takesNoInput,
   schemaSummary,
   streamMessages,
@@ -1725,41 +1726,49 @@ function TaskInspector({
       ) : (
         <>
           <div className="inspector-heading">
-            <span className="task-detail-icon">
-              <FileText size={24} />
-            </span>
-            <h2 id="inspector-title">{task.data.prompt}</h2>
-            <div className="task-id">
-              <code>{taskId}</code>
-              <CopyButton value={taskId} />
+            <div className="task-detail-head">
+              <span className="task-detail-icon">
+                <FileText size={24} />
+              </span>
+              <div className="task-detail-title">
+                <h2 id="inspector-title">{taskTitle(task.data)}</h2>
+                <div className="task-id">
+                  <code>{taskId}</code>
+                  <CopyButton value={taskId} />
+                </div>
+              </div>
             </div>
             <div className="task-detail-meta">
-              <span className="job-chip">
-                <Box size={12} />
-                {task.data.jobName ?? "Unassigned job"}
-              </span>
-              <span
-                className={`job-chip ${task.data.agentName ? "" : "chip-muted"}`}
-                title="Agent that runs this task"
-              >
-                <Workflow size={12} />
-                {task.data.agentName ?? "Default agent"}
-              </span>
-              <Button size="sm" onClick={onRun} disabled={!task.data.jobName || running}>
-                {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                Run task
-              </Button>
-              <ConfirmDelete
-                label="Delete task"
-                question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}?`}
-                remove={() => api.deleteTask(taskId)}
-                onDeleted={() => {
-                  client.removeQueries({ queryKey: ["task", taskId] });
-                  client.removeQueries({ queryKey: ["sessions", taskId] });
-                  void client.invalidateQueries({ queryKey: ["tasks"] });
-                  onClose();
-                }}
-              />
+              <div className="task-detail-chips">
+                <span className="job-chip">
+                  <Box size={12} />
+                  {task.data.jobName ?? "Unassigned job"}
+                </span>
+                <span
+                  className={`job-chip ${task.data.agentName ? "" : "chip-muted"}`}
+                  title="Agent that runs this task"
+                >
+                  <Workflow size={12} />
+                  {task.data.agentName ?? "Default agent"}
+                </span>
+              </div>
+              <div className="task-detail-actions">
+                <Button size="sm" onClick={onRun} disabled={!task.data.jobName || running}>
+                  {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                  Run task
+                </Button>
+                <ConfirmDelete
+                  label="Delete task"
+                  question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}?`}
+                  remove={() => api.deleteTask(taskId)}
+                  onDeleted={() => {
+                    client.removeQueries({ queryKey: ["task", taskId] });
+                    client.removeQueries({ queryKey: ["sessions", taskId] });
+                    void client.invalidateQueries({ queryKey: ["tasks"] });
+                    onClose();
+                  }}
+                />
+              </div>
             </div>
           </div>
           <div className="inspector-tabs" role="tablist" aria-label="Task detail sections">

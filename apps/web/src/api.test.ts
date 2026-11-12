@@ -15,6 +15,7 @@ import {
   schemaSummary,
   streamMessages,
   takesNoInput,
+  taskTitle,
   withEvent,
 } from "./api";
 
@@ -416,4 +417,14 @@ test("schemaRows lists each property with type, required flag and description", 
     { name: "bulletpoints", type: "string[]", required: false, description: undefined },
   ]);
   expect(schemaRows({ type: "string" })).toEqual([]);
+});
+
+test("taskTitle shows the agent name for a no-input task and the prompt otherwise", () => {
+  expect(taskTitle({ taskId: "t", prompt: "Write a haiku", agentName: "haiku" })).toBe(
+    "Write a haiku",
+  );
+  expect(taskTitle({ taskId: "t", prompt: "{}", agentName: "document_analyser" })).toBe(
+    "Document analyser",
+  );
+  expect(taskTitle({ taskId: "t", prompt: "{}" })).toBe("Untitled task");
 });
