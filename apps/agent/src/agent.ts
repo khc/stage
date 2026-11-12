@@ -1,7 +1,7 @@
 import { FunctionTool, LlmAgent, type BaseAgent } from "@google/adk";
 import { z } from "zod";
 import type { AgentInfo, JsonSchema } from "./agent-registry";
-import { haikuAgent } from "./haiku-agent";
+import { haikuAgent, haikuInput, haikuOutput } from "./haiku-agent";
 import { createModel } from "./model";
 
 export const getCurrentTime = new FunctionTool({
@@ -40,10 +40,8 @@ export const agents: Record<string, AgentSpec> = {
   },
   [haikuAgent.name]: {
     agent: haikuAgent,
-    inputSchema: z.string().describe("The subject of the haiku."),
-    outputSchema: z
-      .string()
-      .describe("One haiku: three lines of 5, 7 and 5 syllables."),
+    inputSchema: haikuInput,
+    outputSchema: haikuOutput,
   },
 };
 
@@ -59,3 +57,20 @@ export const describeAgents = (): AgentInfo[] =>
     inputSchema: toJsonSchema(spec.inputSchema),
     outputSchema: toJsonSchema(spec.outputSchema),
   }));
+
+// Free-text agents (string input schema) take any message. Structured agents
+// take a JSON message that must match their input schema.
+export const checkInput = (spec: AgentSpec, message: string) => {
+  if (toJsonSchema(spec.inputSchema).type === "string") return;
+  let value: unknown;
+  try {
+    value = JSON.parse(message);
+  } catch {
+    throw new Error("Input must be JSON matching the agent's input schema");
+  }
+  const result = spec.inputSchema.safeParse(value);
+  if (!result.success)
+    throw new Error(
+      `Input does not match the agent's input schema: ${z.prettifyError(result.error)}`,
+    );
+};

@@ -2392,3 +2392,12 @@ select.form-input:disabled {
 :root[data-theme="light"] .agent-contract dd {
   color: #465875;
 }
+
+.output-fields {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.output-fields dd {
+  margin: 0 0 12px;
+}

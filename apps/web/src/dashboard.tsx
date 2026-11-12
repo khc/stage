@@ -41,7 +41,10 @@ import {
   api,
   formatTime,
   shortJobName,
+  inputExample,
   lastOutput,
+  parseJsonObject,
+  promptError,
   schemaSummary,
   streamMessages,
   withEvent,
@@ -853,6 +856,7 @@ function NewTask({
   });
   const jobAgents = registered.data?.agents ?? [];
   const selectedAgent = jobAgents.find((agent) => agent.name === agentName);
+  const promptProblem = promptError(selectedAgent?.inputSchema, prompt);
   const jobOptions = [
     ...new Set(
       [...jobs.filter((job) => job.name).map(shortJobName), jobName].filter(
@@ -983,7 +987,10 @@ function NewTask({
         <textarea
           id="task-prompt"
           className="form-input prompt-input"
-          placeholder="What would you like your agent to work on?"
+          placeholder={
+            inputExample(selectedAgent?.inputSchema) ??
+            "What would you like your agent to work on?"
+          }
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           required
@@ -993,6 +1000,11 @@ function NewTask({
         <div className="prompt-counter">
           {prompt.length.toLocaleString()} / 10,000
         </div>
+        {promptProblem && (
+          <p className="composer-hint composer-error" role="alert">
+            {promptProblem}
+          </p>
+        )}
         {mutation.isError && <ErrorBox error={mutation.error} />}
         <div className="create-hint">
           <FileText size={15} />
@@ -1009,7 +1021,12 @@ function NewTask({
           </Button>
           <Button
             type="submit"
-            disabled={!prompt.trim() || !jobName || mutation.isPending}
+            disabled={
+              !prompt.trim() ||
+              !jobName ||
+              !!promptProblem ||
+              mutation.isPending
+            }
           >
             {mutation.isPending ? (
               <Loader2 size={15} className="animate-spin" />
@@ -1278,6 +1295,23 @@ function useSessionStream(taskId: string, sessionId: string | null) {
   }, [client, taskId, sessionId]);
 }
 
+function OutputText({ text }: { text: string }) {
+  const fields = parseJsonObject(text);
+  if (!fields) return <div className="prompt-preview">{text}</div>;
+  return (
+    <dl className="output-fields">
+      {Object.entries(fields).map(([key, value]) => (
+        <div key={key}>
+          <dt className="section-overline">{key.toUpperCase()}</dt>
+          <dd className="prompt-preview">
+            {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function LastOutput({
   taskId,
   latest,
@@ -1320,7 +1354,7 @@ function LastOutput({
       </div>
       {output ? (
         <>
-          <div className="prompt-preview">{output.text}</div>
+          <OutputText text={output.text} />
           <p className="session-time">
             <Clock3 size={12} />
             {formatTime(output.timestamp ?? latest.lastUpdateTime)}

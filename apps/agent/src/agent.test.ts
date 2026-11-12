@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { agents, describeAgents, getCurrentTime, rootAgent } from "./agent";
+import {
+  agents,
+  checkInput,
+  describeAgents,
+  getCurrentTime,
+  rootAgent,
+} from "./agent";
 import { haikuAgent } from "./haiku-agent";
 
 test("getCurrentTime returns the city and an ISO time", async () => {
@@ -20,17 +26,35 @@ test("the haiku agent is registered by its name and described", () => {
   expect(agents.haiku?.agent).toBe(haikuAgent);
   expect(haikuAgent.tools ?? []).toHaveLength(0);
   expect(String(haikuAgent.instruction)).toContain("5, 7 and 5");
+  expect(haikuAgent.outputSchema).toBeDefined();
   expect(describeAgents().map((a) => [a.name, a.description])).toEqual([
     ["assistant", "A simple assistant that can tell the current time."],
-    ["haiku", "Answers every message with a haiku."],
+    ["haiku", "Writes a haiku about a topic."],
   ]);
 });
 
-test("registered agents publish JSON Schema for their input and output", () => {
-  for (const info of describeAgents()) {
-    expect(info.inputSchema).toMatchObject({ type: "string" });
-    expect(info.outputSchema).toMatchObject({ type: "string" });
-    expect(info.inputSchema).not.toHaveProperty("$schema");
-    expect(info.inputSchema?.description).toBeString();
-  }
+test("free-text agents publish string schemas and the haiku agent object schemas", () => {
+  const info = Object.fromEntries(describeAgents().map((a) => [a.name, a]));
+  expect(info.assistant?.inputSchema).toMatchObject({ type: "string" });
+  expect(info.assistant?.outputSchema).toMatchObject({ type: "string" });
+  expect(info.haiku?.inputSchema).toMatchObject({
+    type: "object",
+    required: ["topic"],
+    properties: { topic: { type: "string" } },
+  });
+  expect(info.haiku?.outputSchema).toMatchObject({
+    type: "object",
+    required: ["poem"],
+    properties: { poem: { type: "string" } },
+  });
+  expect(info.haiku?.inputSchema).not.toHaveProperty("$schema");
+});
+
+test("checkInput accepts any text for free-text agents and validates JSON for structured ones", () => {
+  expect(() => checkInput(agents.assistant!, "anything at all")).not.toThrow();
+  const haiku = agents.haiku!;
+  expect(() => checkInput(haiku, '{"topic":"rain"}')).not.toThrow();
+  expect(() => checkInput(haiku, "rain")).toThrow("must be JSON");
+  expect(() => checkInput(haiku, "{}")).toThrow("does not match");
+  expect(() => checkInput(haiku, '{"topic":""}')).toThrow("does not match");
 });

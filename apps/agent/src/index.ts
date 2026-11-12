@@ -1,6 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
-import { agents, rootAgent } from "./agent";
+import { agents, checkInput, rootAgent } from "./agent";
 import { FirestoreSessionService } from "./session-service";
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 
@@ -75,6 +75,7 @@ export const runAgent: RunAgent = async (
 ) => {
   const spec = agents[agentName ?? rootAgent.name];
   if (!spec) throw new Error(`Unknown agent: ${agentName}`);
+  checkInput(spec, message);
   const { agent } = spec;
   return createTaskAgent(
     new Runner({ appName, agent, sessionService }),

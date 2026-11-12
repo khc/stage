@@ -40,6 +40,7 @@ export type JsonSchema = {
   type?: string | string[];
   description?: string;
   properties?: Record<string, JsonSchema>;
+  required?: string[];
   items?: JsonSchema;
   enum?: unknown[];
 };
@@ -205,6 +206,36 @@ export const schemaSummary = (schema?: JsonSchema): string => {
   if (schema.items) return `${schemaSummary(schema.items)}[]`;
   if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
   return type || "any";
+};
+export const parseJsonObject = (text: string) => {
+  try {
+    const value: unknown = JSON.parse(text);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+const isStructured = (schema?: JsonSchema) => schema?.type === "object";
+// An example message for a structured input schema, e.g. {"topic": ""}.
+export const inputExample = (schema?: JsonSchema) =>
+  isStructured(schema)
+    ? JSON.stringify(
+        Object.fromEntries(
+          Object.keys(schema?.properties ?? {}).map((key) => [key, ""]),
+        ),
+      )
+    : undefined;
+// Structured agents take a JSON message; text agents take anything.
+export const promptError = (schema: JsonSchema | undefined, prompt: string) => {
+  if (!isStructured(schema) || !prompt.trim()) return undefined;
+  const value = parseJsonObject(prompt);
+  if (!value) return "This agent expects a JSON object as its prompt.";
+  const missing = (schema?.required ?? []).filter((key) => !(key in value));
+  return missing.length
+    ? `Missing required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`
+    : undefined;
 };
 export const shortJobName = (job: Job) =>
   job.name?.split("/").at(-1) ?? "Unnamed job";

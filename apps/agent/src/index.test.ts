@@ -116,3 +116,9 @@ test("runAgent rejects a task that names an unknown agent", async () => {
     runAgent("hi", undefined, undefined, "does_not_exist"),
   ).rejects.toThrow("Unknown agent: does_not_exist");
 });
+
+test("runAgent rejects a message that does not match a structured agent's input", async () => {
+  await expect(
+    runAgent("not json", undefined, undefined, "haiku"),
+  ).rejects.toThrow("must be JSON");
+});

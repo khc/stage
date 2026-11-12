@@ -2,7 +2,10 @@ import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import {
   api,
   ApiError,
+  inputExample,
   lastOutput,
+  parseJsonObject,
+  promptError,
   schemaSummary,
   streamMessages,
   withEvent,
@@ -244,4 +247,22 @@ test("schemaSummary describes primitives, objects, arrays and enums", () => {
     }),
   ).toBe('{ city: string, tags: string[], unit: "c" | "f" }');
   expect(schemaSummary({})).toBe("any");
+});
+
+test("structured input helpers build an example and validate the prompt", () => {
+  const schema = {
+    type: "object",
+    required: ["topic"],
+    properties: { topic: { type: "string" } },
+  };
+  expect(inputExample(schema)).toBe('{"topic":""}');
+  expect(inputExample({ type: "string" })).toBeUndefined();
+  expect(promptError(schema, '{"topic":"rain"}')).toBeUndefined();
+  expect(promptError(schema, "rain")).toContain("JSON object");
+  expect(promptError(schema, "[1]")).toContain("JSON object");
+  expect(promptError(schema, "{}")).toBe("Missing required field: topic.");
+  expect(promptError({ type: "string" }, "anything")).toBeUndefined();
+  expect(promptError(schema, "  ")).toBeUndefined();
+  expect(parseJsonObject('{"a":1}')).toEqual({ a: 1 });
+  expect(parseJsonObject("nope")).toBeUndefined();
 });
