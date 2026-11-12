@@ -458,14 +458,14 @@ test("GET /openapi.json describes every API operation and its task input", async
         .filter((r) => !["/docs", "/openapi.json"].includes(r.path))
         .map((r) => `${r.method.toLowerCase()} ${r.path.replace(/:([^/]+)/g, "{$1}")}`),
     ),
-  ].sort();
+  ].toSorted();
   const described = Object.entries(document.paths)
     .flatMap(([path, operations]) =>
       Object.keys(operations as object)
         .filter((method) => ["get", "post", "delete"].includes(method))
         .map((method) => `${method} ${path}`),
     )
-    .sort();
+    .toSorted();
   expect(described).toEqual(actual);
   const input = document.paths["/tasks"].post.requestBody.content["application/json"].schema;
   expect(input.required).toEqual(["prompt", "jobName"]);

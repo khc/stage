@@ -169,13 +169,13 @@ export const streamMessages = (
   const source = new EventSource(
     `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
   );
-  source.onmessage = (message) => {
+  source.addEventListener("message", (message) => {
     try {
       onEvent(JSON.parse(message.data) as SessionEvent);
     } catch {
       // Ignore a malformed message; the periodic refetch still has the event.
     }
-  };
+  });
   return () => source.close();
 };
 export const withEvent = (session: Session, event: SessionEvent): Session =>
@@ -189,7 +189,7 @@ export const withEvent = (session: Session, event: SessionEvent): Session =>
 // The last text the agent produced: the newest non-user event with visible
 // text and no tool call or tool result.
 export const lastOutput = (events: SessionEvent[]) => {
-  for (const event of [...events].reverse()) {
+  for (const event of events.toReversed()) {
     if (event.author === "user" || event.content?.role === "user") continue;
     const parts = event.content?.parts ?? [];
     if (parts.some((p) => p.functionCall || p.functionResponse)) continue;
@@ -299,30 +299,33 @@ export type FormValues = Record<string, string | boolean>;
 // strings, numbers, booleans and enums get their own control; anything
 // nested falls back to a JSON field. Undefined when the schema is not an
 // object with properties (those agents take a free-text prompt).
+const toField = (key: string, value: JsonSchema, schema: JsonSchema): FormField => {
+  const type = [value.type].flat()[0];
+  const base = {
+    key,
+    label: value.title ?? key,
+    description: value.description,
+    required: !!schema.required?.includes(key),
+  };
+  if (value.enum && value.enum.every((o) => typeof o === "string"))
+    return { ...base, kind: "enum", options: value.enum as string[] };
+  if (type === "string") return { ...base, kind: "string" };
+  if (type === "number" || type === "integer")
+    return {
+      ...base,
+      kind: "number",
+      integer: type === "integer",
+      min: value.minimum,
+      max: value.maximum,
+    };
+  if (type === "boolean") return { ...base, kind: "boolean" };
+  return { ...base, kind: "json" };
+};
 export const schemaFields = (schema?: JsonSchema): FormField[] | undefined => {
   if (!isStructured(schema) || !schema?.properties) return undefined;
-  const fields = Object.entries(schema.properties).map(([key, value]): FormField => {
-    const type = [value.type].flat()[0];
-    const base = {
-      key,
-      label: value.title ?? key,
-      description: value.description,
-      required: !!schema.required?.includes(key),
-    };
-    if (value.enum && value.enum.every((o) => typeof o === "string"))
-      return { ...base, kind: "enum", options: value.enum as string[] };
-    if (type === "string") return { ...base, kind: "string" };
-    if (type === "number" || type === "integer")
-      return {
-        ...base,
-        kind: "number",
-        integer: type === "integer",
-        min: value.minimum,
-        max: value.maximum,
-      };
-    if (type === "boolean") return { ...base, kind: "boolean" };
-    return { ...base, kind: "json" };
-  });
+  const fields = Object.entries(schema.properties).map(([key, value]) =>
+    toField(key, value, schema),
+  );
   return fields.length ? fields : undefined;
 };
 // The JSON message for the field values, or the first problem with them.

@@ -1,7 +1,6 @@
 import { expect, mock, spyOn, test } from "bun:test";
 
-import { createEvent } from "@google/adk";
-import { LlmAgent } from "@google/adk";
+import { createEvent, LlmAgent } from "@google/adk";
 import { z } from "zod";
 
 import { createRunAgent, createTaskAgent } from "./runtime";
@@ -35,8 +34,9 @@ test("throws when no final response is produced", async () => {
   await expect(run("hi")).rejects.toThrow("no final response");
 });
 
-test("propagates a failed run", async () => {
+test("propagates a run that fails midway", async () => {
   const { run } = setup(async function* () {
+    yield reply("partial");
     throw new Error("boom");
   });
 

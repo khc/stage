@@ -10,7 +10,7 @@ import {
 
 // Generate input schemas from the same validators used by the HTTP routes.
 const schema = (value: z.ZodType) => {
-  const { $schema, ...result } = z.toJSONSchema(value, { io: "input" });
+  const { $schema: _schema, ...result } = z.toJSONSchema(value, { io: "input" });
   return result;
 };
 const json = <T>(value: T) => ({ "application/json": { schema: value } });

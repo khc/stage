@@ -206,10 +206,10 @@ export function Dashboard() {
         document.querySelector("dialog[open]")
       )
         return;
-      const search = document.querySelector<HTMLInputElement>(".search-field input");
-      if (search) {
+      const searchInput = document.querySelector<HTMLInputElement>(".search-field input");
+      if (searchInput) {
         event.preventDefault();
-        search.focus();
+        searchInput.focus();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -666,6 +666,7 @@ export function Dashboard() {
       )}
       {selected && !openJob && (
         <TaskInspector
+          key={selected}
           taskId={selected}
           onClose={() => setSelected(null)}
           onRun={() => runTask.mutate(selected)}
@@ -1109,10 +1110,13 @@ function NewTask({
       onCreated(task);
     },
   });
+  const { reset: resetMutation } = mutation;
   useEffect(() => {
+    // The dialog stays mounted, so follow the job it was opened for.
+    // oxlint-disable-next-line react/set-state-in-effect
     setJobName(initialJob);
-    mutation.reset();
-  }, [initialJob]);
+    resetMutation();
+  }, [initialJob, resetMutation]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({
@@ -1404,6 +1408,8 @@ function ContinueSession({ taskId, sessionId }: { taskId: string; sessionId: str
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+    // Re-measure whenever the text changes, even though the effect never reads it.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [message]);
   return (
     <form
@@ -1473,16 +1479,17 @@ const savedWidth = () => {
   }
 };
 
+const saveWidth = (value: number) => {
+  try {
+    localStorage.setItem(INSPECTOR_KEY, String(value));
+  } catch {
+    // Storage can be unavailable; the width then lasts for this session only.
+  }
+};
+
 function useResizableWidth() {
   const [width, setWidth] = useState<number | undefined>(savedWidth);
   const [dragging, setDragging] = useState(false);
-  const save = (value: number) => {
-    try {
-      localStorage.setItem(INSPECTOR_KEY, String(value));
-    } catch {
-      // Storage can be unavailable; the width then lasts for this session only.
-    }
-  };
   const handle = {
     onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -1495,7 +1502,7 @@ function useResizableWidth() {
       setDragging(false);
       const next = clampWidth(window.innerWidth - e.clientX);
       setWidth(next);
-      save(next);
+      saveWidth(next);
     },
     onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
       const step = e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
@@ -1503,7 +1510,7 @@ function useResizableWidth() {
       e.preventDefault();
       const next = clampWidth((width ?? e.currentTarget.closest("dialog")!.offsetWidth) + step);
       setWidth(next);
-      save(next);
+      saveWidth(next);
     },
   };
   return { width, dragging, handle };
@@ -1678,11 +1685,7 @@ function TaskInspector({
     enabled: !!sessionId,
   });
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
-  useEffect(() => {
-    setSessionId(null);
-    setTab("sessions");
-  }, [taskId]);
-  const list = [...(sessions.data?.sessions ?? [])].sort(
+  const list = (sessions.data?.sessions ?? []).toSorted(
     (a, b) => b.lastUpdateTime - a.lastUpdateTime,
   );
   return (
@@ -1906,6 +1909,8 @@ function EventCard({ event, index }: { event: SessionEvent; index: number }) {
       </div>
       {event.errorMessage && <p className="event-error-message">{event.errorMessage}</p>}
       {parts.map((part, i) => (
+        // Parts have no id and never reorder, so their position is the key.
+        // oxlint-disable-next-line react/no-array-index-key
         <div key={i}>
           {part.text != null && (
             <div className={`event-text ${part.thought ? "event-thought" : ""}`}>

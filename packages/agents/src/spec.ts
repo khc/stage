@@ -20,17 +20,18 @@ export type AgentSet = {
 };
 
 const toJsonSchema = (schema: z.ZodType): JsonSchema => {
-  const { $schema, ...rest } = z.toJSONSchema(schema);
+  const { $schema: _schema, ...rest } = z.toJSONSchema(schema);
   return rest;
 };
 
 export const describeAgents = (agents: Record<string, AgentSpec>): AgentInfo[] =>
-  Object.entries(agents).map(([name, spec]) => ({
-    name,
-    ...(spec.agent.description && { description: spec.agent.description }),
-    inputSchema: toJsonSchema(spec.inputSchema),
-    outputSchema: toJsonSchema(spec.outputSchema),
-  }));
+  Object.entries(agents).map(([name, spec]): AgentInfo => {
+    const info: AgentInfo = { name };
+    if (spec.agent.description) info.description = spec.agent.description;
+    info.inputSchema = toJsonSchema(spec.inputSchema);
+    info.outputSchema = toJsonSchema(spec.outputSchema);
+    return info;
+  });
 
 // Free-text agents (string input schema) take any message. Structured agents
 // take a JSON message that must match their input schema.

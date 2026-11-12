@@ -21,6 +21,7 @@ import { sessionStats } from "./stats";
 import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 
 const KEEPALIVE_MS = 5_000;
+const noop = () => {};
 
 export type AgentRegistry = { register: RegisterJob; list: ListAgents };
 
@@ -200,8 +201,8 @@ export const createApp = (
       async (c) => {
         const { taskId, sessionId } = c.req.valid("param");
         const pending: [string, string][] = [];
-        let wake = () => {};
-        let unsubscribe = () => {};
+        let wake = noop;
+        let unsubscribe = noop;
         let session: Awaited<ReturnType<TaskSessions["get"]>>;
         try {
           if (!(await getTask(taskId))) return c.json({ error: "task_not_found" }, 404);

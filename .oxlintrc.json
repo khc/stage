@@ -1,5 +1,68 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
 
+  // `plugins` replaces the default set, so list every plugin that should run.
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node"],
+
+  // Correctness is always an error; suspicious and perf code is flagged to review.
+  // Pedantic, style and restriction are too opinionated for a blanket rule.
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn",
+    "pedantic": "off",
+    "style": "off",
+    "restriction": "off"
+  },
+
+  "rules": {
+    // `x != null` is the one accepted loose comparison.
+    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
+    "eslint/no-var": "error",
+    "eslint/prefer-const": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "promise/no-return-wrap": "error",
+    "promise/param-names": "error"
+  },
+
+  "overrides": [
+    {
+      // The dashboard: React with the automatic JSX runtime, running in a browser.
+      "files": ["apps/web/**/*.{ts,tsx}"],
+      "plugins": ["react", "jsx-a11y"],
+      "env": { "browser": true },
+      "rules": {
+        "react/react-in-jsx-scope": "off",
+        // Resetting state when an id or prop changes is a deliberate pattern here.
+        "react/set-state-in-effect": "warn",
+        // role="status" and a focusable role="separator" splitter are valid ARIA.
+        "jsx-a11y/prefer-tag-over-role": "off",
+        // A heuristic that misses text nested in child elements (task links hold their text in spans).
+        "jsx-a11y/control-has-associated-label": "off",
+        "react/rules-of-hooks": "error",
+        "react/exhaustive-deps": "warn",
+        "react/no-array-index-key": "warn"
+      }
+    },
+    {
+      // Tests use mocks and casts on purpose, and run steps in order.
+      "files": ["**/*.test.{ts,tsx}"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "eslint/no-await-in-loop": "off",
+        "eslint/no-shadow": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    },
+    {
+      // Sequential awaits are deliberate here: ordered deletes, a streaming loop, migrations.
+      "files": ["apps/service/**", "scripts/**"],
+      "rules": { "eslint/no-await-in-loop": "off" }
+    }
+  ],
+
   "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**"]
 }

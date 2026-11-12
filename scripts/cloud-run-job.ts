@@ -67,7 +67,7 @@ if (import.meta.main) {
         "AGENT_MESSAGE",
         "RUN_ID",
         "TASK_ID",
-        ...requiredEnv.map(({ name }) => name),
+        ...requiredEnv.map(({ name: envName }) => envName),
       ]);
       body.template = {
         ...template,

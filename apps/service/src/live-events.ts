@@ -9,6 +9,8 @@ export type LiveEvents = (
 
 const SUBSCRIPTION_TTL_SECONDS = 24 * 60 * 60;
 
+const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
+
 // One ephemeral subscription per service process, fanned out in memory.
 // Started on the first listener, so a service nobody streams from never
 // touches Pub/Sub. Events published before that are served from Firestore.
@@ -19,7 +21,6 @@ export const createLiveEvents = (
 ): LiveEvents => {
   const listeners = new Map<string, Set<EventListener>>();
   let started: Promise<void> | undefined;
-  const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
 
   const start = () =>
     (started ??= (async () => {

@@ -50,14 +50,13 @@ export const createListAgents =
   async (jobName) =>
     (await db.collection(COLLECTION).where("jobName", "==", jobName).get()).docs
       .map((doc): AgentInfo => {
+        const info: AgentInfo = { name: doc.get("name") };
         const description = doc.get("description");
+        if (description !== undefined) info.description = description;
         const inputSchema = parseSchema(doc.get("inputSchema"));
+        if (inputSchema) info.inputSchema = inputSchema;
         const outputSchema = parseSchema(doc.get("outputSchema"));
-        return {
-          name: doc.get("name"),
-          ...(description !== undefined && { description }),
-          ...(inputSchema && { inputSchema }),
-          ...(outputSchema && { outputSchema }),
-        };
+        if (outputSchema) info.outputSchema = outputSchema;
+        return info;
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .toSorted((a, b) => a.name.localeCompare(b.name));

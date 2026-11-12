@@ -23,9 +23,9 @@ export function ThemeSwitch() {
     const manager = createThemeController({
       storage,
       media: window.matchMedia("(prefers-color-scheme: dark)"),
-      onChange: (preference) => {
-        document.documentElement.dataset.themePreference = preference;
-        setPreference(preference);
+      onChange: (next) => {
+        document.documentElement.dataset.themePreference = next;
+        setPreference(next);
       },
       apply: (theme) => {
         document.documentElement.dataset.theme = theme;
@@ -36,6 +36,8 @@ export function ThemeSwitch() {
       },
     });
     controller.current = manager;
+    // Sync React with the controller (storage and media query) once it exists.
+    // oxlint-disable-next-line react/set-state-in-effect
     setPreference(manager.getPreference());
     const sync = (event: StorageEvent) => {
       if (event.key === THEME_STORAGE_KEY || event.key === null)

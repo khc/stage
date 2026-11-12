@@ -108,17 +108,17 @@ test("withEvent appends new events once and updates the session time", () => {
 });
 
 test("streamMessages parses events, ignores bad data and closes the source", () => {
-  const instances: {
-    url: string;
-    onmessage?: (m: { data: string }) => void;
-    close: () => void;
-  }[] = [];
+  type Handler = (m: { data: string }) => void;
+  const instances: { url: string; handlers: Handler[]; close: () => void }[] = [];
   const original = globalThis.EventSource;
   globalThis.EventSource = class {
-    onmessage?: (m: { data: string }) => void;
+    handlers: Handler[] = [];
     close = mock(() => {});
     constructor(public url: string) {
       instances.push(this);
+    }
+    addEventListener(type: string, handler: Handler) {
+      if (type === "message") this.handlers.push(handler);
     }
   } as never;
   try {
@@ -126,8 +126,10 @@ test("streamMessages parses events, ignores bad data and closes the source", () 
     const stop = streamMessages("t 1", "s/1", (e) => seen.push(e));
     const source = instances[0]!;
     expect(source.url).toBe("/tasks/t%201/sessions/s%2F1/messages");
-    source.onmessage?.({ data: '{"id":"e1"}' });
-    source.onmessage?.({ data: "not json" });
+    for (const handler of source.handlers) {
+      handler({ data: '{"id":"e1"}' });
+      handler({ data: "not json" });
+    }
     expect(seen).toEqual([{ id: "e1" }]);
     stop();
     expect(source.close).toHaveBeenCalled();
