@@ -1,13 +1,13 @@
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 import { createGetTask, type GetTask } from "./task-contract";
-import { describeAgents } from "./agent";
 import {
   createRegisterAgents,
   type AgentInfo,
   type RegisterAgents,
 } from "./agent-registry";
-import { runAgent, type RunAgent } from "./index";
+import { createRunAgent, type RunAgent } from "./runtime";
+import { describeAgents, type AgentSet } from "./spec";
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());
 const promptSchema = z.string().trim().min(1).max(10_000);
@@ -62,15 +62,21 @@ export const registerMain = async (
   }
 };
 
-if (import.meta.main) {
+// Entrypoint of a job image: runs a task, or with the `register` argument
+// records the image's agents for its job.
+export const runCli = async (
+  set: AgentSet,
+  argv = process.argv,
+  env = process.env,
+) => {
   const db = new Firestore();
   process.exit(
-    process.argv[2] === "register"
+    argv[2] === "register"
       ? await registerMain(
-          process.env,
+          env,
           createRegisterAgents(db),
-          describeAgents(),
+          describeAgents(set.agents),
         )
-      : await main(process.env, runAgent, createGetTask(db)),
+      : await main(env, createRunAgent(set, { db }), createGetTask(db)),
   );
-}
+};

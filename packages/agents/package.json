@@ -1,16 +1,19 @@
 {
-  "name": "@agent-jobs/agent",
+  "name": "@agent-jobs/agents",
   "version": "0.1.0",
   "type": "module",
   "private": true,
   "exports": {
-    ".": "./src/index.ts",
     "./agent-registry": "./src/agent-registry.ts",
+    "./cli": "./src/cli.ts",
+    "./event-publisher": "./src/event-publisher.ts",
+    "./model": "./src/model.ts",
+    "./runtime": "./src/runtime.ts",
     "./session-service": "./src/session-service.ts",
+    "./spec": "./src/spec.ts",
     "./task-contract": "./src/task-contract.ts"
   },
   "scripts": {
-    "start": "bun src/main.ts",
     "typecheck": "bun check"
   },
   "dependencies": {

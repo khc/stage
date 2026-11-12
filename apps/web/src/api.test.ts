@@ -382,3 +382,12 @@ test("buildPrompt turns values into JSON and reports the first problem", () => {
     error: "extra must be valid JSON.",
   });
 });
+
+test("deleting a task sends DELETE to its path and accepts 204", async () => {
+  const fetch = mock(async () => new Response(null, { status: 204 }));
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+    fetch as unknown as typeof globalThis.fetch,
+  );
+  expect(await api.deleteTask("task-1")).toBeUndefined();
+  expect(fetch).toHaveBeenCalledWith("/tasks/task-1", { method: "DELETE" });
+});

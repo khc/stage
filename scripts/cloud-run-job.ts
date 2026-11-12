@@ -50,7 +50,7 @@ if (import.meta.main) {
         template: {
           containers: [
             {
-              image: env.JOB_IMAGE || "agent-jobs-agent:latest",
+              image: env.JOB_IMAGE || `agent-jobs-${job}:latest`,
               env: jobEnvironment(env, project),
             },
           ],
@@ -82,7 +82,7 @@ if (import.meta.main) {
           containers: [
             {
               ...agent,
-              image: env.JOB_IMAGE || "agent-jobs-agent:latest",
+              image: env.JOB_IMAGE || `agent-jobs-${job}:latest`,
               env: [
                 ...(agent?.env ?? []).filter(
                   (entry) => !replacedNames.has(entry.name ?? ""),

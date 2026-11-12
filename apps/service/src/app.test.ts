@@ -856,3 +856,93 @@ test("GET /jobs/:jobName/agents passes each agent's schemas through", async () =
     agents,
   });
 });
+
+describe("DELETE /tasks/:taskId", () => {
+  const path = `/tasks/${savedTask.taskId}`;
+  const deleteApp = (
+    opts: {
+      exists?: boolean;
+      withDelete?: boolean;
+      listFails?: boolean;
+    } = {},
+  ) => {
+    const order: string[] = [];
+    const removeSession = mock(async (_t: string, id: string) => {
+      order.push(`session:${id}`);
+      return true;
+    });
+    const removeTask = mock(async (_id: string) => {
+      order.push("task");
+    });
+    const app = createApp(
+      noJob,
+      noJobs,
+      noCreate,
+      noTasks,
+      async () =>
+        opts.exists === false ? undefined : (savedTask as TaskContract),
+      {
+        list: async () => {
+          if (opts.listFails) throw new Error("private storage detail");
+          return [
+            {
+              id: "s1",
+              taskId: savedTask.taskId,
+              appName: "a",
+              userId: "u",
+              lastUpdateTime: 1,
+            },
+            {
+              id: "s2",
+              taskId: savedTask.taskId,
+              appName: "a",
+              userId: "u",
+              lastUpdateTime: 2,
+            },
+          ];
+        },
+        get: async () => undefined,
+        delete: removeSession,
+      },
+      undefined,
+      undefined,
+      opts.withDelete === false ? undefined : removeTask,
+    );
+    return { app, removeSession, removeTask, order };
+  };
+
+  test("deletes the task's sessions first, then the task, and returns 204", async () => {
+    const { app, removeSession, removeTask, order } = deleteApp();
+    const res = await app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+    expect(removeSession).toHaveBeenCalledWith(savedTask.taskId, "s1");
+    expect(removeTask).toHaveBeenCalledWith(savedTask.taskId);
+    expect(order).toEqual(["session:s1", "session:s2", "task"]);
+  });
+
+  test("returns 404 for a missing task without deleting anything", async () => {
+    const { app, removeSession, removeTask } = deleteApp({ exists: false });
+    const res = await app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "task_not_found" });
+    expect(removeSession).not.toHaveBeenCalled();
+    expect(removeTask).not.toHaveBeenCalled();
+  });
+
+  test("rejects an invalid id, hides storage failures and keeps the task", async () => {
+    const { app, removeTask } = deleteApp({ listFails: true });
+    expect(
+      (await app.request("/tasks/invalid", { method: "DELETE" })).status,
+    ).toBe(400);
+    const res = await app.request(path, { method: "DELETE" });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "task_error" });
+    expect(removeTask).not.toHaveBeenCalled();
+  });
+
+  test("returns 501 when deletion is not configured", async () => {
+    const { app } = deleteApp({ withDelete: false });
+    expect((await app.request(path, { method: "DELETE" })).status).toBe(501);
+  });
+});

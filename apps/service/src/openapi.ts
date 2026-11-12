@@ -210,6 +210,20 @@ export const openApiDocument = {
           502: taskFailure,
         },
       },
+      delete: {
+        operationId: "deleteTask",
+        summary: "Delete a task and its sessions",
+        description:
+          "Permanently removes the task and every session linked to it, with their events. Job executions already running are not stopped, and event streams already open for its sessions stay open until the client disconnects.",
+        parameters: [taskId],
+        responses: {
+          204: { description: "Task deleted" },
+          400: invalid,
+          404: missingTask,
+          501: response("Not configured", error("not_supported")),
+          502: taskFailure,
+        },
+      },
     },
     "/tasks/{taskId}/run": {
       post: {

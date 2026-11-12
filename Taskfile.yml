@@ -4,38 +4,41 @@ vars:
   FLOCI: http://localhost:4588
   PROJECT: floci-local
   REGION: us-central1
-  JOB: my-agent-job
-  IMAGE: agent-jobs-agent:latest
+  # One Cloud Run job per agent app (apps/<name>); the job, the app and the
+  # image (agent-jobs-<name>:latest) share its name. Override to pick some,
+  # e.g. `task rebuild JOBS=poet-agents`.
+  JOBS: generic-agents poet-agents
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
-  JOB_URL: "{{.JOBS_URL}}/{{.JOB | urlquery}}"
 
 env:
   JOB_PROJECT: "{{.PROJECT}}"
   JOB_REGION: "{{.REGION}}"
-  JOB_NAME: "{{.JOB}}"
-  JOB_IMAGE: "{{.IMAGE}}"
   JOB_FLOCI: "{{.FLOCI}}"
 
 tasks:
-  create-job:
-    desc: Create the agent Cloud Run job in Floci (override with e.g. JOB=my-job)
+  rebuild:
+    desc: Rebuild the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
-      - bun scripts/cloud-run-job.ts create
+      - for: { var: JOBS }
+        cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t agent-jobs-{{.ITEM}}:latest .
+
+  create-job:
+    desc: Create the agent Cloud Run jobs in Floci (one per job in JOBS)
+    cmds:
+      - for: { var: JOBS }
+        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=agent-jobs-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
 
   update-job:
-    desc: Update the agent job image and environment in Floci from .env
+    desc: Update the agent jobs' image and environment in Floci from .env (one per job in JOBS)
     cmds:
-      - bun scripts/cloud-run-job.ts update
-
-  rebuild:
-    desc: Rebuild the agent image (override IMAGE); run register-agents afterwards if the agents changed
-    cmds:
-      - docker build -f Dockerfile.agent -t {{.IMAGE | shellQuote}} .
+      - for: { var: JOBS }
+        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=agent-jobs-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
 
   register-agents:
-    desc: Record the agents inside the job image in the registry (needs the service running; override JOB, SERVICE_URL)
+    desc: Record the agents inside each job image in the registry (needs the service running; override JOBS, SERVICE_URL)
     cmds:
-      - curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.JOB | urlquery}}/register
+      - for: { var: JOBS }
+        cmd: curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.ITEM | urlquery}}/register
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
@@ -44,7 +47,9 @@ tasks:
       - curl -fsS {{.JOBS_URL | shellQuote}}
 
   remove-job:
-    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=my-job, --yes to skip the prompt)
+    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic-agents, --yes to skip the prompt)
+    requires:
+      vars: [JOB]
     prompt: Remove job {{.JOB}} from Floci?
     cmds:
-      - curl -fsS -X DELETE {{.JOB_URL | shellQuote}}
+      - curl -fsS -X DELETE {{.JOBS_URL | shellQuote}}/{{.JOB | urlquery}}

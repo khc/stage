@@ -6,8 +6,13 @@ import { createTaskSessions } from "./sessions";
 import { createLiveEvents } from "./live-events";
 import { createJobsClient } from "./cloud-run";
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
-import { createListAgents } from "@agent-jobs/agent/agent-registry";
-import { createCreateTask, createListTasks, createGetTask } from "./tasks";
+import { createListAgents } from "@agent-jobs/agents/agent-registry";
+import {
+  createCreateTask,
+  createDeleteTask,
+  createListTasks,
+  createGetTask,
+} from "./tasks";
 
 const env = z
   .object({ GCP_PROJECT: z.string().min(1), GCP_REGION: z.string().min(1) })
@@ -34,6 +39,7 @@ const app = createApp(
     ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC)
     : undefined,
   { register: registerJob, list: createListAgents(db) },
+  createDeleteTask(db),
 );
 
 export default {

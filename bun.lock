@@ -16,14 +16,24 @@
         "typescript": "^7",
       },
     },
-    "apps/agent": {
-      "name": "@agent-jobs/agent",
+    "apps/generic-agents": {
+      "name": "@agent-jobs/generic-agents",
       "version": "0.1.0",
       "dependencies": {
-        "@google-cloud/firestore": "^9.4.1",
-        "@google-cloud/pubsub": "^6.4.1",
+        "@agent-jobs/agents": "workspace:*",
         "@google/adk": "^2.4.0",
-        "@google/genai": "^2.29.1",
+        "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "apps/poet-agents": {
+      "name": "@agent-jobs/poet-agents",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agent-jobs/agents": "workspace:*",
+        "@google/adk": "^2.4.0",
         "zod": "^4.6.7",
       },
       "devDependencies": {
@@ -34,7 +44,7 @@
       "name": "@agent-jobs/service",
       "version": "0.1.0",
       "dependencies": {
-        "@agent-jobs/agent": "workspace:*",
+        "@agent-jobs/agents": "workspace:*",
         "@google-cloud/firestore": "^9.4.1",
         "@google-cloud/pubsub": "^6.4.1",
         "@google-cloud/run": "^4.2.0",
@@ -68,11 +78,29 @@
         "@types/react-dom": "^19.3.0",
       },
     },
+    "packages/agents": {
+      "name": "@agent-jobs/agents",
+      "version": "0.1.0",
+      "dependencies": {
+        "@google-cloud/firestore": "^9.4.1",
+        "@google-cloud/pubsub": "^6.4.1",
+        "@google/adk": "^2.4.0",
+        "@google/genai": "^2.29.1",
+        "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
   },
   "packages": {
     "@a2a-js/sdk": ["@a2a-js/sdk@0.3.14", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "@bufbuild/protobuf": "^2.10.2", "@grpc/grpc-js": "^1.11.0", "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["@bufbuild/protobuf", "@grpc/grpc-js", "express"] }, "sha512-F6Ew1AtPzCLhTn8h9yiqTe7DiDf6XVrSnq9V1YqSl9eWqPm6anMveTiKdCSb/76cW0YiJc24rNaUrVezFFHbqQ=="],
 
-    "@agent-jobs/agent": ["@agent-jobs/agent@workspace:apps/agent"],
+    "@agent-jobs/agents": ["@agent-jobs/agents@workspace:packages/agents"],
+
+    "@agent-jobs/generic-agents": ["@agent-jobs/generic-agents@workspace:apps/generic-agents"],
+
+    "@agent-jobs/poet-agents": ["@agent-jobs/poet-agents@workspace:apps/poet-agents"],
 
     "@agent-jobs/service": ["@agent-jobs/service@workspace:apps/service"],
 

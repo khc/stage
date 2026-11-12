@@ -1,6 +1,9 @@
 import { createEvent } from "@google/adk";
 import { expect, mock, spyOn, test } from "bun:test";
-import { createTaskAgent, runAgent } from "./index";
+import { LlmAgent } from "@google/adk";
+import { z } from "zod";
+import { createRunAgent, createTaskAgent } from "./runtime";
+import type { AgentSet } from "./spec";
 
 const reply = (text: string) =>
   createEvent({ content: { role: "model", parts: [{ text }] } });
@@ -111,14 +114,32 @@ test("publishes every yielded event and survives a publish failure", async () =>
   spy.mockRestore();
 });
 
-test("runAgent rejects a task that names an unknown agent", async () => {
-  await expect(
-    runAgent("hi", undefined, undefined, "does_not_exist"),
-  ).rejects.toThrow("Unknown agent: does_not_exist");
+const fake = new LlmAgent({ name: "fake", model: "fake-model" });
+const set: AgentSet = {
+  defaultAgent: "text",
+  agents: {
+    text: { agent: fake, inputSchema: z.string(), outputSchema: z.string() },
+    structured: {
+      agent: fake,
+      inputSchema: z.object({ topic: z.string() }),
+      outputSchema: z.object({ poem: z.string() }),
+    },
+  },
+};
+const runner = () =>
+  createRunAgent(set, { db: {} as never, publish: undefined });
+
+test("createRunAgent rejects an agent name the set does not hold", async () => {
+  await expect(runner()("hi", undefined, undefined, "nope")).rejects.toThrow(
+    "Unknown agent: nope",
+  );
 });
 
-test("runAgent rejects a message that does not match a structured agent's input", async () => {
+test("createRunAgent rejects a message that does not match a structured agent's input", async () => {
   await expect(
-    runAgent("not json", undefined, undefined, "haiku"),
+    runner()("not json", undefined, undefined, "structured"),
   ).rejects.toThrow("must be JSON");
+  await expect(
+    runner()("{}", undefined, undefined, "structured"),
+  ).rejects.toThrow("does not match");
 });

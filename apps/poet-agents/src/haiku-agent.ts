@@ -1,6 +1,6 @@
 import { LlmAgent } from "@google/adk";
 import { z } from "zod";
-import { createModel } from "./model";
+import { createModel } from "@agent-jobs/agents/model";
 
 export const haikuInput = z.object({
   topic: z.string().min(1).describe("The subject of the haiku."),

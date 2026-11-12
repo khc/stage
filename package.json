@@ -3,7 +3,8 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "start": "bun --filter @agent-jobs/service start",

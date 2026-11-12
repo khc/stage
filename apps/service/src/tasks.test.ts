@@ -1,6 +1,11 @@
 import { Firestore } from "@google-cloud/firestore";
 import { describe, expect, mock, test } from "bun:test";
-import { createCreateTask, createListTasks, createGetTask } from "./tasks";
+import {
+  createCreateTask,
+  createDeleteTask,
+  createGetTask,
+  createListTasks,
+} from "./tasks";
 
 const writer = (write = async (_data: unknown) => {}) => {
   const create = mock(write);
@@ -169,4 +174,14 @@ test("stores agentName only when supplied and lists it", async () => {
   expect(await createListTasks(reader.db)()).toEqual([
     { taskId: "a", prompt: "p", jobName: "my-job", agentName: "researcher" },
   ]);
+});
+
+test("deletes the task document by ID", async () => {
+  const del = mock(async () => {});
+  const doc = mock((_id: string) => ({ delete: del }));
+  const collection = mock((_name: string) => ({ doc }));
+  await createDeleteTask({ collection } as never)("task-1");
+  expect(collection).toHaveBeenCalledWith("tasks");
+  expect(doc).toHaveBeenCalledWith("task-1");
+  expect(del).toHaveBeenCalledTimes(1);
 });

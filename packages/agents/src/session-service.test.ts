@@ -1,11 +1,27 @@
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { FirestoreSessionService } from "./session-service";
 
 const db = new Firestore();
 const newService = () => new FirestoreSessionService(db);
-const newApp = () => ({ appName: `test-${crypto.randomUUID()}`, userId: "u" });
+const apps: string[] = [];
+const newApp = () => {
+  const appName = `test-${crypto.randomUUID()}`;
+  apps.push(appName);
+  return { appName, userId: "u" };
+};
+// Every test works in its own app, so removing what each app holds leaves
+// nothing behind in the emulator.
+afterAll(async () => {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) return;
+  const service = newService();
+  for (const appName of apps) {
+    const { sessions } = await service.listSessions({ appName });
+    for (const { userId, id } of sessions)
+      await service.deleteSession({ appName, userId, sessionId: id });
+  }
+});
 const reply = (text: string, extra: Parameters<typeof createEvent>[0] = {}) =>
   createEvent({
     author: "agent",

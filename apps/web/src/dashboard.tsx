@@ -1437,6 +1437,66 @@ function SessionStatsBar({
   );
 }
 
+// A trash button that asks for confirmation inline before running `remove`.
+function ConfirmDelete({
+  label,
+  question,
+  remove,
+  onDeleted,
+}: {
+  label: string;
+  question: string;
+  remove: () => Promise<unknown>;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const mutation = useMutation({ mutationFn: remove, onSuccess: onDeleted });
+  if (!confirming)
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        title={label}
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2 size={15} />
+      </Button>
+    );
+  return (
+    <div className="session-delete-confirm" role="group" aria-label="Confirm">
+      <span role={mutation.isError ? "alert" : undefined}>
+        {mutation.isError ? mutation.error.message : question}
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={mutation.isPending}
+        onClick={() => {
+          mutation.reset();
+          setConfirming(false);
+        }}
+      >
+        Cancel
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="session-delete-button"
+        disabled={mutation.isPending}
+        onClick={() => mutation.mutate()}
+      >
+        {mutation.isPending ? (
+          <Loader2 size={13} className="animate-spin" />
+        ) : (
+          <Trash2 size={13} />
+        )}
+        Delete
+      </Button>
+    </div>
+  );
+}
+
 function DeleteSession({
   taskId,
   sessionId,
@@ -1447,58 +1507,17 @@ function DeleteSession({
   onDeleted: () => void;
 }) {
   const client = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
-  const remove = useMutation({
-    mutationFn: () => api.deleteSession(taskId, sessionId),
-    onSuccess: () => {
-      onDeleted();
-      client.removeQueries({ queryKey: ["session", taskId, sessionId] });
-      void client.invalidateQueries({ queryKey: ["sessions", taskId] });
-    },
-  });
-  if (!confirming)
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Delete session"
-        title="Delete session"
-        onClick={() => setConfirming(true)}
-      >
-        <Trash2 size={15} />
-      </Button>
-    );
   return (
-    <div className="session-delete-confirm" role="group" aria-label="Confirm">
-      <span role={remove.isError ? "alert" : undefined}>
-        {remove.isError ? remove.error.message : "Delete this session?"}
-      </span>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={remove.isPending}
-        onClick={() => {
-          remove.reset();
-          setConfirming(false);
-        }}
-      >
-        Cancel
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="session-delete-button"
-        disabled={remove.isPending}
-        onClick={() => remove.mutate()}
-      >
-        {remove.isPending ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : (
-          <Trash2 size={13} />
-        )}
-        Delete
-      </Button>
-    </div>
+    <ConfirmDelete
+      label="Delete session"
+      question="Delete this session?"
+      remove={() => api.deleteSession(taskId, sessionId)}
+      onDeleted={() => {
+        onDeleted();
+        client.removeQueries({ queryKey: ["session", taskId, sessionId] });
+        void client.invalidateQueries({ queryKey: ["sessions", taskId] });
+      }}
+    />
   );
 }
 
@@ -1797,6 +1816,7 @@ function TaskInspector({
   notice: Notice | null;
   onDismissNotice: () => void;
 }) {
+  const client = useQueryClient();
   const [tab, setTab] = useState<"sessions" | "output" | "prompt">("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const task = useQuery({
@@ -1867,6 +1887,17 @@ function TaskInspector({
                 )}
                 Run task
               </Button>
+              <ConfirmDelete
+                label="Delete task"
+                question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}?`}
+                remove={() => api.deleteTask(taskId)}
+                onDeleted={() => {
+                  client.removeQueries({ queryKey: ["task", taskId] });
+                  client.removeQueries({ queryKey: ["sessions", taskId] });
+                  void client.invalidateQueries({ queryKey: ["tasks"] });
+                  onClose();
+                }}
+              />
             </div>
           </div>
           <div

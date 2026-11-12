@@ -1,8 +1,11 @@
 import type { Firestore } from "@google-cloud/firestore";
-import { toContract, type TaskContract } from "@agent-jobs/agent/task-contract";
+import {
+  toContract,
+  type TaskContract,
+} from "@agent-jobs/agents/task-contract";
 
-export type { TaskContract, GetTask } from "@agent-jobs/agent/task-contract";
-export { createGetTask } from "@agent-jobs/agent/task-contract";
+export type { TaskContract, GetTask } from "@agent-jobs/agents/task-contract";
+export { createGetTask } from "@agent-jobs/agents/task-contract";
 
 export type CreateTask = (input: {
   prompt: string;
@@ -10,6 +13,7 @@ export type CreateTask = (input: {
   agentName?: string;
 }) => Promise<TaskContract & { jobName: string }>;
 export type ListTasks = () => Promise<TaskContract[]>;
+export type DeleteTask = (taskId: string) => Promise<void>;
 
 export const createCreateTask =
   (db: Pick<Firestore, "collection">): CreateTask =>
@@ -28,3 +32,9 @@ export const createListTasks =
   (db: Pick<Firestore, "collection">): ListTasks =>
   async () =>
     (await db.collection("tasks").get()).docs.map(toContract);
+
+export const createDeleteTask =
+  (db: Pick<Firestore, "collection">): DeleteTask =>
+  async (taskId) => {
+    await db.collection("tasks").doc(taskId).delete();
+  };

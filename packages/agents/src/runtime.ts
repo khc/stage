@@ -1,15 +1,8 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
-import { agents, checkInput, rootAgent } from "./agent";
-import { FirestoreSessionService } from "./session-service";
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
-
-export { FirestoreSessionService } from "./session-service";
-export {
-  createGetTask,
-  type GetTask,
-  type TaskContract,
-} from "./task-contract";
+import { FirestoreSessionService } from "./session-service";
+import { checkInput, type AgentSet } from "./spec";
 
 export type RunAgent = (
   message: string,
@@ -64,21 +57,23 @@ export const createTaskAgent =
     return reply;
   };
 
-const sessionService = new FirestoreSessionService(new Firestore());
-const publish = publisherFromEnv(process.env);
-
-export const runAgent: RunAgent = async (
-  message,
-  taskId,
-  sessionId,
-  agentName,
-) => {
-  const spec = agents[agentName ?? rootAgent.name];
-  if (!spec) throw new Error(`Unknown agent: ${agentName}`);
-  checkInput(spec, message);
-  const { agent } = spec;
-  return createTaskAgent(
-    new Runner({ appName, agent, sessionService }),
-    publish,
-  )(message, taskId, sessionId);
+// Runs the named agent of a job image's agent set, or its default agent.
+export const createRunAgent = (
+  { agents, defaultAgent }: AgentSet,
+  {
+    db = new Firestore(),
+    publish = publisherFromEnv(process.env),
+  }: { db?: Firestore; publish?: PublishEvent } = {},
+): RunAgent => {
+  const sessionService = new FirestoreSessionService(db);
+  return async (message, taskId, sessionId, agentName) => {
+    const spec = agents[agentName ?? defaultAgent];
+    if (!spec) throw new Error(`Unknown agent: ${agentName}`);
+    checkInput(spec, message);
+    const { agent } = spec;
+    return createTaskAgent(
+      new Runner({ appName, agent, sessionService }),
+      publish,
+    )(message, taskId, sessionId);
+  };
 };

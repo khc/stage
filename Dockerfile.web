@@ -6,7 +6,9 @@ ARG BUN_IMAGE=oven/bun:1.4.4-slim
 FROM ${BUN_IMAGE} AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-COPY apps/agent/package.json ./apps/agent/package.json
+COPY packages/agents/package.json ./packages/agents/package.json
+COPY apps/generic-agents/package.json ./apps/generic-agents/package.json
+COPY apps/poet-agents/package.json ./apps/poet-agents/package.json
 COPY apps/service/package.json ./apps/service/package.json
 COPY apps/web/package.json ./apps/web/package.json
 RUN bun install --frozen-lockfile --production

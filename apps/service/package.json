@@ -13,7 +13,7 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@agent-jobs/agent": "workspace:*",
+    "@agent-jobs/agents": "workspace:*",
     "@google-cloud/firestore": "^9.4.1",
     "@google-cloud/pubsub": "^6.4.1",
     "@google-cloud/run": "^4.2.0",

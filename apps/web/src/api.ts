@@ -164,6 +164,7 @@ export const api = {
     request<SessionStats>(
       `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/stats`,
     ),
+  deleteTask: (id: string) => request<void>(taskPath(id), { method: "DELETE" }),
   deleteSession: (taskId: string, sessionId: string) =>
     request<void>(
       `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`,

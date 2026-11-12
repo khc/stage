@@ -13,8 +13,8 @@ import {
   sessionParamSchema,
 } from "./schemas";
 import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
-import type { ListAgents } from "@agent-jobs/agent/agent-registry";
-import type { CreateTask, ListTasks, GetTask } from "./tasks";
+import type { ListAgents } from "@agent-jobs/agents/agent-registry";
+import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 import type { TaskSessions } from "./sessions";
 import type { LiveEvents } from "./live-events";
 import { sessionStats } from "./stats";
@@ -32,6 +32,7 @@ export const createApp = (
   sessions: TaskSessions,
   liveEvents?: LiveEvents,
   registry?: AgentRegistry,
+  deleteTask?: DeleteTask,
 ) =>
   new Hono()
     .get("/openapi.json", (c) => c.json(openApiDocument))
@@ -121,6 +122,28 @@ export const createApp = (
         });
       }
     })
+    .delete(
+      "/tasks/:taskId",
+      zValidator("param", taskParamSchema),
+      async (c) => {
+        if (!deleteTask) return c.json({ error: "not_supported" }, 501);
+        const { taskId } = c.req.valid("param");
+        try {
+          if (!(await getTask(taskId)))
+            return c.json({ error: "task_not_found" }, 404);
+          // Sessions go first, so a failure leaves the task in place to retry.
+          for (const { id } of await sessions.list(taskId))
+            await sessions.delete(taskId, id);
+          await deleteTask(taskId);
+          return c.body(null, 204);
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "task_error" }, 502),
+          });
+        }
+      },
+    )
     .get(
       "/tasks/:taskId/sessions",
       zValidator("param", taskParamSchema),

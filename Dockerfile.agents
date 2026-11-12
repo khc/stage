@@ -1,0 +1,38 @@
+# Cloud Run Job image for one ADK agent app (apps/<APP>/src/main.ts):
+#   docker build -f Dockerfile.agents --build-arg APP=generic-agents -t agent-jobs-generic-agents .
+#   docker build -f Dockerfile.agents --build-arg APP=poet-agents -t agent-jobs-poet-agents .
+# The HTTP service image is ./Dockerfile.service.
+# Runtime configuration is supplied only via environment variables at execution
+# time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
+# and the Gemini credentials. With the argument `register` the container records
+# its agents for the job named by JOB_NAME instead of running a task.
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
+
+FROM ${BUN_IMAGE} AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY packages/agents/package.json ./packages/agents/package.json
+COPY apps/generic-agents/package.json ./apps/generic-agents/package.json
+COPY apps/poet-agents/package.json ./apps/poet-agents/package.json
+COPY apps/service/package.json ./apps/service/package.json
+COPY apps/web/package.json ./apps/web/package.json
+RUN bun install --frozen-lockfile --production
+
+FROM ${BUN_IMAGE} AS runtime
+ARG APP
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY packages/agents ./packages/agents
+COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
+COPY apps/${APP} ./apps/${APP}
+COPY --from=deps /app/apps/${APP}/node_modules ./apps/${APP}/node_modules
+
+# A fixed entrypoint path: exec-form ENTRYPOINT cannot expand ARG, and extra
+# arguments (such as `register`) must still reach the program.
+RUN ln -s /app/apps/${APP}/src/main.ts /app/main.ts
+
+USER bun
+ENTRYPOINT ["bun", "/app/main.ts"]
