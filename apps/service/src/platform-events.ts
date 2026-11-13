@@ -66,9 +66,9 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
       },
     runJob:
       (run: RunJob): RunJob =>
-      async (jobName, taskId, resume) => {
-        const operation = await run(jobName, taskId, resume);
-        void emit("task.run_requested", { taskId, jobName, sessionId: resume?.sessionId });
+      async (jobName, taskId, sessionId) => {
+        const operation = await run(jobName, taskId, sessionId);
+        void emit("task.run_requested", { taskId, jobName, sessionId });
         return operation;
       },
     registerJob:

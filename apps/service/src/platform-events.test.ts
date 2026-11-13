@@ -40,7 +40,7 @@ test("publishes deletes, runs and registrations", async () => {
   const { events, sent } = setup();
 
   await events.deleteTask(async () => {})("t1");
-  await events.runJob(async () => "op")("job", "t1", { sessionId: "s1", message: "m" });
+  await events.runJob(async () => "op")("job", "t1", "s1");
   await events.registerJob(async () => "op")("job");
 
   expect((await sent()).map((m) => m.attributes.eventType)).toEqual([
@@ -74,7 +74,13 @@ test("the app publishes task create, run and delete events", async () => {
     events.createTask(async (input) => ({ ...task, ...input })),
     async () => [],
     async () => task,
-    { list: async () => [], get: async () => undefined, delete: async () => false },
+    {
+      list: async () => [],
+      get: async () => undefined,
+      delete: async () => false,
+      queueMessage: async () => true,
+      clearMessage: async () => {},
+    },
     undefined,
     undefined,
     events.deleteTask(async () => {}),

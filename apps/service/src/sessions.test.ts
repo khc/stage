@@ -89,4 +89,25 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
       await db.terminate();
     }
   });
+
+  test("queues a message only for a session of the task", async () => {
+    const db = new Firestore();
+    const service = new FirestoreSessionService(db);
+    const api = createTaskSessions(db);
+    const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
+    const taskId = crypto.randomUUID();
+    const session = await service.createSession({ ...key, taskId });
+    const ref = { ...key, sessionId: session.id };
+    try {
+      expect(await api.queueMessage(crypto.randomUUID(), session.id, "x")).toBe(false);
+      expect(await service.pendingMessage(ref)).toBeUndefined();
+      expect(await api.queueMessage(taskId, session.id, "answer")).toBe(true);
+      expect(await service.pendingMessage(ref)).toBe("answer");
+      await api.clearMessage(taskId, session.id);
+      expect(await service.pendingMessage(ref)).toBeUndefined();
+    } finally {
+      await service.deleteSession(ref);
+      await db.terminate();
+    }
+  });
 });

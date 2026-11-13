@@ -18,8 +18,16 @@ export type TaskSessions = {
     sessionId: string,
   ) => Promise<(Session & { taskId?: string; run?: RunState }) | undefined>;
   delete: (taskId: string, sessionId: string) => Promise<boolean>;
+  // Stores the next message for the job that resumes the session; false when the session is not the task's.
+  queueMessage: (taskId: string, sessionId: string, message: string) => Promise<boolean>;
+  clearMessage: (taskId: string, sessionId: string) => Promise<void>;
 };
 
+const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => ({
+  appName: doc.get("appName") as string,
+  userId: doc.get("userId") as string,
+  sessionId,
+});
 const withRun = (run?: RunState) => (run ? { run } : {});
 
 export const createTaskSessions = (db: Firestore): TaskSessions => {
@@ -54,6 +62,16 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
         sessionId,
       });
       return session?.taskId === taskId ? session : undefined;
+    },
+    async queueMessage(taskId, sessionId, message) {
+      const doc = await find(taskId, sessionId);
+      if (!doc) return false;
+      await service.queueMessage(keyOf(doc, sessionId), message);
+      return true;
+    },
+    async clearMessage(taskId, sessionId) {
+      const doc = await find(taskId, sessionId);
+      if (doc) await service.clearMessage(keyOf(doc, sessionId));
     },
     async delete(taskId, sessionId) {
       const doc = await find(taskId, sessionId);

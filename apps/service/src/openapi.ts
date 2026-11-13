@@ -247,7 +247,7 @@ export const openApiDocument = {
         operationId: "runTask",
         summary: "Start a task execution",
         description:
-          "Without a body, selects the stored jobName and starts a new session from the stored prompt (sends only TASK_ID). With sessionId and message, resumes that task session with the message as the next turn. Other body fields are ignored. Acknowledges submission, not agent completion. Repeated requests may start separate executions.",
+          "Without a body, selects the stored jobName and starts a new session from the stored prompt (sends only TASK_ID). With sessionId and message, resumes that task session with the message as the next turn: the message is stored with the session and the job receives only TASK_ID and SESSION_ID. Other body fields are ignored. Acknowledges submission, not agent completion. Repeated requests may start separate executions.",
         parameters: [taskId],
         requestBody: { required: false, content: json(schema(resumeSchema)) },
         responses: {

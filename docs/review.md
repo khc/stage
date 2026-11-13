@@ -21,7 +21,7 @@ Sessions, tasks and the agent registry all live in Firestore. A task run is a on
 
 ## Findings, by priority
 
-**Status:** findings 1 and 2 are implemented and re-reviewed (see [Implementation status](#implementation-status)). Findings 3 to 8 are open.
+**Status:** findings 1 and 2 are implemented and re-reviewed (see [Implementation status](#implementation-status)). Finding 3 is also implemented (not yet re-reviewed). Findings 4 to 8 are open.
 
 1. **Done: no execution state.** The README says no status is written to the task. `POST /run` returns an operation name, and the UI drops it. The UI can't show running, succeeded or failed, or link a failure to a session. This is why the session list has no status.
    - **Fix:** write a small `runs/{sessionId}` document (`queued`, `running`, `succeeded`, `failed`, error, start and end times) from `main()` in [cli.ts](../packages/agents/src/cli.ts). The UI and stats then get it for free.
@@ -29,7 +29,7 @@ Sessions, tasks and the agent registry all live in Firestore. A task run is a on
 2. **Done (fencing open): no guard against concurrent runs of the same session.** Two resumes of one session, or repeated runs of a task, can append events at the same time. `seq` is computed from the in-memory event list ([session-service.ts:166](../packages/agents/src/session-service.ts#L166)), so two writers can produce duplicate or interleaved sequence numbers. Durable-agent guidance names this duplicate-resume risk: no lease, no fencing ([Diagrid](https://www.diagrid.io/blog/still-not-durable-how-microsoft-agent-framework-and-strands-agents-repeat-the-same-mistake)).
    - **Fix:** a Firestore transaction that takes an `activeRun` lease on the session before running, and a 409 from the service if one exists. Also make `/run` accept an idempotency key.
 
-3. **`MESSAGE` is passed as a container env override.** It is limited in size and visible in Cloud Run execution metadata. The prompt can be up to 10k characters.
+3. **Done: `MESSAGE` was passed as a container env override.** It is limited in size and visible in Cloud Run execution metadata. The prompt can be up to 10k characters.
    - **Fix:** store the pending message in Firestore, for example `sessions/{id}.pendingMessage`, and pass only `SESSION_ID`.
 
 4. **No failure or retry policy.** A crash mid-run exits 1 and leaves a half-written session with no recorded error and no resume path. There are no step limits, timeouts or token budgets on agents either; the stats exist but nothing enforces them. This is not tested; retry settings on the Cloud Run job definition were not inspected.
@@ -54,6 +54,7 @@ Findings 1 and 2 are implemented. Review `a30e8eb3` found no blocking issues; te
 - **Lease:** `startRun` takes a 10-minute lease in a Firestore transaction and throws `RunInProgressError` if a live lease exists. A timer renews it every third of the lease period, and every persisted event renews it too. `finishRun` records `succeeded` or `failed`, keeping only the first line of the error (200 characters at most).
 - **Service:** `POST /tasks/:id/run` with a `sessionId` returns 409 `run_in_progress` while the session is running. The job-side transaction is the real guard; the service check only avoids starting a job that would fail.
 - **Failure handling:** a failed success write is logged and does not fail the job.
+- **Job environment (finding 3):** a job execution now gets only `TASK_ID`, plus `SESSION_ID` when resuming. The resume message is stored on the session document (`pendingMessage`) by `queueMessage` in a transaction, which refuses while the session runs or another message was queued in the last 60 seconds. The job reads it with `pendingMessage` and `startRun` clears it. If Cloud Run rejects the job, the service clears the queued message. A message queued for a job that never started expires after 60 seconds.
 
 **Still open from findings 1 and 2:**
 - No `runId` fencing token. A paused or hung process whose lease lapsed can still append after a second run starts. Fixing it means making `appendEvent` a transaction that checks the `runId`.
@@ -63,7 +64,7 @@ Findings 1 and 2 are implemented. Review `a30e8eb3` found no blocking issues; te
 
 ## Suggested order
 
-Findings 1 and 2 are done. Next: 3, then 7. The rest can wait.
+Findings 1, 2 and 3 are done. Next: 7. The rest can wait.
 
 ## Sources
 

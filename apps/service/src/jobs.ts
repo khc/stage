@@ -1,7 +1,7 @@
 import type { JobsClient, protos } from "@google-cloud/run";
 
-export type Resume = { sessionId: string; message: string };
-export type RunJob = (job: string, taskId: string, resume?: Resume) => Promise<string>;
+// Resuming passes only the session id; the message is queued in Firestore.
+export type RunJob = (job: string, taskId: string, sessionId?: string) => Promise<string>;
 export type RegisterJob = (job: string) => Promise<string>;
 export type ListJobs = () => Promise<protos.google.cloud.run.v2.IJob[]>;
 
@@ -36,13 +36,9 @@ const execute = async (
 
 export const createTaskJob =
   (client: JobsApi, config: Config): RunJob =>
-  async (job, taskId, resume) => {
+  async (job, taskId, sessionId) => {
     const env = [{ name: "TASK_ID", value: taskId }];
-    if (resume)
-      env.push(
-        { name: "SESSION_ID", value: resume.sessionId },
-        { name: "MESSAGE", value: resume.message },
-      );
+    if (sessionId) env.push({ name: "SESSION_ID", value: sessionId });
     return execute(client, config, job, { env });
   };
 

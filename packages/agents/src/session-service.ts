@@ -19,6 +19,8 @@ const EVENTS = "events";
 // A run holds the session until its lease lapses; every persisted event renews it.
 export const RUN_LEASE_MS = 10 * 60_000;
 const MAX_RUN_ERROR = 200;
+// A queued message blocks another one only this long: later it belongs to a job that never started.
+const PENDING_TTL_MS = 60_000;
 
 export type RunState = {
   status: "running" | "succeeded" | "failed";
@@ -203,6 +205,33 @@ export class FirestoreSessionService extends BaseSessionService {
     };
   }
 
+  // Stores the next message of a session for the job that resumes it, so the
+  // job needs only the session id. Fails while the session runs or another
+  // message was queued moments ago.
+  async queueMessage(key: CompositeSessionKey, message: string, now = Date.now()) {
+    const ref = this.ref(key);
+    await this.db.runTransaction(async (tx) => {
+      const snapshot = await tx.get(ref);
+      if (!snapshot.exists) throw new Error("Session not found");
+      const queuedAt: number | undefined = snapshot.get("pendingMessageAt");
+      // Queued means waiting for a job: queued after the last run began, and recently.
+      const queued =
+        snapshot.get("pendingMessage") != null &&
+        (queuedAt ?? 0) > (snapshot.get("runStartedAt") ?? 0) &&
+        now - (queuedAt ?? 0) < PENDING_TTL_MS;
+      if (isLive(runFields(snapshot), now) || queued) throw new RunInProgressError();
+      tx.update(ref, { pendingMessage: message, pendingMessageAt: now });
+    });
+  }
+
+  async pendingMessage(key: CompositeSessionKey): Promise<string | undefined> {
+    return (await this.ref(key).get()).get("pendingMessage") ?? undefined;
+  }
+
+  async clearMessage(key: CompositeSessionKey): Promise<void> {
+    await this.ref(key).update({ pendingMessage: null, pendingMessageAt: null });
+  }
+
   // Takes the session for one run. Fails when another run holds a live lease,
   // so two executions never append to the same session at once.
   async startRun(key: CompositeSessionKey, now = Date.now()): Promise<void> {
@@ -238,6 +267,8 @@ export class FirestoreSessionService extends BaseSessionService {
       runLeaseUntil: 0,
       // Only the first line is kept: the full error stays in the job log.
       runError: error?.split("\n")[0]?.slice(0, MAX_RUN_ERROR) ?? null,
+      // The queued message is consumed only by a successful run, so a retried task still finds it.
+      ...(error === undefined && { pendingMessage: null, pendingMessageAt: null }),
     });
   }
 

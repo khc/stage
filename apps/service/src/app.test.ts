@@ -19,6 +19,8 @@ const noSessions: TaskSessions = {
   list: async () => [],
   get: async () => undefined,
   delete: async () => false,
+  queueMessage: async () => true,
+  clearMessage: async () => {},
 };
 const makeApp = () => createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
 
@@ -359,6 +361,8 @@ const sessionsApp = () => {
       list,
       get,
       delete: async () => false,
+      queueMessage: async () => true,
+      clearMessage: async () => {},
     }),
     getTask,
     list,
@@ -478,8 +482,14 @@ test("GET /openapi.json describes every API operation and its task input", async
   expect(document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"]).toBeDefined();
 });
 
-const resumeApp = (found: boolean, run?: unknown) => {
-  const job = mock(async (_name: string, _taskId: string, _resume?: unknown) => "op-1");
+const resumeApp = (
+  found: boolean,
+  run?: unknown,
+  queue: () => Promise<boolean> = async () => true,
+) => {
+  const job = mock(async (_name: string, _taskId: string, _sessionId?: string) => "op-1");
+  const queueMessage = mock(async (_t: string, _s: string, _m: string) => queue());
+  const clearMessage = mock(async (_t: string, _s: string) => {});
   const get = mock(async (_taskId: string, _sessionId: string) =>
     found ? ({ id: "s1", run } as never) : undefined,
   );
@@ -487,19 +497,38 @@ const resumeApp = (found: boolean, run?: unknown) => {
     list: async () => [],
     get,
     delete: async () => false,
+    queueMessage,
+    clearMessage,
   });
-  return { app, job, get };
+  return { app, job, get, queueMessage, clearMessage };
 };
 
 test("run with sessionId and message resumes an owned session", async () => {
-  const { app, job, get } = resumeApp(true);
+  const { app, job, get, queueMessage } = resumeApp(true);
   const response = await app.request(runPath, post({ sessionId: "s1", message: "  answer  " }));
   expect(response.status).toBe(202);
   expect(get).toHaveBeenCalledWith(savedTask.taskId, "s1");
-  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId, {
-    sessionId: "s1",
-    message: "answer",
+  expect(queueMessage).toHaveBeenCalledWith(savedTask.taskId, "s1", "answer");
+  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId, "s1");
+});
+
+test("run returns 409 when the message cannot be queued because a run or message is pending", async () => {
+  const { RunInProgressError } = await import("@stage/agents/session-service");
+  const { app, job } = resumeApp(true, undefined, async () => {
+    throw new RunInProgressError();
   });
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "run_in_progress" });
+  expect(job).not.toHaveBeenCalled();
+});
+
+test("run clears the queued message when the job cannot be started", async () => {
+  const { app, job, clearMessage } = resumeApp(true);
+  job.mockRejectedValue(new Error("cloud run down"));
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
+  expect(response.status).toBe(502);
+  expect(clearMessage).toHaveBeenCalledWith(savedTask.taskId, "s1");
 });
 
 test("run returns 409 run_in_progress while the session is running", async () => {
@@ -536,7 +565,13 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
       noCreate,
       noTasks,
       async (id: string) => (id === savedTask.taskId ? (savedTask as TaskContract) : undefined),
-      { list: async () => [], get: async () => undefined, delete: del },
+      {
+        list: async () => [],
+        get: async () => undefined,
+        delete: del,
+        queueMessage: async () => true,
+        clearMessage: async () => {},
+      },
     );
     return { app, del };
   };
@@ -601,6 +636,8 @@ describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
               } as never)
             : undefined,
         delete: async () => false,
+        queueMessage: async () => true,
+        clearMessage: async () => {},
       },
     );
 
@@ -794,6 +831,8 @@ describe("DELETE /tasks/:taskId", () => {
         },
         get: async () => undefined,
         delete: removeSession,
+        queueMessage: async () => true,
+        clearMessage: async () => {},
       },
       undefined,
       undefined,

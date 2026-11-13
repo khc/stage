@@ -258,6 +258,35 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     await service.finishRun(ref);
   });
 
+  test("of two simultaneous messages exactly one is queued", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    const results = await Promise.allSettled([
+      service.queueMessage(ref, "one"),
+      service.queueMessage(ref, "two"),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(
+      (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason,
+    ).toBeInstanceOf(RunInProgressError);
+    expect(["one", "two"]).toContain((await service.pendingMessage(ref)) ?? "");
+  });
+
+  test("a queued message is read back and cleared by a successful run", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    expect(await service.pendingMessage(ref)).toBeUndefined();
+    await service.queueMessage(ref, "answer");
+    expect(await service.pendingMessage(ref)).toBe("answer");
+    await service.startRun(ref);
+    await service.finishRun(ref);
+    expect(await service.pendingMessage(ref)).toBeUndefined();
+  });
+
   test("finishRun with an error records a failed run", async () => {
     const key = newApp();
     const service = newService();
@@ -276,6 +305,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
 const fakeDb = (fields: Record<string, unknown> = {}) => {
   const updates: Record<string, unknown>[] = [];
   const ref = {
+    get: async () => snapshot,
     update: async (data: Record<string, unknown>) => {
       updates.push(data);
       Object.assign(fields, data);
@@ -294,6 +324,67 @@ const fakeDb = (fields: Record<string, unknown> = {}) => {
 };
 const key = { appName: "a", userId: "u", sessionId: "s" };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe("queued messages", () => {
+  const fields = () => ({ pendingMessage: null as string | null }) as Record<string, unknown>;
+  test("a message survives a failed run and is cleared by a successful one", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    await service.queueMessage(key, "answer", 1_000);
+    await service.startRun(key, 2_000);
+    expect(f.pendingMessage).toBe("answer");
+    await service.finishRun(key, "boom");
+    expect(f.pendingMessage).toBe("answer");
+    await service.startRun(key, 3_000);
+    await service.finishRun(key);
+    expect(f.pendingMessage).toBeNull();
+  });
+
+  test("a message left by a failed run does not block the next one", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    await service.queueMessage(key, "one", 1_000);
+    await service.startRun(key, 2_000);
+    await service.finishRun(key, "boom", 3_000);
+    await service.queueMessage(key, "two", 4_000);
+    expect(f.pendingMessage).toBe("two");
+  });
+
+  test("refuses a second message moments later but accepts one after the TTL", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    await service.queueMessage(key, "one", 1_000);
+    await expect(service.queueMessage(key, "two", 2_000)).rejects.toBeInstanceOf(
+      RunInProgressError,
+    );
+    await service.queueMessage(key, "two", 1_000 + 61_000);
+    expect(f.pendingMessage).toBe("two");
+  });
+
+  test("refuses a message while the session runs", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    await service.startRun(key, 1_000);
+    await expect(service.queueMessage(key, "x", 2_000)).rejects.toBeInstanceOf(RunInProgressError);
+    await service.finishRun(key);
+  });
+
+  test("pendingMessage returns the queued message, or nothing", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    expect(await service.pendingMessage(key)).toBeUndefined();
+    await service.queueMessage(key, "one", 1_000);
+    expect(await service.pendingMessage(key)).toBe("one");
+  });
+
+  test("clearMessage drops the queued message", async () => {
+    const f = fields();
+    const service = new FirestoreSessionService(fakeDb(f).db, 5);
+    await service.queueMessage(key, "one", 1_000);
+    await service.clearMessage(key);
+    expect(f.pendingMessage).toBeNull();
+  });
+});
 
 describe("run lease heartbeat", () => {
   test("renews the lease between events until the run finishes", async () => {

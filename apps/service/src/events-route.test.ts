@@ -22,7 +22,13 @@ const setup = (opts: { task?: boolean; session?: boolean; live?: LiveEvents }) =
     async () => [],
     async () =>
       opts.task === false ? undefined : ({ taskId, prompt: "p", jobName: "j" } as TaskContract),
-    { list: async () => [], get, delete: async () => false },
+    {
+      list: async () => [],
+      get,
+      delete: async () => false,
+      queueMessage: async () => true,
+      clearMessage: async () => {},
+    },
     opts.live,
   );
   return { app, get };

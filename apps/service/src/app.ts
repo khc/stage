@@ -1,4 +1,5 @@
 import type { ListAgents } from "@stage/agents/agent-registry";
+import { RunInProgressError } from "@stage/agents/session-service";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
@@ -7,7 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 
 import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
-import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
+import type { ListJobs, RegisterJob, RunJob } from "./jobs";
 import type { LiveEvents } from "./live-events";
 import type { PlatformStream } from "./platform-stream";
 import { openApiDocument } from "./openapi";
@@ -399,7 +400,7 @@ export const createApp = (
       const jobName = jobNameSchema.safeParse(contract.jobName);
       if (!jobName.success) return c.json({ error: "task_not_executable" }, 409);
       const body = await c.req.json().catch(() => undefined);
-      let resume: Resume | undefined;
+      let resume: { sessionId: string; message: string } | undefined;
       if (body?.sessionId !== undefined) {
         const parsed = resumeSchema.safeParse(body);
         if (!parsed.success) return c.json({ success: false, error: parsed.error }, 400);
@@ -408,7 +409,11 @@ export const createApp = (
           const existing = await sessions.get(taskId, resume.sessionId);
           if (!existing) return c.json({ error: "session_not_found" }, 404);
           if (existing.run?.status === "running") return c.json({ error: "run_in_progress" }, 409);
+          // The message waits in Firestore, so the job gets only the session id.
+          if (!(await sessions.queueMessage(taskId, resume.sessionId, resume.message)))
+            return c.json({ error: "session_not_found" }, 404);
         } catch (err) {
+          if (err instanceof RunInProgressError) return c.json({ error: "run_in_progress" }, 409);
           console.error(err);
           throw new HTTPException(502, {
             res: c.json({ error: "session_error" }, 502),
@@ -417,11 +422,15 @@ export const createApp = (
       }
       try {
         const operation = resume
-          ? await runJob(jobName.data, taskId, resume)
+          ? await runJob(jobName.data, taskId, resume.sessionId)
           : await runJob(jobName.data, taskId);
         return c.json({ operation }, 202);
       } catch (err) {
         console.error(err);
+        if (resume)
+          await sessions
+            .clearMessage(taskId, resume.sessionId)
+            .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
         throw new HTTPException(502, {
           res: c.json({ error: "job_error" }, 502),
         });

@@ -18,8 +18,8 @@ type RunnerLike = Pick<Runner, "runAsync"> & {
   >;
 };
 
-const appName = "stage";
-const userId = "user";
+export const appName = "stage";
+export const userId = "user";
 
 const resumeSession = async (
   service: RunnerLike["sessionService"],
