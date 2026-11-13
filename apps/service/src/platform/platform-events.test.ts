@@ -1,11 +1,29 @@
 import { expect, mock, test } from "bun:test";
 
-import { createApp } from "./app";
+import { createApp } from "../app";
+import type { TaskStore } from "../stores/task-store";
+import type { CloudRunJobs } from "./cloud-run-jobs";
 import {
   createPlatformPublisher,
   platformEventsFromEnv,
   withPlatformEvents,
 } from "./platform-events";
+
+// A complete TaskStore of stubs; a test overrides only what it checks.
+const taskStore = (overrides: Partial<TaskStore> = {}): TaskStore => ({
+  create: async (i) => ({ taskId: "t1", documents: [], ...i }) as never,
+  list: async () => [],
+  get: async () => undefined,
+  delete: async () => true,
+  ...overrides,
+});
+
+const cloudRunJobs = (overrides: Partial<CloudRunJobs> = {}): CloudRunJobs => ({
+  list: async () => [],
+  run: async () => "op",
+  registerAgents: async () => "op",
+  ...overrides,
+});
 
 const setup = () => {
   const publishMessage = mock(async (_message: unknown) => "1");
@@ -22,11 +40,7 @@ const setup = () => {
 
 test("publishes the event type, task id and JSON body", async () => {
   const { events, sent } = setup();
-  const createTask = events.createTask(
-    async (i) => ({ taskId: "t1", documents: [], ...i }) as never,
-  );
-
-  await createTask({ prompt: "hi", jobName: "job" });
+  await events.tasks(taskStore()).create({ prompt: "hi", jobName: "job" });
 
   const [message] = await sent();
   const body = JSON.parse(message!.data.toString());
@@ -39,9 +53,10 @@ test("publishes the event type, task id and JSON body", async () => {
 test("publishes deletes, runs and registrations", async () => {
   const { events, sent } = setup();
 
-  await events.deleteTask(async () => {})("t1");
-  await events.runJob(async () => "op")("job", "t1", "s1");
-  await events.registerJob(async () => "op")("job");
+  await events.tasks(taskStore()).delete("t1");
+  const jobs = events.jobs(cloudRunJobs());
+  await jobs.run("job", "t1", "s1");
+  await jobs.registerAgents("job");
 
   expect((await sent()).map((m) => m.attributes.eventType)).toEqual([
     "task.deleted",
@@ -57,9 +72,11 @@ test("publishes deletes, runs and registrations", async () => {
 
 test("does not wait for a publish that never settles", async () => {
   const publish = createPlatformPublisher(() => new Promise(() => {}));
-  const remove = mock(async () => {});
+  const remove = mock(async () => true);
 
-  await withPlatformEvents(publish).deleteTask(remove)("t1");
+  await withPlatformEvents(publish)
+    .tasks(taskStore({ delete: remove }))
+    .delete("t1");
 
   expect(remove).toHaveBeenCalledTimes(1);
 });
@@ -68,23 +85,20 @@ test("the app publishes task create, run and delete events", async () => {
   const { events, sent } = setup();
   const taskId = crypto.randomUUID();
   const task = { taskId, prompt: "hi", jobName: "job", documents: [] };
-  const app = createApp(
-    events.runJob(async () => "op"),
-    async () => [],
-    events.createTask(async (input) => ({ ...task, ...input })),
-    async () => [],
-    async () => task,
-    {
+  const app = createApp({
+    jobs: events.jobs(cloudRunJobs()),
+    registry: { list: async () => [] },
+    tasks: events.tasks(
+      taskStore({ create: async (input) => ({ ...task, ...input }), get: async () => task }),
+    ),
+    sessions: {
       list: async () => [],
       get: async () => undefined,
       delete: async () => false,
       queueMessage: async () => true,
       clearMessage: async () => {},
     },
-    undefined,
-    undefined,
-    events.deleteTask(async () => {}),
-  );
+  });
 
   await app.request("/tasks", {
     method: "POST",
@@ -103,11 +117,15 @@ test("the app publishes task create, run and delete events", async () => {
 
 test("publishes nothing when the operation fails", async () => {
   const { events, publishMessage } = setup();
-  const failing = events.deleteTask(async () => {
-    throw new Error("boom");
-  });
+  const failing = events.tasks(
+    taskStore({
+      delete: async () => {
+        throw new Error("boom");
+      },
+    }),
+  );
 
-  await expect(failing("t1")).rejects.toThrow("boom");
+  await expect(failing.delete("t1")).rejects.toThrow("boom");
   expect(publishMessage).not.toHaveBeenCalled();
 });
 
@@ -119,7 +137,7 @@ test("a failed publish does not fail the operation", async () => {
   const spy = console.error;
   console.error = errors;
   try {
-    await withPlatformEvents(publish).deleteTask(async () => {})("t1");
+    await withPlatformEvents(publish).tasks(taskStore()).delete("t1");
     await Bun.sleep(0);
   } finally {
     console.error = spy;
@@ -130,13 +148,13 @@ test("a failed publish does not fail the operation", async () => {
 test("document.removed is published only when something was removed", async () => {
   const { events, sent } = setup();
   const documents = events.documents({
-    add: async () => ({ documentId: "d1" }),
-    remove: async (_t: string, id: string) => id === "d1",
+    create: async () => ({ documentId: "d1" }),
+    delete: async (_t: string, id: string) => id === "d1",
   } as never);
 
-  await documents.add("t1", new File(["x"], "a.txt"));
-  await documents.remove("t1", "d1");
-  await documents.remove("t1", "missing");
+  await documents.create("t1", new File(["x"], "a.txt"));
+  await documents.delete("t1", "d1");
+  await documents.delete("t1", "missing");
 
   expect((await sent()).map((m) => m.attributes.eventType)).toEqual([
     "document.added",
@@ -170,4 +188,12 @@ test("is disabled without PLATFORM_EVENTS_TOPIC", () => {
   expect(
     platformEventsFromEnv({ PLATFORM_EVENTS_TOPIC: "t" }, { topic: mock() } as never),
   ).toBeDefined();
+});
+
+test("task.deleted is published only when a task was deleted", async () => {
+  const { events, sent } = setup();
+  expect(await events.tasks(taskStore({ delete: async () => false })).delete("missing")).toBe(
+    false,
+  );
+  expect(await sent()).toEqual([]);
 });

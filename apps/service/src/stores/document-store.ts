@@ -6,13 +6,13 @@ export type DocumentSummary = {
   checksum: string;
   contentType: string;
 };
-export type TaskDocument = DocumentSummary & { content: string };
+export type StoredDocument = DocumentSummary & { content: string };
 export type ExtractDocument = (file: File) => Promise<{ content: string; mimeType: string }>;
-export type TaskDocuments = {
+export type DocumentStore = {
   list: (taskId: string) => Promise<DocumentSummary[]>;
-  get: (taskId: string, documentId: string) => Promise<TaskDocument | undefined>;
-  add: (taskId: string, file: File) => Promise<DocumentSummary>;
-  remove: (taskId: string, documentId: string) => Promise<boolean>;
+  get: (taskId: string, documentId: string) => Promise<StoredDocument | undefined>;
+  create: (taskId: string, file: File) => Promise<DocumentSummary>;
+  delete: (taskId: string, documentId: string) => Promise<boolean>;
   release: (documentIds: string[]) => Promise<void>;
 };
 
@@ -44,7 +44,7 @@ const summary = (id: string, data: FirebaseFirestore.DocumentData): DocumentSumm
 
 const sha256 = (bytes: Uint8Array) => new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 
-export const createTaskDocuments = (db: Firestore, extract: ExtractDocument): TaskDocuments => {
+export const createDocumentStore = (db: Firestore, extract: ExtractDocument): DocumentStore => {
   const tasks = db.collection("tasks");
   const documents = db.collection("documents");
   const linked = async (taskId: string): Promise<string[]> =>
@@ -52,7 +52,7 @@ export const createTaskDocuments = (db: Firestore, extract: ExtractDocument): Ta
       (ref: { documentId: string }) => ref.documentId,
     );
 
-  const release: TaskDocuments["release"] = async (documentIds) => {
+  const release: DocumentStore["release"] = async (documentIds) => {
     for (const documentId of documentIds) {
       const stillUsed = await tasks
         .where("documents", "array-contains", { documentId })
@@ -76,7 +76,7 @@ export const createTaskDocuments = (db: Firestore, extract: ExtractDocument): Ta
         ? { ...summary(snap.id, snap.data()!), content: snap.get("content") }
         : undefined;
     },
-    async add(taskId, file) {
+    async create(taskId, file) {
       const checksum = sha256(new Uint8Array(await file.arrayBuffer()));
       const ref = documents.doc(checksum);
       const existing = await ref.get();
@@ -100,7 +100,7 @@ export const createTaskDocuments = (db: Firestore, extract: ExtractDocument): Ta
         .update({ documents: FieldValue.arrayUnion({ documentId: checksum }) });
       return result;
     },
-    async remove(taskId, documentId) {
+    async delete(taskId, documentId) {
       if (!(await linked(taskId)).includes(documentId)) return false;
       await tasks.doc(taskId).update({ documents: FieldValue.arrayRemove({ documentId }) });
       await release([documentId]);

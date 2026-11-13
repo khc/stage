@@ -1,8 +1,8 @@
 import { expect, mock, test } from "bun:test";
 
 import { createApp } from "./app";
-import type { EventListener, LiveEvents } from "./live-events";
-import type { TaskContract } from "./tasks";
+import type { EventListener, LiveEvents } from "./platform/live-events";
+import type { TaskContract } from "./stores/task-store";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
 const url = `/tasks/${taskId}/sessions/s1/messages`;
@@ -15,22 +15,25 @@ const setup = (opts: { task?: boolean; session?: boolean; live?: LiveEvents }) =
   const get = mock(async (_t: string, _s: string) =>
     opts.session === false ? undefined : ({ id: "s1", events: stored } as never),
   );
-  const app = createApp(
-    async () => "",
-    async () => [],
-    async (i) => ({ taskId, ...i }),
-    async () => [],
-    async () =>
-      opts.task === false ? undefined : ({ taskId, prompt: "p", jobName: "j" } as TaskContract),
-    {
+  const app = createApp({
+    jobs: { list: async () => [], run: async () => "", registerAgents: async () => "" },
+    registry: { list: async () => [] },
+    tasks: {
+      create: async (i) => ({ taskId, ...i }),
+      list: async () => [],
+      get: async () =>
+        opts.task === false ? undefined : ({ taskId, prompt: "p", jobName: "j" } as TaskContract),
+      delete: async () => true,
+    },
+    sessions: {
       list: async () => [],
       get,
       delete: async () => false,
       queueMessage: async () => true,
       clearMessage: async () => {},
     },
-    opts.live,
-  );
+    liveEvents: opts.live,
+  });
   return { app, get };
 };
 

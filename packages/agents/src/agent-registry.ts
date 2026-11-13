@@ -7,16 +7,44 @@ export type AgentInfo = {
   inputSchema?: JsonSchema;
   outputSchema?: JsonSchema;
 };
-export type RegisterAgents = (jobName: string, agents: AgentInfo[]) => Promise<void>;
-export type ListAgents = (jobName: string) => Promise<AgentInfo[]>;
+export type AgentRegistry = {
+  list: (jobName: string) => Promise<AgentInfo[]>;
+  // Replaces everything registered for the job, so agents removed from the
+  // image disappear from the registry on the next registration.
+  register: (jobName: string, agents: AgentInfo[]) => Promise<void>;
+};
 
 const COLLECTION = "agents";
 
-// Replaces everything registered for the job, so agents removed from the
-// image disappear from the registry on the next registration.
-export const createRegisterAgents =
-  (db: Pick<Firestore, "collection" | "batch">): RegisterAgents =>
-  async (jobName, agents) => {
+const parseSchema = (value: unknown): JsonSchema | undefined => {
+  if (typeof value !== "string") return undefined;
+  try {
+    return JSON.parse(value) as JsonSchema;
+  } catch {
+    return undefined;
+  }
+};
+
+export const createAgentRegistry = (
+  db: Pick<Firestore, "collection" | "batch">,
+): AgentRegistry => ({
+  async list(jobName) {
+    const stored = await db.collection(COLLECTION).where("jobName", "==", jobName).get();
+    return stored.docs
+      .map((doc): AgentInfo => {
+        const info: AgentInfo = { name: doc.get("name") };
+        const description = doc.get("description");
+        if (description !== undefined) info.description = description;
+        const inputSchema = parseSchema(doc.get("inputSchema"));
+        if (inputSchema) info.inputSchema = inputSchema;
+        const outputSchema = parseSchema(doc.get("outputSchema"));
+        if (outputSchema) info.outputSchema = outputSchema;
+        return info;
+      })
+      .toSorted((a, b) => a.name.localeCompare(b.name));
+  },
+
+  async register(jobName, agents) {
     const collection = db.collection(COLLECTION);
     const stored = await collection.where("jobName", "==", jobName).get();
     const keep = new Set(agents.map((agent) => agent.name));
@@ -34,32 +62,8 @@ export const createRegisterAgents =
         registeredAt: Date.now(),
       });
     await batch.commit();
-  };
-
-const parseSchema = (value: unknown): JsonSchema | undefined => {
-  if (typeof value !== "string") return undefined;
-  try {
-    return JSON.parse(value) as JsonSchema;
-  } catch {
-    return undefined;
-  }
-};
-
-export const createListAgents =
-  (db: Pick<Firestore, "collection">): ListAgents =>
-  async (jobName) =>
-    (await db.collection(COLLECTION).where("jobName", "==", jobName).get()).docs
-      .map((doc): AgentInfo => {
-        const info: AgentInfo = { name: doc.get("name") };
-        const description = doc.get("description");
-        if (description !== undefined) info.description = description;
-        const inputSchema = parseSchema(doc.get("inputSchema"));
-        if (inputSchema) info.inputSchema = inputSchema;
-        const outputSchema = parseSchema(doc.get("outputSchema"));
-        if (outputSchema) info.outputSchema = outputSchema;
-        return info;
-      })
-      .toSorted((a, b) => a.name.localeCompare(b.name));
+  },
+});
 
 const mode = (schema?: JsonSchema) =>
   schema?.type === "string" || schema === undefined ? "text/plain" : "application/json";

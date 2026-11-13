@@ -1,8 +1,8 @@
 import { PubSub, type Topic } from "@google-cloud/pubsub";
 
-import type { TaskDocuments } from "./documents";
-import type { RegisterJob, RunJob } from "./jobs";
-import type { CreateTask, DeleteTask } from "./tasks";
+import type { DocumentStore } from "../stores/document-store";
+import type { TaskStore } from "../stores/task-store";
+import type { CloudRunJobs } from "./cloud-run-jobs";
 
 export type PlatformEventType =
   | "task.created"
@@ -47,10 +47,10 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
     publish(type, data).catch((err) => console.error(`Platform event ${type} failed`, err));
 
   return {
-    createTask:
-      (create: CreateTask): CreateTask =>
-      async (input) => {
-        const task = await create(input);
+    tasks: (store: TaskStore): TaskStore => ({
+      ...store,
+      async create(input) {
+        const task = await store.create(input);
         void emit("task.created", {
           taskId: task.taskId,
           jobName: task.jobName,
@@ -58,35 +58,34 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
         });
         return task;
       },
-    deleteTask:
-      (remove: DeleteTask): DeleteTask =>
-      async (taskId) => {
-        await remove(taskId);
-        void emit("task.deleted", { taskId });
+      async delete(taskId) {
+        const deleted = await store.delete(taskId);
+        if (deleted) void emit("task.deleted", { taskId });
+        return deleted;
       },
-    runJob:
-      (run: RunJob): RunJob =>
-      async (jobName, taskId, sessionId) => {
-        const operation = await run(jobName, taskId, sessionId);
+    }),
+    jobs: (jobs: CloudRunJobs): CloudRunJobs => ({
+      ...jobs,
+      async run(jobName, taskId, sessionId) {
+        const operation = await jobs.run(jobName, taskId, sessionId);
         void emit("task.run_requested", { taskId, jobName, sessionId });
         return operation;
       },
-    registerJob:
-      (register: RegisterJob): RegisterJob =>
-      async (jobName) => {
-        const operation = await register(jobName);
+      async registerAgents(jobName) {
+        const operation = await jobs.registerAgents(jobName);
         void emit("job.registration_requested", { jobName });
         return operation;
       },
-    documents: (docs: TaskDocuments): TaskDocuments => ({
+    }),
+    documents: (docs: DocumentStore): DocumentStore => ({
       ...docs,
-      async add(taskId, file) {
-        const document = await docs.add(taskId, file);
+      async create(taskId, file) {
+        const document = await docs.create(taskId, file);
         void emit("document.added", { taskId, documentId: document.documentId });
         return document;
       },
-      async remove(taskId, documentId) {
-        const removed = await docs.remove(taskId, documentId);
+      async delete(taskId, documentId) {
+        const removed = await docs.delete(taskId, documentId);
         if (removed) void emit("document.removed", { taskId, documentId });
         return removed;
       },

@@ -67,7 +67,7 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 5. **Session store scalability (finding 6, low).** The service lists sessions by `taskId`, which is fine, but the ADK `listSessions` still loads every session of the app and filters in memory, `getSession` reads all events, and `userId` is hardcoded to `"user"`. `findOwner` adds a lookup by `sessionId`.
    - **Fix:** query by `taskId` or `userId` in `listSessions`, and page the event read when sessions get long.
 
-6. **Subscriptions are never cleaned up (low, likely).** Each service process creates a Pub/Sub subscription named with a random UUID and a 24-hour expiry ([live-events.ts](../apps/service/src/live-events.ts), [platform-stream.ts](../apps/service/src/platform-stream.ts)) and never deletes it, so each restart, including each `bun --hot` reload, can leave one behind.
+6. **Subscriptions are never cleaned up (low, likely).** Each service process creates a Pub/Sub subscription named with a random UUID and a 24-hour expiry ([live-events.ts](../apps/service/src/platform/live-events.ts), [platform-stream.ts](../apps/service/src/platform/platform-stream.ts)) and never deletes it, so each restart, including each `bun --hot` reload, can leave one behind.
    - **Fix:** delete the subscription on shutdown, or use a stable per-environment name.
 
 7. **`createSession` overwrites (low, likely).** It writes with `set`, so a caller-supplied `sessionId` would replace an existing session. The runtime never supplies one today.
@@ -75,8 +75,8 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 8. **Naming inconsistencies (low).**
    - `EventListener` in `live-events.ts` shadows the DOM global type of the same name.
-   - `TaskDocument` is declared twice with different shapes, in `apps/service/src/documents.ts` and `packages/agents/src/task-documents.ts`.
-   - `createCreateTask` repeats the verb.
+   - `TaskDocument` was declared twice with different shapes: done, the service type is now `StoredDocument`.
+   - `createCreateTask` repeated the verb: done, the task functions are one `TaskStore` made by `createTaskStore`.
    - Converters are named `summary`, `toSummary`, `toContract` and `toExtraction`.
    - The upload limits are `MAX_UPLOAD_BYTES` (25 MiB, service) and `MAX_FILE_BYTES` (50 MiB, extract).
    - The fallback error code is `agent_error` although it covers any unhandled error.
@@ -85,6 +85,18 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 9. **Stray text in a commit message (low).** Commit `bd7b359` ends with `<|think_end|>`, a model-output token that was committed by mistake.
    - **Fix:** amend or ignore it; it only affects history.
+
+## Service structure
+
+`apps/service/src/app.ts` used to hold about 30 routes in one 462-line file. Following Hono's guidance of one `Hono` app per feature mounted with `app.route()` ([best practices](https://hono.dev/docs/guides/best-practices#building-a-larger-application)), the routes now live in `apps/service/src/routes/`: `meta`, `events`, `jobs`, `tasks`, `documents` and `sessions`, plus a `shared.ts` with the `badGateway` helper that replaced the repeated `HTTPException(502, …)` blocks. `app.ts` is now about 40 lines.
+
+Done, then still to do in order:
+
+1. Done: `createApp` takes one `Deps` object (`runJob`, `listJobs`, `createTask`, `listTasks`, `getTask`, `sessions`, and the optional `deleteTask`, `documents`, `registry`, `liveEvents` and `platformStream`) instead of 11 positional arguments. `index.ts` builds it, and the tests build theirs with a `buildApp(overrides)` helper in `app.test.ts`.
+2. Done: the resume flow and the cascade delete moved into `usecases/run-task.ts` and `usecases/delete-task.ts`. They return a status for every expected outcome (`task_not_found`, `run_in_progress`, `message_pending` and so on) and throw a `DependencyError` carrying a short code when Firestore, Cloud Run or Pub/Sub fail. `routes/task-route.ts` only parses the request and maps the status to an HTTP code. Each use case has its own unit tests.
+3. Done: every route reports a failing dependency by throwing a `DependencyError` (through `guard(code, call)`), and `app.onError` turns it into a 502 with that code and logs the cause. The per-route `try` blocks and the `badGateway` helper are gone. Expected outcomes, such as a too-large document, are still answered where they happen.
+4. Done: the Firestore access moved to `stores/` (`tasks`, `sessions`, `documents`) and the Cloud Run, Pub/Sub and event-stream code to `platform/` (`cloud-run`, `jobs`, `live-events`, `platform-events`, `platform-stream`, `topic-listener`), each with its tests. Files only moved; their contents did not change. The three stores now share one shape: `TaskStore`, `SessionStore` and `DocumentStore`, made by `createXStore(db)`, with the verbs `create`, `list`, `get` and `delete` (`delete` returns a boolean) plus domain verbs. This replaced `add` and `remove` on documents and the four separate task functions. The same was done for the Cloud Run client (`CloudRunJobs` with `list`, `run` and `registerAgents`, from three function types and three factories) and the agent registry (`AgentRegistry` with `list` and `register`, from two), and `POST /jobs/:job/register` no longer has a 501 case, and `DELETE /tasks/:id` no longer has a 501 case, since deleting is always available.
+5. Partly done: `openapi.test.ts` fails when a registered route has no OpenAPI entry or the reverse, which stops path drift (it checks paths and methods only, not the response codes inside an entry). Generating the document from the routes was tried on the jobs routes with `@hono/zod-openapi` 1.6.3, which works with Zod 4.6.7: validation errors keep the same 400 body, and the generated document carries each parameter's pattern and length. It was not adopted, because the four routes grew from 32 to 101 lines (about the same as their hand-written entries in `openapi.ts`, so nothing shrinks), every route must list its response codes and each handler must return exactly those, and the shared `schemas.ts` would have to move to the package's `z`. The real gain is that a handler that returns a status or shape its route does not declare fails to compile. Adopt it if that matters more than the extra verbosity.
 
 ## Suggested order
 

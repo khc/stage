@@ -11,7 +11,7 @@ export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUp
   taskId: string;
   run?: RunState;
 };
-export type TaskSessions = {
+export type SessionStore = {
   list: (taskId: string) => Promise<SessionSummary[]>;
   get: (
     taskId: string,
@@ -41,7 +41,7 @@ const toSummary = (taskId: string, doc: { get: (field: string) => unknown }): Se
   return summary;
 };
 
-export const createTaskSessions = (db: Firestore): TaskSessions => {
+export const createSessionStore = (db: Firestore): SessionStore => {
   const service = new FirestoreSessionService(db);
   const find = async (taskId: string, sessionId: string) =>
     (

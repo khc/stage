@@ -4,13 +4,13 @@ import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
 import { FirestoreSessionService } from "@stage/agents/session-service";
 
-import { createTaskSessions } from "./sessions";
+import { createSessionStore } from "./session-store";
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
   test("lists only task summaries and gets owned sessions with state and ordered events", async () => {
     const db = new Firestore();
     const service = new FirestoreSessionService(db);
-    const api = createTaskSessions(db);
+    const api = createSessionStore(db);
     const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
     const taskId = crypto.randomUUID();
     const otherTaskId = crypto.randomUUID();
@@ -69,7 +69,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
   test("exposes the run of a session in the list and the detail", async () => {
     const db = new Firestore();
     const service = new FirestoreSessionService(db);
-    const api = createTaskSessions(db);
+    const api = createSessionStore(db);
     const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
     const taskId = crypto.randomUUID();
     const session = await service.createSession({ ...key, taskId });
@@ -93,7 +93,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
   test("queues a message only for a session of the task", async () => {
     const db = new Firestore();
     const service = new FirestoreSessionService(db);
-    const api = createTaskSessions(db);
+    const api = createSessionStore(db);
     const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
     const taskId = crypto.randomUUID();
     const session = await service.createSession({ ...key, taskId });

@@ -1,7 +1,7 @@
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 
-import { createRegisterAgents, type AgentInfo, type RegisterAgents } from "./agent-registry";
+import { createAgentRegistry, type AgentInfo, type AgentRegistry } from "./agent-registry";
 import { appName, createRunAgent, userId, type RunAgent } from "./runtime";
 import { FirestoreSessionService } from "./session-service";
 import { describeAgents, type AgentSet } from "./spec";
@@ -54,7 +54,7 @@ const jobNameSchema = z.string().min(1);
 // `register` execution mode: records this container's agents for its job.
 export const registerMain = async (
   env: Record<string, string | undefined>,
-  register: RegisterAgents,
+  register: AgentRegistry["register"],
   agents: AgentInfo[],
 ): Promise<number> => {
   const job = jobNameSchema.safeParse(env.JOB_NAME);
@@ -79,7 +79,7 @@ export const runCli = async (set: AgentSet, argv = process.argv, env = process.e
   const sessions = new FirestoreSessionService(db);
   process.exit(
     argv[2] === "register"
-      ? await registerMain(env, createRegisterAgents(db), describeAgents(set.agents))
+      ? await registerMain(env, createAgentRegistry(db).register, describeAgents(set.agents))
       : await main(env, createRunAgent(set, { db }), createGetTask(db), createGetMessage(sessions)),
   );
 };

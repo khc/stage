@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { createJobsClient } from "./cloud-run";
-import { createListJobs, createTaskJob } from "./jobs";
+import { createCloudRunJobs } from "./cloud-run-jobs";
 
 test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentials", async () => {
   const requests: {
@@ -27,7 +27,7 @@ test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentia
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    const run = createTaskJob(client, { project: "p", location: "l" });
+    const run = createCloudRunJobs(client, { project: "p", location: "l" }).run;
 
     expect(await run("my-job", "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8")).toBe(
       "projects/p/locations/l/operations/op-1",
@@ -72,7 +72,7 @@ test("sends the TASK_ID override in the REST request body", async () => {
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    await createTaskJob(client, { project: "p", location: "l" })(
+    await createCloudRunJobs(client, { project: "p", location: "l" }).run(
       "my-job",
       "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
     );
@@ -138,10 +138,10 @@ test("lists every page over plain REST without credentials", async () => {
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    const jobs = await createListJobs(client, {
+    const jobs = await createCloudRunJobs(client, {
       project: "p",
       location: "l",
-    })();
+    }).list();
     expect(jobs.map((job) => job.name)).toEqual([first.name, second.name]);
     expect(requests).toEqual([
       {
@@ -168,7 +168,7 @@ test("normalizes an empty REST listing response to an empty array", async () => 
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    expect(await createListJobs(client, { project: "p", location: "l" })()).toEqual([]);
+    expect(await createCloudRunJobs(client, { project: "p", location: "l" }).list()).toEqual([]);
   } finally {
     server.stop(true);
   }
@@ -199,9 +199,9 @@ test("rejects instead of returning partial jobs when a later page fails", async 
     const client = createJobsClient({
       CLOUD_RUN_EMULATOR_HOST: `localhost:${server.port}`,
     });
-    await expect(createListJobs(client, { project: "p", location: "l" })()).rejects.toThrow(
-      "listing denied",
-    );
+    await expect(
+      createCloudRunJobs(client, { project: "p", location: "l" }).list(),
+    ).rejects.toThrow("listing denied");
   } finally {
     server.stop(true);
   }

@@ -1,28 +1,56 @@
 import { describe, expect, mock, test } from "bun:test";
 
-import { createApp } from "./app";
-import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
-import type { ListJobs, RunJob } from "./jobs";
+import { createApp, type Deps } from "./app";
 import type { openApiDocument } from "./openapi";
-import type { TaskSessions } from "./sessions";
-import type { CreateTask, TaskContract } from "./tasks";
+import type { CloudRunJobs } from "./platform/cloud-run-jobs";
+import {
+  DocumentTooLargeError,
+  ExtractionError,
+  type DocumentStore,
+} from "./stores/document-store";
+import type { SessionStore } from "./stores/session-store";
+import type { NewTask, TaskContract, TaskStore } from "./stores/task-store";
 
-const noJob: RunJob = async () => "";
-const noJobs: ListJobs = async () => [];
-const noCreate: CreateTask = async (input) => ({
+const baseJobs: CloudRunJobs = {
+  list: async () => [],
+  run: async () => "",
+  registerAgents: async () => "",
+};
+// The Cloud Run jobs with only some operations replaced.
+const jobsWith = (overrides: Partial<CloudRunJobs>): CloudRunJobs => ({
+  ...baseJobs,
+  ...overrides,
+});
+const noCreate: TaskStore["create"] = async (input: NewTask) => ({
   taskId: crypto.randomUUID(),
   ...input,
 });
 const noTasks = async () => [];
 const noTask = async (_taskId: string) => undefined;
-const noSessions: TaskSessions = {
+const noSessions: SessionStore = {
   list: async () => [],
   get: async () => undefined,
   delete: async () => false,
   queueMessage: async () => true,
   clearMessage: async () => {},
 };
-const makeApp = () => createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions);
+const baseTasks: TaskStore = {
+  create: noCreate,
+  list: noTasks,
+  get: noTask,
+  delete: async () => true,
+};
+// The task store with only some operations replaced.
+const tasksWith = (overrides: Partial<TaskStore>): TaskStore => ({ ...baseTasks, ...overrides });
+const baseDeps: Deps = {
+  jobs: baseJobs,
+  tasks: baseTasks,
+  sessions: noSessions,
+  registry: { list: async () => [] },
+};
+// The app with every dependency stubbed out, except what a test overrides.
+const buildApp = (overrides: Partial<Deps> = {}) => createApp({ ...baseDeps, ...overrides });
+const makeApp = () => buildApp();
 
 const post = (body: unknown) => ({
   method: "POST",
@@ -42,32 +70,26 @@ test("GET /jobs returns all listed job resources", async () => {
     { name: "projects/p/locations/l/jobs/first", labels: { team: "agent" } },
     { name: "projects/p/locations/l/jobs/second" },
   ];
-  const listJobs = mock(async () => jobs);
-  const res = await createApp(noJob, listJobs, noCreate, noTasks, noTask, noSessions).request(
-    "/jobs",
-  );
+  const list = mock(async () => jobs);
+  const res = await buildApp({ jobs: jobsWith({ list }) }).request("/jobs");
 
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ jobs });
-  expect(listJobs).toHaveBeenCalledTimes(1);
+  expect(list).toHaveBeenCalledTimes(1);
 });
 
 test("GET /jobs returns an empty jobs array", async () => {
-  const res = await createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions).request(
-    "/jobs",
-  );
+  const res = await buildApp().request("/jobs");
 
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ jobs: [] });
 });
 
 test("GET /jobs returns 502 job_error without upstream details", async () => {
-  const listJobs = mock(async (): ReturnType<ListJobs> => {
+  const list = mock(async (): ReturnType<CloudRunJobs["list"]> => {
     throw new Error("secret listing detail");
   });
-  const res = await createApp(noJob, listJobs, noCreate, noTasks, noTask, noSessions).request(
-    "/jobs",
-  );
+  const res = await buildApp({ jobs: jobsWith({ list }) }).request("/jobs");
 
   expect(res.status).toBe(502);
   expect(await res.json()).toEqual({ error: "job_error" });
@@ -87,7 +109,7 @@ const taskApp = () => {
   const list = mock(async () => [savedTask]);
   const get = mock(async (_id: string) => savedTask as TaskContract | undefined);
   return {
-    app: createApp(job, noJobs, create, list, get, noSessions),
+    app: buildApp({ jobs: jobsWith({ run: job }), tasks: tasksWith({ create, list, get }) }),
     job,
     create,
     list,
@@ -161,9 +183,7 @@ test("GET /tasks returns a collection without executing or creating", async () =
 });
 
 test("GET /tasks returns an empty collection", async () => {
-  const response = await createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions).request(
-    "/tasks",
-  );
+  const response = await buildApp().request("/tasks");
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ tasks: [] });
 });
@@ -357,12 +377,15 @@ const sessionsApp = () => {
     async (_taskId: string, _sessionId: string): Promise<typeof session | undefined> => session,
   );
   return {
-    app: createApp(noJob, noJobs, noCreate, noTasks, getTask, {
-      list,
-      get,
-      delete: async () => false,
-      queueMessage: async () => true,
-      clearMessage: async () => {},
+    app: buildApp({
+      tasks: tasksWith({ get: getTask }),
+      sessions: {
+        list,
+        get,
+        delete: async () => false,
+        queueMessage: async () => true,
+        clearMessage: async () => {},
+      },
     }),
     getTask,
     list,
@@ -493,12 +516,10 @@ const resumeApp = (
   const get = mock(async (_taskId: string, _sessionId: string) =>
     found ? ({ id: "s1", run } as never) : undefined,
   );
-  const app = createApp(job, noJobs, noCreate, noTasks, async () => savedTask as TaskContract, {
-    list: async () => [],
-    get,
-    delete: async () => false,
-    queueMessage,
-    clearMessage,
+  const app = buildApp({
+    jobs: jobsWith({ run: job }),
+    tasks: tasksWith({ get: async () => savedTask as TaskContract }),
+    sessions: { list: async () => [], get, delete: async () => false, queueMessage, clearMessage },
   });
   return { app, job, get, queueMessage, clearMessage };
 };
@@ -570,20 +591,19 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
   const path = `/tasks/${savedTask.taskId}/sessions/s1`;
   const deleteApp = (remove: (t: string, s: string) => Promise<boolean>) => {
     const del = mock(remove);
-    const app = createApp(
-      noJob,
-      noJobs,
-      noCreate,
-      noTasks,
-      async (id: string) => (id === savedTask.taskId ? (savedTask as TaskContract) : undefined),
-      {
+    const app = buildApp({
+      tasks: tasksWith({
+        get: async (id: string) =>
+          id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      }),
+      sessions: {
         list: async () => [],
         get: async () => undefined,
         delete: del,
         queueMessage: async () => true,
         clearMessage: async () => {},
       },
-    );
+    });
     return { app, del };
   };
 
@@ -627,13 +647,12 @@ describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
 describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
   const path = `/tasks/${savedTask.taskId}/sessions/s1/stats`;
   const statsApp = (found: boolean) =>
-    createApp(
-      noJob,
-      noJobs,
-      noCreate,
-      noTasks,
-      async (id: string) => (id === savedTask.taskId ? (savedTask as TaskContract) : undefined),
-      {
+    buildApp({
+      tasks: tasksWith({
+        get: async (id: string) =>
+          id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
+      }),
+      sessions: {
         list: async () => [],
         get: async () =>
           found
@@ -650,7 +669,7 @@ describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
         queueMessage: async () => true,
         clearMessage: async () => {},
       },
-    );
+    });
 
   test("returns event count and summed token usage", async () => {
     const res = await statsApp(true).request(path);
@@ -703,19 +722,19 @@ test("POST /tasks passes a valid agentName and rejects an invalid one", async ()
 describe("agent registry routes", () => {
   const registered = [{ name: "assistant" }, { name: "researcher" }];
   const registryApp = (
-    registry?: Parameters<typeof createApp>[7],
+    registry: Deps["registry"] = baseDeps.registry,
     create = mock(async (i: { prompt: string; jobName: string; agentName?: string }) => ({
       taskId: savedTask.taskId,
       ...i,
     })),
   ) => ({
     create,
-    app: createApp(noJob, noJobs, create, noTasks, noTask, noSessions, undefined, registry),
+    app: buildApp({ tasks: tasksWith({ create }), registry }),
   });
 
   test("GET /jobs/:jobName/agents lists the registered agents", async () => {
     const list = mock(async (_job: string) => registered);
-    const { app } = registryApp({ register: async () => "", list });
+    const { app } = registryApp({ list });
     const res = await app.request("/jobs/my-job/agents");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ agents: registered });
@@ -730,7 +749,7 @@ describe("agent registry routes", () => {
     const list = mock(async (_job: string) => [
       { name: "haiku", description: "Writes a haiku.", inputSchema: { type: "object" } },
     ]);
-    const { app } = registryApp({ register: async () => "", list });
+    const { app } = registryApp({ list });
     const res = await app.request("/jobs/my-job/agents/haiku/card");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -742,7 +761,7 @@ describe("agent registry routes", () => {
   });
 
   test("GET agent card returns 404 for an unregistered agent and 400 for bad names", async () => {
-    const { app } = registryApp({ register: async () => "", list: async () => registered });
+    const { app } = registryApp({ list: async () => registered });
     const missing = await app.request("/jobs/my-job/agents/nope/card");
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ error: "agent_not_found" });
@@ -752,7 +771,7 @@ describe("agent registry routes", () => {
 
   test("POST /jobs/:jobName/register submits the register run", async () => {
     const register = mock(async (_job: string) => "op-7");
-    const { app } = registryApp({ register, list: async () => [] });
+    const app = buildApp({ jobs: jobsWith({ registerAgents: register }) });
     const res = await app.request("/jobs/my-job/register", { method: "POST" });
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ operation: "op-7" });
@@ -764,18 +783,10 @@ describe("agent registry routes", () => {
     });
     expect(failed.status).toBe(502);
     expect(await failed.json()).toEqual({ error: "job_error" });
-
-    const none = await registryApp().app.request("/jobs/my-job/register", {
-      method: "POST",
-    });
-    expect(none.status).toBe(501);
   });
 
   test("POST /tasks rejects an agent the job has not registered", async () => {
-    const { app, create } = registryApp({
-      register: async () => "",
-      list: async () => registered,
-    });
+    const { app, create } = registryApp({ list: async () => registered });
     const bad = await app.request(
       "/tasks",
       post({ prompt: "p", jobName: "my-job", agentName: "ghost" }),
@@ -791,10 +802,7 @@ describe("agent registry routes", () => {
   });
 
   test("POST /tasks accepts any valid agent for a job with no registration", async () => {
-    const { app } = registryApp({
-      register: async () => "",
-      list: async () => [],
-    });
+    const { app } = registryApp({ list: async () => [] });
     const res = await app.request(
       "/tasks",
       post({ prompt: "p", jobName: "my-job", agentName: "anything" }),
@@ -812,10 +820,7 @@ test("GET /jobs/:jobName/agents passes each agent's schemas through", async () =
       outputSchema: { type: "string" },
     },
   ];
-  const app = createApp(noJob, noJobs, noCreate, noTasks, noTask, noSessions, undefined, {
-    register: async () => "",
-    list: async () => agents,
-  });
+  const app = buildApp({ registry: { list: async () => agents } });
   expect(await (await app.request("/jobs/j/agents")).json()).toEqual({
     agents,
   });
@@ -826,7 +831,6 @@ describe("DELETE /tasks/:taskId", () => {
   const deleteApp = (
     opts: {
       exists?: boolean;
-      withDelete?: boolean;
       listFails?: boolean;
     } = {},
   ) => {
@@ -837,14 +841,14 @@ describe("DELETE /tasks/:taskId", () => {
     });
     const removeTask = mock(async (_id: string) => {
       order.push("task");
+      return true;
     });
-    const app = createApp(
-      noJob,
-      noJobs,
-      noCreate,
-      noTasks,
-      async () => (opts.exists === false ? undefined : (savedTask as TaskContract)),
-      {
+    const app = buildApp({
+      tasks: tasksWith({
+        get: async () => (opts.exists === false ? undefined : (savedTask as TaskContract)),
+        delete: removeTask,
+      }),
+      sessions: {
         list: async () => {
           if (opts.listFails) throw new Error("private storage detail");
           return [
@@ -869,10 +873,7 @@ describe("DELETE /tasks/:taskId", () => {
         queueMessage: async () => true,
         clearMessage: async () => {},
       },
-      undefined,
-      undefined,
-      opts.withDelete === false ? undefined : removeTask,
-    );
+    });
     return { app, removeSession, removeTask, order };
   };
 
@@ -903,11 +904,6 @@ describe("DELETE /tasks/:taskId", () => {
     expect(await res.json()).toEqual({ error: "task_error" });
     expect(removeTask).not.toHaveBeenCalled();
   });
-
-  test("returns 501 when deletion is not configured", async () => {
-    const { app } = deleteApp({ withDelete: false });
-    expect((await app.request(path, { method: "DELETE" })).status).toBe(501);
-  });
 });
 
 describe("task documents", () => {
@@ -919,28 +915,17 @@ describe("task documents", () => {
     checksum: documentId,
     contentType: "text/plain",
   };
-  const stub = (over: Partial<TaskDocuments> = {}): TaskDocuments => ({
+  const stub = (over: Partial<DocumentStore> = {}): DocumentStore => ({
     list: async () => [summary],
     get: async () => ({ ...summary, content: "hi" }),
-    add: async () => summary,
-    remove: async () => true,
+    create: async () => summary,
+    delete: async () => true,
     release: async () => {},
     ...over,
   });
   const found = async (id: string) => (id === taskId ? { taskId, prompt: "p" } : undefined);
-  const appWith = (documents?: TaskDocuments, deleteTask?: () => Promise<void>) =>
-    createApp(
-      noJob,
-      noJobs,
-      noCreate,
-      noTasks,
-      found,
-      noSessions,
-      undefined,
-      undefined,
-      deleteTask,
-      documents,
-    );
+  const appWith = (documents?: DocumentStore) =>
+    buildApp({ tasks: tasksWith({ get: found }), documents });
   const upload = (form: FormData) => ({ method: "POST", body: form });
   const form = (f?: File) => {
     const data = new FormData();
@@ -950,7 +935,7 @@ describe("task documents", () => {
 
   test("uploads a file and returns 201 with the summary", async () => {
     const add = mock(async (_t: string, _f: File) => summary);
-    const res = await appWith(stub({ add })).request(
+    const res = await appWith(stub({ create: add })).request(
       `/tasks/${taskId}/documents`,
       upload(form(new File(["hi"], "a.txt"))),
     );
@@ -963,7 +948,7 @@ describe("task documents", () => {
     const run = (err: Error) =>
       appWith(
         stub({
-          add: async () => {
+          create: async () => {
             throw err;
           },
         }),
@@ -995,7 +980,7 @@ describe("task documents", () => {
     const del = await app.request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
     expect(del.status).toBe(204);
     const gone = await appWith(
-      stub({ remove: async () => false, get: async () => undefined }),
+      stub({ delete: async () => false, get: async () => undefined }),
     ).request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
     expect(gone.status).toBe(404);
     expect((await app.request(`/tasks/${taskId}/documents/nope`)).status).toBe(400);
@@ -1005,18 +990,10 @@ describe("task documents", () => {
     const release = mock(async (_ids: string[]) => {});
     const withDocs = async (id: string) =>
       id === taskId ? { taskId, prompt: "p", documents: [{ documentId }] } : undefined;
-    const app = createApp(
-      noJob,
-      noJobs,
-      noCreate,
-      noTasks,
-      withDocs,
-      noSessions,
-      undefined,
-      undefined,
-      async () => {},
-      stub({ release }),
-    );
+    const app = buildApp({
+      tasks: tasksWith({ get: withDocs }),
+      documents: stub({ release }),
+    });
     expect((await app.request(`/tasks/${taskId}`, { method: "DELETE" })).status).toBe(204);
     expect(release).toHaveBeenCalledWith([documentId]);
   });

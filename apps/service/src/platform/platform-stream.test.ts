@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-import { createApp } from "./app";
+import { createApp } from "../app";
 import { createPlatformStream, type PlatformStream } from "./platform-stream";
 
 const setup = () => {
@@ -52,25 +52,24 @@ test("ignores messages without an event id and stops after unsubscribe", async (
 });
 
 const appWith = (platformStream?: PlatformStream) =>
-  createApp(
-    async () => "",
-    async () => [],
-    async (i) => ({ taskId: crypto.randomUUID(), ...i }),
-    async () => [],
-    async () => undefined,
-    {
+  createApp({
+    jobs: { list: async () => [], run: async () => "", registerAgents: async () => "" },
+    registry: { list: async () => [] },
+    tasks: {
+      create: async (i) => ({ taskId: crypto.randomUUID(), ...i }),
+      list: async () => [],
+      get: async () => undefined,
+      delete: async () => false,
+    },
+    sessions: {
       list: async () => [],
       get: async () => undefined,
       delete: async () => false,
       queueMessage: async () => true,
       clearMessage: async () => {},
     },
-    undefined,
-    undefined,
-    undefined,
-    undefined,
     platformStream,
-  );
+  });
 
 const readFrames = async (res: Response, frames: number) => {
   const reader = res.body!.getReader();

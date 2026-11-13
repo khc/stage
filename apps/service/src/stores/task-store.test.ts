@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 
 import { Firestore } from "@google-cloud/firestore";
 
-import { createCreateTask, createDeleteTask, createGetTask, createListTasks } from "./tasks";
+import { createTaskStore } from "./task-store";
 
 const writer = (write = async (_data: unknown) => {}) => {
   const create = mock(write);
@@ -18,7 +18,7 @@ const writer = (write = async (_data: unknown) => {}) => {
 
 test("creates UUID-keyed contracts in runs and preserves the supplied prompt", async () => {
   const { db, collection, doc, create } = writer();
-  const save = createCreateTask(db);
+  const save = createTaskStore(db).create;
   const contract = await save({ prompt: "  hello  ", jobName: "my-job" });
   expect(contract.taskId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -36,13 +36,15 @@ test("waits for persistence before returning the contract", async () => {
   const deferred = Promise.withResolvers<void>();
   const { db, create } = writer(() => deferred.promise);
   let settled = false;
-  const saved = createCreateTask(db)({
-    prompt: "hello",
-    jobName: "my-job",
-  }).then((result) => {
-    settled = true;
-    return result;
-  });
+  const saved = createTaskStore(db)
+    .create({
+      prompt: "hello",
+      jobName: "my-job",
+    })
+    .then((result) => {
+      settled = true;
+      return result;
+    });
   await Promise.resolve();
   expect(create).toHaveBeenCalledTimes(1);
   expect(settled).toBe(false);
@@ -54,7 +56,7 @@ test("propagates a failed create without retrying", async () => {
   const { db, create } = writer(async () => {
     throw new Error("write failed");
   });
-  await expect(createCreateTask(db)({ prompt: "hello", jobName: "my-job" })).rejects.toThrow(
+  await expect(createTaskStore(db).create({ prompt: "hello", jobName: "my-job" })).rejects.toThrow(
     "write failed",
   );
   expect(create).toHaveBeenCalledTimes(1);
@@ -66,16 +68,16 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task contracts in Firesto
     const reader = new Firestore();
     let taskId: string | undefined;
     try {
-      const contract = await createCreateTask(db)({
+      const contract = await createTaskStore(db).create({
         prompt: "emulator prompt",
         jobName: "my-job",
       });
       taskId = contract.taskId;
       expect((await reader.collection("tasks").doc(taskId).get()).data()).toEqual(contract);
-      expect(await createGetTask(reader)(taskId)).toEqual(contract);
-      expect(await createListTasks(reader)()).toContainEqual(contract);
+      expect(await createTaskStore(reader).get(taskId)).toEqual(contract);
+      expect(await createTaskStore(reader).list()).toContainEqual(contract);
       await db.collection("tasks").doc(taskId).delete();
-      expect(await createGetTask(reader)(taskId)).toBeUndefined();
+      expect(await createTaskStore(reader).get(taskId)).toBeUndefined();
     } finally {
       if (taskId) await db.collection("tasks").doc(taskId).delete();
       await Promise.all([db.terminate(), reader.terminate()]);
@@ -105,7 +107,7 @@ test("lists only contract fields using document IDs", async () => {
       docs: [snapshot("a", "one", "my-job"), snapshot("b", "two")],
     }),
   );
-  expect(await createListTasks(db)()).toEqual([
+  expect(await createTaskStore(db).list()).toEqual([
     { taskId: "a", prompt: "one", jobName: "my-job" },
     { taskId: "b", prompt: "two" },
   ]);
@@ -117,7 +119,7 @@ test("lists an empty collection", async () => {
     async () => undefined,
     async () => ({ docs: [] }),
   );
-  expect(await createListTasks(db)()).toEqual([]);
+  expect(await createTaskStore(db).list()).toEqual([]);
 });
 
 test("propagates list failures", async () => {
@@ -127,19 +129,19 @@ test("propagates list failures", async () => {
       throw new Error("read failed");
     },
   );
-  await expect(createListTasks(db)()).rejects.toThrow("read failed");
+  await expect(createTaskStore(db).list()).rejects.toThrow("read failed");
 });
 
 test("stores agentName only when supplied and lists it", async () => {
   const { db, create } = writer();
-  const named = await createCreateTask(db)({
+  const named = await createTaskStore(db).create({
     prompt: "p",
     jobName: "my-job",
     agentName: "researcher",
   });
   expect(named.agentName).toBe("researcher");
   expect(create).toHaveBeenCalledWith(named);
-  const plain = await createCreateTask(db)({ prompt: "p", jobName: "my-job" });
+  const plain = await createTaskStore(db).create({ prompt: "p", jobName: "my-job" });
   expect(Object.keys(plain)).not.toContain("agentName");
 
   const reader = readerWith(
@@ -155,17 +157,28 @@ test("stores agentName only when supplied and lists it", async () => {
       ],
     }),
   );
-  expect(await createListTasks(reader.db)()).toEqual([
+  expect(await createTaskStore(reader.db).list()).toEqual([
     { taskId: "a", prompt: "p", jobName: "my-job", agentName: "researcher" },
   ]);
 });
 
-test("deletes the task document by ID", async () => {
+const deleter = (exists: boolean) => {
   const del = mock(async () => {});
-  const doc = mock((_id: string) => ({ delete: del }));
+  const doc = mock((_id: string) => ({ get: async () => ({ exists }), delete: del }));
   const collection = mock((_name: string) => ({ doc }));
-  await createDeleteTask({ collection } as never)("task-1");
+  return { db: { collection } as never, collection, doc, del };
+};
+
+test("deletes the task document by ID and says it existed", async () => {
+  const { db, collection, doc, del } = deleter(true);
+  expect(await createTaskStore(db).delete("task-1")).toBe(true);
   expect(collection).toHaveBeenCalledWith("tasks");
   expect(doc).toHaveBeenCalledWith("task-1");
   expect(del).toHaveBeenCalledTimes(1);
+});
+
+test("deleting a task that does not exist deletes nothing and says so", async () => {
+  const { db, del } = deleter(false);
+  expect(await createTaskStore(db).delete("missing")).toBe(false);
+  expect(del).not.toHaveBeenCalled();
 });

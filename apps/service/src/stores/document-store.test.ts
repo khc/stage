@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { Firestore } from "@google-cloud/firestore";
 
-import { createTaskDocuments } from "./documents";
+import { createDocumentStore } from "./document-store";
 
 const file = (text: string, name = "a.txt") => new File([text], name, { type: "text/plain" });
 // sha256("hello")
@@ -12,7 +12,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task documents in Firesto
   test("dedups by checksum and removes orphans only after the last detach", async () => {
     const db = new Firestore();
     const extracted: string[] = [];
-    const docs = createTaskDocuments(db, async (f) => {
+    const docs = createDocumentStore(db, async (f) => {
       extracted.push(f.name);
       return { content: `text:${await f.text()}`, mimeType: "text/plain" };
     });
@@ -20,20 +20,20 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task documents in Firesto
     try {
       for (const id of [t1, t2]) await db.collection("tasks").doc(id).set({ documents: [] });
 
-      const first = await docs.add(t1, file("hello"));
+      const first = await docs.create(t1, file("hello"));
       expect(first).toEqual({
         documentId: HELLO,
         filename: "a.txt",
         checksum: HELLO,
         contentType: "text/plain",
       });
-      await docs.add(t2, file("hello", "other-name.txt"));
+      await docs.create(t2, file("hello", "other-name.txt"));
       expect(extracted).toEqual(["a.txt"]);
       expect((await docs.get(t2, HELLO))?.content).toBe("text:hello");
       expect(await docs.list(t1)).toEqual([first]);
 
-      expect(await docs.remove(t1, HELLO)).toBe(true);
-      expect(await docs.remove(t1, HELLO)).toBe(false);
+      expect(await docs.delete(t1, HELLO)).toBe(true);
+      expect(await docs.delete(t1, HELLO)).toBe(false);
       expect((await db.collection("documents").doc(HELLO).get()).exists).toBe(true);
 
       await db.collection("tasks").doc(t2).delete();

@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-import { createListAgents, createRegisterAgents, toAgentCard } from "./agent-registry";
+import { createAgentRegistry, toAgentCard } from "./agent-registry";
 
 const registerSetup = (stored: { name: string; id: string }[]) => {
   const doc = mock((id: string) => ({ id }));
@@ -31,7 +31,7 @@ test("registers a job's agents and removes ones no longer in the image", async (
     { name: "assistant", id: "my-job:assistant" },
   ]);
 
-  await createRegisterAgents(db)("my-job", [
+  await createAgentRegistry(db).register("my-job", [
     { name: "assistant", description: "Helps" },
     { name: "researcher" },
   ]);
@@ -58,7 +58,7 @@ test("lists a job's agents sorted by name", async () => {
   const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
   const db = { collection: () => ({ where }) } as never;
 
-  expect(await createListAgents(db)("my-job")).toEqual([
+  expect(await createAgentRegistry(db as never).list("my-job")).toEqual([
     { name: "a" },
     { name: "b", description: "Second" },
   ]);
@@ -71,7 +71,7 @@ test("stores schemas as JSON text and parses them back when listing", async () =
     properties: { a: { type: "array", items: { type: "string" } } },
   };
   const { db, batch } = registerSetup([]);
-  await createRegisterAgents(db)("my-job", [
+  await createAgentRegistry(db).register("my-job", [
     { name: "x", inputSchema: input, outputSchema: { type: "string" } },
     { name: "y" },
   ]);
@@ -84,9 +84,9 @@ test("stores schemas as JSON text and parses them back when listing", async () =
     (d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }),
   );
   const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
-  const listed = await createListAgents({
+  const listed = await createAgentRegistry({
     collection: () => ({ where }),
-  } as never)("my-job");
+  } as never).list("my-job");
   expect(listed).toEqual([{ name: "x", inputSchema: input }]);
 });
 
