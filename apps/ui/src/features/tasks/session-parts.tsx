@@ -135,7 +135,7 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
   const canSend = !!message.trim() && !resume.isPending;
   return (
     <form
-      className="flex flex-col gap-1"
+      className="bg-popover sticky -bottom-5 -mx-6 -mb-5 flex flex-col gap-1 border-t px-6 pt-3 pb-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSend) resume.mutate();
