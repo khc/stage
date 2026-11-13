@@ -33,6 +33,7 @@ import {
   DeleteSession,
   EventCard,
   LastOutput,
+  PromptPreview,
   SessionStatsBar,
   TaskDocuments,
   useSessionStream,
@@ -101,6 +102,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
             Run task
           </Button>
           <ConfirmDelete
+            variant="outline"
             label="Delete task"
             question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}?`}
             remove={() => api.deleteTask(taskId)}
@@ -257,6 +259,8 @@ function TaskDetails({ taskId }: { taskId: string }) {
         <TabsContent value="output" className={paneBody}>
           <LastOutput
             taskId={taskId}
+            jobName={data.jobName}
+            agentName={data.agentName}
             latest={list[0]}
             loading={sessions.isPending}
             onOpen={(id) => {
@@ -267,9 +271,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
         </TabsContent>
         <TabsContent value="prompt" className={paneBody}>
           <Overline>Saved prompt</Overline>
-          <div className="bg-muted/40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
-            {data.prompt}
-          </div>
+          <PromptPreview text={data.prompt} />
         </TabsContent>
         <TabsContent value="documents" className={paneBody}>
           <TaskDocuments taskId={taskId} query={documents} />

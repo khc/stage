@@ -11,9 +11,11 @@ import {
   FileText,
   Workflow,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { JsonView } from "@/components/json-view";
+import { Markdown } from "@/components/markdown";
 import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -26,6 +28,7 @@ import {
   streamMessages,
   withEvent,
   type DocumentSummary,
+  type JsonSchema,
   type Session,
   type SessionEvent,
   type SessionSummary,
@@ -46,13 +49,11 @@ export function useSessionStream(taskId: string, sessionId: string | null) {
   }, [client, taskId, sessionId]);
 }
 
-const Pre = ({ children }: { children: string }) => (
-  <pre className="bg-muted overflow-x-auto rounded-md p-2 text-xs">{children}</pre>
-);
-
-function Preview({ children }: { children: string }) {
+function Preview({ children, wrap = true }: { children: ReactNode; wrap?: boolean }) {
   return (
-    <div className="bg-muted/40 rounded-lg border p-3 text-sm whitespace-pre-wrap">{children}</div>
+    <div className={cn("bg-muted/40 rounded-lg border p-3 text-sm", wrap && "whitespace-pre-wrap")}>
+      {children}
+    </div>
   );
 }
 
@@ -180,9 +181,30 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
   );
 }
 
-function OutputText({ text }: { text: string }) {
+// The saved prompt: a JSON object is shown as a tree, anything else as text.
+export function PromptPreview({ text }: { text: string }) {
+  const value = parseJsonObject(text);
+  return value ? (
+    <Preview wrap={false}>
+      <JsonView value={value} />
+    </Preview>
+  ) : (
+    <Preview>{text}</Preview>
+  );
+}
+
+const isMarkdown = (schema?: JsonSchema) => /markdown/i.test(schema?.description ?? "");
+
+function OutputText({ text, schema }: { text: string; schema?: JsonSchema }) {
   const fields = parseJsonObject(text);
-  if (!fields) return <Preview>{text}</Preview>;
+  if (!fields)
+    return isMarkdown(schema) ? (
+      <Preview wrap={false}>
+        <Markdown>{text}</Markdown>
+      </Preview>
+    ) : (
+      <Preview>{text}</Preview>
+    );
   return (
     <dl className="flex flex-col gap-3">
       {Object.entries(fields).map(([key, value]) => (
@@ -191,7 +213,17 @@ function OutputText({ text }: { text: string }) {
             <Overline>{key}</Overline>
           </dt>
           <dd>
-            <Preview>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</Preview>
+            {typeof value === "string" && isMarkdown(schema?.properties?.[key]) ? (
+              <Preview wrap={false}>
+                <Markdown>{value}</Markdown>
+              </Preview>
+            ) : typeof value === "object" && value !== null ? (
+              <Preview wrap={false}>
+                <JsonView value={value} />
+              </Preview>
+            ) : (
+              <Preview>{typeof value === "string" ? value : JSON.stringify(value)}</Preview>
+            )}
           </dd>
         </div>
       ))}
@@ -204,13 +236,24 @@ export function LastOutput({
   latest,
   loading,
   onOpen,
+  jobName,
+  agentName,
 }: {
   taskId: string;
+  jobName?: string;
+  agentName?: string;
   latest?: SessionSummary;
   loading: boolean;
   onOpen: (sessionId: string) => void;
 }) {
   const sessionId = latest?.id ?? null;
+  const agents = useQuery({
+    queryKey: ["agents", jobName],
+    queryFn: () => api.agents(jobName!),
+    enabled: !!jobName,
+    retry: false,
+  });
+  const agent = agents.data?.agents.find((candidate) => candidate.name === agentName);
   const session = useQuery({
     queryKey: ["session", taskId, sessionId],
     queryFn: () => api.session(taskId, sessionId!),
@@ -238,7 +281,7 @@ export function LastOutput({
       </div>
       {output ? (
         <>
-          <OutputText text={output.text} />
+          <OutputText text={output.text} schema={agent?.outputSchema} />
           <p className="text-muted-foreground flex items-center gap-1 text-xs">
             <Clock3 className="size-3" />
             {formatTime(output.timestamp ?? latest.lastUpdateTime)}
@@ -348,7 +391,7 @@ function ToolEvent({
         {name}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <Pre>{JSON.stringify(data, null, 2)}</Pre>
+        <JsonView className="bg-muted overflow-x-auto rounded-md p-2" value={data} />
       </CollapsibleContent>
     </Collapsible>
   );
@@ -384,19 +427,22 @@ export function EventCard({ event, index }: { event: SessionEvent; index: number
           // Parts have no id and never reorder, so their position is the key.
           // oxlint-disable-next-line react/no-array-index-key
           <div key={i} className="flex flex-col gap-1">
-            {part.text != null && (
-              <div
-                className={cn(
-                  "text-[13px] leading-relaxed whitespace-pre-wrap",
-                  part.thought && "text-muted-foreground italic",
-                )}
-              >
-                {part.thought && (
-                  <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
-                )}
-                {part.text}
-              </div>
-            )}
+            {part.text != null &&
+              (part.thought || !parseJsonObject(part.text) ? (
+                <div
+                  className={cn(
+                    "text-[13px] leading-relaxed whitespace-pre-wrap",
+                    part.thought && "text-muted-foreground italic",
+                  )}
+                >
+                  {part.thought && (
+                    <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
+                  )}
+                  {part.text}
+                </div>
+              ) : (
+                <JsonView value={parseJsonObject(part.text)} />
+              ))}
             {part.functionCall && (
               <ToolEvent
                 open

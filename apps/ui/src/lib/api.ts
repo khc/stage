@@ -29,10 +29,9 @@ export type Job = {
     taskCount?: number;
     parallelism?: number;
     template?: {
-      // Variable values are deliberately not typed: the UI shows names only.
       containers?: {
         image?: string;
-        env?: { name?: string }[];
+        env?: { name?: string; value?: string }[];
         resources?: { limits?: Record<string, string> } | null;
       }[];
       maxRetries?: number;
@@ -301,6 +300,13 @@ const conditionLabel = (state?: string) =>
   state === "CONDITION_SUCCEEDED" ? "Ready" : state?.replace("CONDITION_", "").toLowerCase();
 export const jobEnvNames = (job: Job) =>
   (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) => (e.name ? [e.name] : []));
+export type EnvVar = { name: string; value: string };
+export const jobEnvVars = (job: Job): EnvVar[] =>
+  (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) =>
+    e.name ? [{ name: e.name, value: e.value ?? "" }] : [],
+  );
+// Variables whose name suggests a credential; the pane hides their value until asked.
+export const isSecretEnv = (name: string) => /key|secret|token|password|credential/i.test(name);
 // Label/value rows for a job's detail pane; unknown fields are left out.
 export const jobDetails = (job: Job): [string, string][] => {
   const task = job.template?.template;

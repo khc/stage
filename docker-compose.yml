@@ -45,6 +45,7 @@ services:
   #     CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
   #     PUBSUB_EMULATOR_HOST: floci-gcp:4588
   #     PUBSUB_TOPIC: ${PUBSUB_TOPIC:-agent-events}
+  #     PLATFORM_EVENTS_TOPIC: ${PLATFORM_EVENTS_TOPIC:-platform-events}
   #     EXTRACT_URL: http://extract:8080
   #     GEMINI_API_KEY:
   #     AGENT_MODEL:

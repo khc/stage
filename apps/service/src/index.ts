@@ -8,6 +8,7 @@ import { createJobsClient } from "./cloud-run";
 import { createExtractDocument, createTaskDocuments } from "./documents";
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
 import { createLiveEvents } from "./live-events";
+import { platformEventsFromEnv } from "./platform-events";
 import { createTaskSessions } from "./sessions";
 import { createCreateTask, createDeleteTask, createListTasks, createGetTask } from "./tasks";
 
@@ -20,24 +21,27 @@ const config = {
   project: env.GCP_PROJECT,
   location: env.GCP_REGION,
 };
-const runJob = createTaskJob(client, config);
-const registerJob = createRegisterJob(client, config);
+const platform = platformEventsFromEnv(process.env);
+const published = <T>(wrap: ((fn: T) => T) | undefined, fn: T) => (wrap ? wrap(fn) : fn);
+const runJob = published(platform?.runJob, createTaskJob(client, config));
+const registerJob = published(platform?.registerJob, createRegisterJob(client, config));
 const listJobs = createListJobs(client, config);
 
 const db = new Firestore();
+const taskDocuments = process.env.EXTRACT_URL
+  ? createTaskDocuments(db, createExtractDocument(process.env.EXTRACT_URL))
+  : undefined;
 const app = createApp(
   runJob,
   listJobs,
-  createCreateTask(db),
+  published(platform?.createTask, createCreateTask(db)),
   createListTasks(db),
   createGetTask(db),
   createTaskSessions(db),
   process.env.PUBSUB_TOPIC ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC) : undefined,
   { register: registerJob, list: createListAgents(db) },
-  createDeleteTask(db),
-  process.env.EXTRACT_URL
-    ? createTaskDocuments(db, createExtractDocument(process.env.EXTRACT_URL))
-    : undefined,
+  published(platform?.deleteTask, createDeleteTask(db)),
+  taskDocuments && published(platform?.documents, taskDocuments),
 );
 
 export default {

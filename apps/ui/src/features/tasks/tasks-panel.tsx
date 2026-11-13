@@ -43,8 +43,8 @@ export function TasksPanel({ title }: { title: string }) {
       .includes(search.toLowerCase()),
   );
   return (
-    <Card>
-      <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+    <Card className="gap-0">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-2 pb-4">
         <CardTitle className="flex items-center gap-2">
           <Layers3 className="size-4" />
           {title}

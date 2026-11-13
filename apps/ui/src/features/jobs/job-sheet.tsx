@@ -1,4 +1,5 @@
-import { Box, Database, FileText, Plus, Server, Workflow } from "lucide-react";
+import { Box, Database, FileText, Plus, Server, Workflow, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 
 import { PaneHeader, PaneTab, PaneTabsList, TabCount, paneBody } from "@/components/pane";
 import { ResizableSheetContent } from "@/components/resizable-sheet";
@@ -6,8 +7,24 @@ import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { jobDetails, jobEnvNames, shortJobName, type Job, type Task } from "@/lib/api";
+import {
+  isSecretEnv,
+  jobDetails,
+  jobEnvVars,
+  shortJobName,
+  type EnvVar,
+  type Job,
+  type Task,
+} from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
 import {
@@ -50,7 +67,7 @@ function JobDetails({
   const name = shortJobName(job);
   const { agents, query, register } = useAgentRegistration(name, !!job.name);
   const jobTasks = tasks.filter((task) => task.jobName === name);
-  const envNames = jobEnvNames(job);
+  const envVars = jobEnvVars(job);
   const status = jobDetails(job).find(([label]) => label === "Status")?.[1];
   return (
     <>
@@ -67,10 +84,16 @@ function JobDetails({
         {status && (
           <Badge variant={status === "Ready" ? "secondary" : "destructive"}>{status}</Badge>
         )}
-        <Button className="ml-auto" onClick={onCreate}>
-          <Plus />
-          Create task
-        </Button>
+        <span className="ml-auto flex items-center gap-2">
+          <RegisterAgentsButton register={register} disabled={!job.name} />
+          <Button onClick={onCreate}>
+            <Plus />
+            Create task
+          </Button>
+        </span>
+        <div className="basis-full empty:hidden">
+          <RegisterAgentsNote register={register} />
+        </div>
       </PaneHeader>
       <Tabs defaultValue="overview" className="min-h-0 flex-1 gap-0">
         <PaneTabsList>
@@ -89,27 +112,24 @@ function JobDetails({
         </PaneTabsList>
         <TabsContent value="overview" className={paneBody}>
           {job.description && <p className="text-sm">{job.description}</p>}
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-            {jobDetails(job).map(([label, value]) => (
-              <div key={label} className="col-span-2 grid grid-cols-subgrid">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="break-all">{value}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="shrink-0 overflow-hidden rounded-lg border">
+            <Table className="table-fixed">
+              <TableBody>
+                {jobDetails(job).map(([label, value]) => (
+                  <TableRow key={label}>
+                    <TableCell className="text-muted-foreground w-[40%]">{label}</TableCell>
+                    <TableCell className="break-all whitespace-normal">{value}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <Overline>Environment variables</Overline>
-          {envNames.length ? (
-            <div className="flex flex-wrap gap-1">
-              {envNames.map((envName) => (
-                <code key={envName} className="bg-muted rounded px-1.5 py-0.5 text-xs">
-                  {envName}
-                </code>
-              ))}
-            </div>
+          {envVars.length ? (
+            <EnvTable vars={envVars} />
           ) : (
             <small className="text-muted-foreground">None set.</small>
           )}
-          <small className="text-muted-foreground">Values are not shown.</small>
         </TabsContent>
         <TabsContent value="agents" className={paneBody}>
           <p className="text-muted-foreground text-sm">
@@ -137,8 +157,6 @@ function JobDetails({
               </article>
             ))
           )}
-          <RegisterAgentsButton className="w-full" register={register} disabled={!job.name} />
-          <RegisterAgentsNote register={register} />
         </TabsContent>
         <TabsContent value="tasks" className={paneBody}>
           {!jobTasks.length ? (
@@ -162,5 +180,52 @@ function JobDetails({
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+function EnvTable({ vars }: { vars: EnvVar[] }) {
+  const [shown, setShown] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setShown((current) => {
+      const next = new Set(current);
+      if (!next.delete(name)) next.add(name);
+      return next;
+    });
+  return (
+    <div className="shrink-0 overflow-hidden rounded-lg border">
+      <Table className="table-fixed">
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[40%]">Name</TableHead>
+            <TableHead>Value</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {vars.map(({ name, value }) => {
+            const hidden = isSecretEnv(name) && !shown.has(name);
+            return (
+              <TableRow key={name}>
+                <TableCell className="font-mono text-xs">{name}</TableCell>
+                <TableCell className="font-mono text-xs break-all whitespace-normal">
+                  <span className="flex items-center gap-1">
+                    <span className="flex-1">{hidden ? "••••••••" : value || "—"}</span>
+                    {isSecretEnv(name) && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`${hidden ? "Show" : "Hide"} ${name}`}
+                        onClick={() => toggle(name)}
+                      >
+                        {hidden ? <Eye /> : <EyeOff />}
+                      </Button>
+                    )}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

@@ -19,11 +19,13 @@ export function ConfirmDelete({
   question,
   remove,
   onDeleted,
+  variant = "ghost",
 }: {
   label: string;
   question: string;
   remove: () => Promise<unknown>;
   onDeleted: () => void;
+  variant?: "ghost" | "outline";
 }) {
   const [open, setOpen] = useState(false);
   const mutation = useMutation({
@@ -36,7 +38,7 @@ export function ConfirmDelete({
   return (
     <>
       <Button
-        variant="ghost"
+        variant={variant}
         size="icon"
         aria-label={label}
         title={label}

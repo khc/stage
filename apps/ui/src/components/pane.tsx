@@ -57,7 +57,7 @@ export const PaneTabsList = ({ className, ...props }: ComponentProps<typeof Tabs
 export const PaneTab = ({ className, ...props }: ComponentProps<typeof TabsTrigger>) => (
   <TabsTrigger
     className={cn(
-      "data-active:text-primary after:bg-primary h-full flex-none px-1 group-data-horizontal/tabs:after:bottom-[-1px]",
+      "data-active:text-primary after:bg-primary h-full flex-none px-1 pb-1 group-data-horizontal/tabs:after:bottom-[-1px]",
       className,
     )}
     {...props}
