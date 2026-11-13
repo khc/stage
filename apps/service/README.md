@@ -34,7 +34,9 @@ src/
   index.ts        composition root: reads the environment, builds the stores and clients, calls createApp
   app.ts          createApp(deps): mounts the route modules, maps errors to HTTP
   routes/         one Hono app per feature, mounted with app.route()
-  services/       operations that span several stores: task-service (create, run, delete)
+  services/       operations that span several stores or sources: task-service (create, run, delete),
+                  session-service (the message stream), platform-event-service, and event-feed,
+                  the helper both streams use
   stores/         Firestore access, one store per thing: task, session, document
   platform/       Cloud Run, Pub/Sub listeners, platform-event publisher
   errors.ts       DependencyError and guard()

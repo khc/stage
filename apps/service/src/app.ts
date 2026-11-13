@@ -12,6 +12,8 @@ import { jobRoute } from "./routes/job-route";
 import { metaRoute } from "./routes/meta-route";
 import { sessionRoute } from "./routes/session-route";
 import { taskRoute } from "./routes/task-route";
+import { createPlatformEventService } from "./services/platform-event-service";
+import { createSessionService } from "./services/session-service";
 import { createTaskService } from "./services/task-service";
 import type { DocumentStore } from "./stores/document-store";
 import type { SessionStore } from "./stores/session-store";
@@ -33,11 +35,14 @@ export type Deps = {
 export const createApp = (deps: Deps) =>
   new Hono()
     .route("/", metaRoute())
-    .route("/", eventRoute(deps.platformEventStream))
+    .route(
+      "/",
+      eventRoute(deps.platformEventStream && createPlatformEventService(deps.platformEventStream)),
+    )
     .route("/jobs", jobRoute(deps.jobs, deps.registry))
     .route("/tasks", taskRoute({ tasks: deps.tasks, service: createTaskService(deps) }))
     .route("/tasks", documentRoute(deps.tasks, deps.documents))
-    .route("/tasks", sessionRoute(deps.tasks, deps.sessions, deps.sessionEventStream))
+    .route("/tasks", sessionRoute(deps.tasks, deps.sessions, createSessionService(deps)))
     .onError((err, c) => {
       if (err instanceof HTTPException) return err.getResponse();
       if (err instanceof DependencyError) {
