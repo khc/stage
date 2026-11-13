@@ -28,7 +28,21 @@ const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => (
   userId: doc.get("userId") as string,
   sessionId,
 });
-const withRun = (run?: RunState) => (run ? { run } : {});
+const toSummary = (
+  taskId: string,
+  doc: { get: (field: string) => unknown },
+): SessionSummary => {
+  const summary: SessionSummary = {
+    id: doc.get("sessionId") as string,
+    taskId,
+    appName: doc.get("appName") as string,
+    userId: doc.get("userId") as string,
+    lastUpdateTime: doc.get("lastUpdateTime") as number,
+  };
+  const run = runState(runFields(doc));
+  if (run) summary.run = run;
+  return summary;
+};
 
 export const createTaskSessions = (db: Firestore): TaskSessions => {
   const service = new FirestoreSessionService(db);
@@ -44,14 +58,7 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
   return {
     async list(taskId) {
       const snapshot = await db.collection("sessions").where("taskId", "==", taskId).get();
-      return snapshot.docs.map((doc) => ({
-        id: doc.get("sessionId"),
-        taskId,
-        appName: doc.get("appName"),
-        userId: doc.get("userId"),
-        lastUpdateTime: doc.get("lastUpdateTime"),
-        ...withRun(runState(runFields(doc))),
-      }));
+      return snapshot.docs.map((doc) => toSummary(taskId, doc));
     },
     async get(taskId, sessionId) {
       const doc = await find(taskId, sessionId);

@@ -27,6 +27,8 @@ const saveWidth = (width: number) => {
   }
 };
 
+const fromPointer = (e: PointerEvent) => clampWidth(window.innerWidth - e.clientX);
+
 // A right-side sheet whose left edge can be dragged (or moved with the arrow keys).
 export function ResizableSheetContent({
   className,
@@ -36,7 +38,6 @@ export function ResizableSheetContent({
 }: ComponentProps<typeof SheetContent> & { label: string }) {
   const [width, setWidth] = useState<number | undefined>(savedWidth);
   const [dragging, setDragging] = useState(false);
-  const fromPointer = (e: PointerEvent) => clampWidth(window.innerWidth - e.clientX);
   const handle = {
     onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
       e.currentTarget.setPointerCapture(e.pointerId);

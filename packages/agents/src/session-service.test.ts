@@ -258,7 +258,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     const ref = { ...key, sessionId: id };
     const results = await Promise.allSettled([service.startRun(ref), service.startRun(ref)]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    const [failure] = results.filter((r) => r.status === "rejected");
+    const failure = results.find((r) => r.status === "rejected");
     expect((failure as PromiseRejectedResult).reason).toBeInstanceOf(RunInProgressError);
     await service.finishRun(ref);
   });

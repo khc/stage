@@ -2,12 +2,13 @@ import { useNavigate } from "@tanstack/react-router";
 
 type Search = Record<string, unknown>;
 
+const keepSearch =
+  (patch: Search = {}) =>
+  (prev: Search) => ({ ...prev, ...patch });
+
 // The open task is the path (/tasks/:taskId); the job pane and create dialog are search params.
 export function useNav() {
   const navigate = useNavigate();
-  const keepSearch =
-    (patch: Search = {}) =>
-    (prev: Search) => ({ ...prev, ...patch });
   const setSearch = (patch: Search) => navigate({ to: ".", search: keepSearch(patch) });
   return {
     openTask: (taskId: string) =>
