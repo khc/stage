@@ -2,20 +2,20 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import { DependencyError } from "../errors";
-import type { PlatformStream } from "../platform/platform-stream";
+import type { PlatformEventStream } from "../platform/platform-event-stream";
 import { KEEPALIVE_MS, noop } from "./shared";
 
 const SEEN_LIMIT = 1_000;
 
 // GET /events: the platform events (task created, run requested, ...) as Server-Sent Events.
-export const eventRoute = (platformStream?: PlatformStream) =>
+export const eventRoute = (platformEventStream?: PlatformEventStream) =>
   new Hono().get("/events", async (c) => {
-    if (!platformStream) return c.json({ error: "not_supported" }, 501);
+    if (!platformEventStream) return c.json({ error: "not_supported" }, 501);
     const pending: [string, string][] = [];
     let wake = noop;
     let unsubscribe = noop;
     try {
-      unsubscribe = await platformStream((id, json) => {
+      unsubscribe = await platformEventStream((id, json) => {
         pending.push([id, json]);
         wake();
       });

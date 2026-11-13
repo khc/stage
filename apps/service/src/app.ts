@@ -4,8 +4,8 @@ import { HTTPException } from "hono/http-exception";
 
 import { DependencyError } from "./errors";
 import type { CloudRunJobs } from "./platform/cloud-run-jobs";
-import type { LiveEvents } from "./platform/live-events";
-import type { PlatformStream } from "./platform/platform-stream";
+import type { PlatformEventStream } from "./platform/platform-event-stream";
+import type { SessionEventStream } from "./platform/session-event-stream";
 import { documentRoute } from "./routes/document-route";
 import { eventRoute } from "./routes/event-route";
 import { jobRoute } from "./routes/job-route";
@@ -24,19 +24,19 @@ export type Deps = {
   sessions: SessionStore;
   registry: Pick<AgentRegistry, "list">;
   documents?: DocumentStore;
-  liveEvents?: LiveEvents;
-  platformStream?: PlatformStream;
+  sessionEventStream?: SessionEventStream;
+  platformEventStream?: PlatformEventStream;
 };
 
 // The routes live in ./routes, one Hono app per feature, mounted here.
 export const createApp = (deps: Deps) =>
   new Hono()
     .route("/", metaRoute())
-    .route("/", eventRoute(deps.platformStream))
+    .route("/", eventRoute(deps.platformEventStream))
     .route("/jobs", jobRoute(deps.jobs, deps.registry))
     .route("/tasks", taskRoute(deps))
     .route("/tasks", documentRoute(deps.tasks, deps.documents))
-    .route("/tasks", sessionRoute(deps.tasks, deps.sessions, deps.liveEvents))
+    .route("/tasks", sessionRoute(deps.tasks, deps.sessions, deps.sessionEventStream))
     .onError((err, c) => {
       if (err instanceof HTTPException) return err.getResponse();
       if (err instanceof DependencyError) {

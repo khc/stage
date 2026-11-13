@@ -5,7 +5,7 @@ const SUBSCRIPTION_TTL_SECONDS = 24 * 60 * 60;
 // Returns a start function that, on first call, creates the topic and one
 // ephemeral subscription and delivers each (already acked) message to
 // onMessage. A failed start is retried by the next call.
-export const createTopicListener = (
+export const createTopicSubscriber = (
   pubsub: Pick<PubSub, "topic">,
   topicName: string,
   subscriptionName: string,

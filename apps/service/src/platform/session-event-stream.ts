@@ -1,12 +1,12 @@
 import type { PubSub } from "@google-cloud/pubsub";
 
-import { createTopicListener } from "./topic-listener";
+import { createTopicSubscriber } from "./topic-subscriber";
 
-export type EventListener = (eventId: string, json: string) => void;
-export type LiveEvents = (
+export type StreamListener = (eventId: string, json: string) => void;
+export type SessionEventStream = (
   taskId: string,
   sessionId: string,
-  listener: EventListener,
+  listener: StreamListener,
 ) => Promise<() => void>;
 
 const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
@@ -14,13 +14,13 @@ const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessi
 // One ephemeral subscription per service process, fanned out in memory.
 // Started on the first listener, so a service nobody streams from never
 // touches Pub/Sub. Events published before that are served from Firestore.
-export const createLiveEvents = (
+export const createSessionEventStream = (
   pubsub: Pick<PubSub, "topic">,
   topicName: string,
   subscriptionName = `stage-service-${crypto.randomUUID()}`,
-): LiveEvents => {
-  const listeners = new Map<string, Set<EventListener>>();
-  const start = createTopicListener(pubsub, topicName, subscriptionName, (message) => {
+): SessionEventStream => {
+  const listeners = new Map<string, Set<StreamListener>>();
+  const start = createTopicSubscriber(pubsub, topicName, subscriptionName, (message) => {
     const { taskId, sessionId, eventId } = message.attributes;
     if (!taskId || !sessionId || !eventId) return;
     for (const listener of listeners.get(key(taskId, sessionId)) ?? [])

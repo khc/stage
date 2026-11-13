@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 
 import { createApp } from "../app";
-import { createPlatformStream, type PlatformStream } from "./platform-stream";
+import { createPlatformEventStream, type PlatformEventStream } from "./platform-event-stream";
 
 const setup = () => {
   const handlers: Record<string, (arg: unknown) => void> = {};
@@ -13,7 +13,7 @@ const setup = () => {
   const createSubscription = mock(async (_name: string, _opts: unknown) => [subscription]);
   const get = mock(async (_opts: unknown) => [{ createSubscription }]);
   const topic = mock((_name: string) => ({ get }));
-  const stream = createPlatformStream({ topic } as never, "platform-events", "sub-1");
+  const stream = createPlatformEventStream({ topic } as never, "platform-events", "sub-1");
   const deliver = (attributes: Record<string, string>, data = "{}") => {
     const ack = mock(() => {});
     handlers.message?.({ ack, attributes, data: Buffer.from(data) });
@@ -51,7 +51,7 @@ test("ignores messages without an event id and stops after unsubscribe", async (
   expect(listener).not.toHaveBeenCalled();
 });
 
-const appWith = (platformStream?: PlatformStream) =>
+const appWith = (platformEventStream?: PlatformEventStream) =>
   createApp({
     jobs: { list: async () => [], run: async () => "", registerAgents: async () => "" },
     registry: { list: async () => [] },
@@ -68,7 +68,7 @@ const appWith = (platformStream?: PlatformStream) =>
       queueMessage: async () => true,
       clearMessage: async () => {},
     },
-    platformStream,
+    platformEventStream,
   });
 
 const readFrames = async (res: Response, frames: number) => {
@@ -94,12 +94,12 @@ test("GET /events is 501 without a platform stream", async () => {
 test("GET /events streams each platform event once and unsubscribes on abort", async () => {
   const unsubscribe = mock(() => {});
   let push: (id: string, json: string) => void = () => {};
-  const platformStream: PlatformStream = async (listener) => {
+  const platformEventStream: PlatformEventStream = async (listener) => {
     push = listener;
     return unsubscribe;
   };
 
-  const res = await appWith(platformStream).request("/events");
+  const res = await appWith(platformEventStream).request("/events");
   expect(res.headers.get("content-type")).toContain("text/event-stream");
   push("e1", '{"type":"task.created"}');
   push("e1", '{"type":"task.created"}');

@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 
 import { createApp } from "./app";
-import type { EventListener, LiveEvents } from "./platform/live-events";
+import type { StreamListener, SessionEventStream } from "./platform/session-event-stream";
 import type { TaskContract } from "./stores/task-store";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
@@ -11,7 +11,7 @@ const stored = [
   { id: "e2", author: "a" },
 ];
 
-const setup = (opts: { task?: boolean; session?: boolean; live?: LiveEvents }) => {
+const setup = (opts: { task?: boolean; session?: boolean; live?: SessionEventStream }) => {
   const get = mock(async (_t: string, _s: string) =>
     opts.session === false ? undefined : ({ id: "s1", events: stored } as never),
   );
@@ -32,7 +32,7 @@ const setup = (opts: { task?: boolean; session?: boolean; live?: LiveEvents }) =
       queueMessage: async () => true,
       clearMessage: async () => {},
     },
-    liveEvents: opts.live,
+    sessionEventStream: opts.live,
   });
   return { app, get };
 };
@@ -68,9 +68,9 @@ test("without live events it streams the stored events and stays open", async ()
 });
 
 test("replays history then live events, dropping duplicates", async () => {
-  let listener: EventListener = () => {};
+  let listener: StreamListener = () => {};
   const unsubscribe = mock(() => {});
-  const live: LiveEvents = async (_t, _s, l) => {
+  const live: SessionEventStream = async (_t, _s, l) => {
     listener = l;
     l("e2", '{"id":"e2","author":"a"}');
     return unsubscribe;
@@ -86,7 +86,7 @@ test("replays history then live events, dropping duplicates", async () => {
 });
 
 test("a failing subscription returns 502 events_error", async () => {
-  const live: LiveEvents = async () => {
+  const live: SessionEventStream = async () => {
     throw new Error("pubsub private detail");
   };
   const res = await setup({ live }).app.request(url);

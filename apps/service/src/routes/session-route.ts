@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import { DependencyError, guard } from "../errors";
-import type { LiveEvents } from "../platform/live-events";
+import type { SessionEventStream } from "../platform/session-event-stream";
 import { sessionParamSchema, taskParamSchema } from "../schemas";
 import { sessionStats } from "../stats";
 import type { SessionStore } from "../stores/session-store";
@@ -14,7 +14,7 @@ import { KEEPALIVE_MS, noop } from "./shared";
 export const sessionRoute = (
   tasks: Pick<TaskStore, "get">,
   sessions: SessionStore,
-  liveEvents?: LiveEvents,
+  sessionEventStream?: SessionEventStream,
 ) =>
   new Hono()
     .get("/:taskId/sessions", zValidator("param", taskParamSchema), async (c) => {
@@ -68,7 +68,7 @@ export const sessionRoute = (
           if (!(await tasks.get(taskId))) return c.json({ error: "task_not_found" }, 404);
           // Subscribe before reading history so no event falls in the gap.
           unsubscribe =
-            (await liveEvents?.(taskId, sessionId, (id, json) => {
+            (await sessionEventStream?.(taskId, sessionId, (id, json) => {
               pending.push([id, json]);
               wake();
             })) ?? unsubscribe;

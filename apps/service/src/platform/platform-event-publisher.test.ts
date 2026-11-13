@@ -7,7 +7,7 @@ import {
   createPlatformPublisher,
   platformEventsFromEnv,
   withPlatformEvents,
-} from "./platform-events";
+} from "./platform-event-publisher";
 
 // A complete TaskStore of stubs; a test overrides only what it checks.
 const taskStore = (overrides: Partial<TaskStore> = {}): TaskStore => ({

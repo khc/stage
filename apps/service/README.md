@@ -47,7 +47,7 @@ Dependencies point downwards: `routes` use `usecases` and `stores`, `usecases` u
 
 ### Dependency injection
 
-`createApp` takes one `Deps` object (see `app.ts`): the stores and clients it needs (`tasks`, `sessions`, `jobs`, `registry`), plus the optional features (`documents`, `liveEvents`, `platformStream`). Each is an object of methods built by a factory (`createTaskStore(db)`, `createCloudRunJobs(client, config)`), so a test passes a fake object instead of mocking a module. `app.test.ts` has a `buildApp(overrides)` helper that starts from stubs.
+`createApp` takes one `Deps` object (see `app.ts`): the stores and clients it needs (`tasks`, `sessions`, `jobs`, `registry`), plus the optional features (`documents`, `sessionEventStream`, `platformEventStream`). Each is an object of methods built by a factory (`createTaskStore(db)`, `createCloudRunJobs(client, config)`), so a test passes a fake object instead of mocking a module. `app.test.ts` has a `buildApp(overrides)` helper that starts from stubs.
 
 ### Routes
 

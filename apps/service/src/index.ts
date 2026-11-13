@@ -4,11 +4,11 @@ import { createAgentRegistry } from "@stage/agents/agent-registry";
 import { z } from "zod";
 
 import { createApp } from "./app";
-import { createJobsClient } from "./platform/cloud-run";
 import { createCloudRunJobs } from "./platform/cloud-run-jobs";
-import { createLiveEvents } from "./platform/live-events";
-import { platformEventsFromEnv } from "./platform/platform-events";
-import { createPlatformStream } from "./platform/platform-stream";
+import { createJobsClient } from "./platform/cloud-run-jobs-client";
+import { platformEventsFromEnv } from "./platform/platform-event-publisher";
+import { createPlatformEventStream } from "./platform/platform-event-stream";
+import { createSessionEventStream } from "./platform/session-event-stream";
 import { createExtractDocument, createDocumentStore } from "./stores/document-store";
 import { createSessionStore } from "./stores/session-store";
 import { createTaskStore } from "./stores/task-store";
@@ -35,11 +35,11 @@ const app = createApp({
   sessions: createSessionStore(db),
   documents: taskDocuments && published(platform?.documents, taskDocuments),
   registry: createAgentRegistry(db),
-  liveEvents: process.env.PUBSUB_TOPIC
-    ? createLiveEvents(new PubSub(), process.env.PUBSUB_TOPIC)
+  sessionEventStream: process.env.PUBSUB_TOPIC
+    ? createSessionEventStream(new PubSub(), process.env.PUBSUB_TOPIC)
     : undefined,
-  platformStream: process.env.PLATFORM_EVENTS_TOPIC
-    ? createPlatformStream(new PubSub(), process.env.PLATFORM_EVENTS_TOPIC)
+  platformEventStream: process.env.PLATFORM_EVENTS_TOPIC
+    ? createPlatformEventStream(new PubSub(), process.env.PLATFORM_EVENTS_TOPIC)
     : undefined,
 });
 

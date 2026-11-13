@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
-import { createJobsClient } from "./cloud-run";
 import { createCloudRunJobs } from "./cloud-run-jobs";
+import { createJobsClient } from "./cloud-run-jobs-client";
 
 test("with CLOUD_RUN_EMULATOR_HOST, runs a job over plain REST without credentials", async () => {
   const requests: {

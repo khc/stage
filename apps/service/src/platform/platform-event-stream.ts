@@ -1,19 +1,19 @@
 import type { PubSub } from "@google-cloud/pubsub";
 
-import type { EventListener } from "./live-events";
-import { createTopicListener } from "./topic-listener";
+import type { StreamListener } from "./session-event-stream";
+import { createTopicSubscriber } from "./topic-subscriber";
 
-export type PlatformStream = (listener: EventListener) => Promise<() => void>;
+export type PlatformEventStream = (listener: StreamListener) => Promise<() => void>;
 
 // One ephemeral subscription per service process, fanned out in memory to
 // every connected /events client. Started on the first listener.
-export const createPlatformStream = (
+export const createPlatformEventStream = (
   pubsub: Pick<PubSub, "topic">,
   topicName: string,
   subscriptionName = `stage-service-platform-${crypto.randomUUID()}`,
-): PlatformStream => {
-  const listeners = new Set<EventListener>();
-  const start = createTopicListener(pubsub, topicName, subscriptionName, (message) => {
+): PlatformEventStream => {
+  const listeners = new Set<StreamListener>();
+  const start = createTopicSubscriber(pubsub, topicName, subscriptionName, (message) => {
     const { eventId } = message.attributes;
     if (!eventId) return;
     for (const listener of listeners) listener(eventId, message.data.toString());

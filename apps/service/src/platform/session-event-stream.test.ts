@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-import { createLiveEvents } from "./live-events";
+import { createSessionEventStream } from "./session-event-stream";
 
 const setup = () => {
   const handlers: Record<string, (arg: unknown) => void> = {};
@@ -12,7 +12,7 @@ const setup = () => {
   const createSubscription = mock(async (_name: string, _opts: unknown) => [subscription]);
   const get = mock(async (_opts: unknown) => [{ createSubscription }]);
   const topic = mock((_name: string) => ({ get }));
-  const live = createLiveEvents({ topic } as never, "events", "sub-1");
+  const live = createSessionEventStream({ topic } as never, "events", "sub-1");
   const deliver = (attributes: Record<string, string>, data = "{}") => {
     const ack = mock(() => {});
     handlers.message?.({ ack, attributes, data: Buffer.from(data) });
