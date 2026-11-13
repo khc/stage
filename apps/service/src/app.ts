@@ -1,4 +1,4 @@
-import type { ListAgents } from "@stage/agents/agent-registry";
+import { toAgentCard, type ListAgents } from "@stage/agents/agent-registry";
 import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
@@ -15,6 +15,7 @@ import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
   documentParamSchema,
+  agentParamSchema,
   jobParamSchema,
   resumeSchema,
   taskSchema,
@@ -110,6 +111,23 @@ export const createApp = (
         });
       }
     })
+    .get(
+      "/jobs/:jobName/agents/:agentName/card",
+      zValidator("param", agentParamSchema),
+      async (c) => {
+        const { jobName, agentName } = c.req.valid("param");
+        try {
+          const agent = ((await registry?.list(jobName)) ?? []).find((a) => a.name === agentName);
+          if (!agent) return c.json({ error: "agent_not_found" }, 404);
+          return c.json(toAgentCard(jobName, agent));
+        } catch (err) {
+          console.error(err);
+          throw new HTTPException(502, {
+            res: c.json({ error: "agents_error" }, 502),
+          });
+        }
+      },
+    )
     .post("/jobs/:jobName/register", zValidator("param", jobParamSchema), async (c) => {
       if (!registry) return c.json({ error: "not_supported" }, 501);
       try {

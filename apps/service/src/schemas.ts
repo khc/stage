@@ -12,6 +12,7 @@ export const agentNameSchema = z
   .string()
   .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
   .max(64);
+export const agentParamSchema = jobParamSchema.extend({ agentName: agentNameSchema });
 export const taskSchema = z.object({
   prompt: message,
   jobName: jobNameSchema,

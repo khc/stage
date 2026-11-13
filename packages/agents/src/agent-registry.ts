@@ -60,3 +60,37 @@ export const createListAgents =
         return info;
       })
       .toSorted((a, b) => a.name.localeCompare(b.name));
+
+const mode = (schema?: JsonSchema) =>
+  schema?.type === "string" || schema === undefined ? "text/plain" : "application/json";
+
+// A registered agent as an A2A-style Agent Card: a discovery document with the
+// agent's skill and its input and output modes. It carries no endpoint, because
+// this service does not speak the A2A protocol; the schemas ride along under
+// `x-stage` so a consumer can still build and check messages.
+export const toAgentCard = (jobName: string, info: AgentInfo) => {
+  const inputModes = [mode(info.inputSchema)];
+  const outputModes = [mode(info.outputSchema)];
+  return {
+    name: info.name,
+    description: info.description ?? "",
+    capabilities: { streaming: true },
+    defaultInputModes: inputModes,
+    defaultOutputModes: outputModes,
+    skills: [
+      {
+        id: info.name,
+        name: info.name,
+        description: info.description ?? "",
+        tags: [jobName],
+        inputModes,
+        outputModes,
+      },
+    ],
+    "x-stage": {
+      jobName,
+      ...(info.inputSchema && { inputSchema: info.inputSchema }),
+      ...(info.outputSchema && { outputSchema: info.outputSchema }),
+    },
+  };
+};

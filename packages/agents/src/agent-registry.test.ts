@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-import { createListAgents, createRegisterAgents } from "./agent-registry";
+import { createListAgents, createRegisterAgents, toAgentCard } from "./agent-registry";
 
 const registerSetup = (stored: { name: string; id: string }[]) => {
   const doc = mock((id: string) => ({ id }));
@@ -88,4 +88,30 @@ test("stores schemas as JSON text and parses them back when listing", async () =
     collection: () => ({ where }),
   } as never)("my-job");
   expect(listed).toEqual([{ name: "x", inputSchema: input }]);
+});
+
+test("toAgentCard describes a structured agent as one JSON skill with its schemas", () => {
+  const inputSchema = { type: "object", properties: { topic: { type: "string" } } };
+  const card = toAgentCard("poet-agents", {
+    name: "haiku",
+    description: "Writes a haiku.",
+    inputSchema,
+    outputSchema: { type: "object" },
+  });
+  expect(card).toMatchObject({
+    name: "haiku",
+    description: "Writes a haiku.",
+    defaultInputModes: ["application/json"],
+    defaultOutputModes: ["application/json"],
+    skills: [{ id: "haiku", tags: ["poet-agents"], inputModes: ["application/json"] }],
+    "x-stage": { jobName: "poet-agents", inputSchema },
+  });
+});
+
+test("toAgentCard treats string or missing schemas as plain text", () => {
+  const card = toAgentCard("j", { name: "assistant", inputSchema: { type: "string" } });
+  expect(card.defaultInputModes).toEqual(["text/plain"]);
+  expect(card.defaultOutputModes).toEqual(["text/plain"]);
+  expect(card.description).toBe("");
+  expect(card["x-stage"]).not.toHaveProperty("outputSchema");
 });

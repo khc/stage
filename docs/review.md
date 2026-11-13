@@ -35,7 +35,7 @@ Sessions, tasks and the agent registry all live in Firestore. A task run is a on
 4. **No failure or retry policy.** A crash mid-run exits 1 and leaves a half-written session with no recorded error and no resume path. There are no step limits, timeouts or token budgets on agents either; the stats exist but nothing enforces them. This is not tested; retry settings on the Cloud Run job definition were not inspected.
    - **Fix:** record the failure on the run document (finding 1), and add `maxLlmCalls` and a timeout in `createTaskAgent`.
 
-5. **Agent registry is bespoke, and registering is heavy.**
+5. **Done: agent registry is bespoke, and registering is heavy.** Registering at deploy time is implemented (`task register-agents` writes straight to Firestore, no Cloud Run execution; `POST /jobs/:jobName/register` stays for the dashboard button). `GET /jobs/:jobName/agents/:agentName/card` serves each agent as an A2A-style Agent Card, derived from the registry (no stored-data change; no A2A endpoint).
    - Registration runs the whole container in `register` mode as a Cloud Run execution ([jobs.ts](../apps/service/src/jobs.ts)). Registering at image build or deploy time would be cheaper.
    - The registry shape (name, description, input and output schemas) is close to an A2A Agent Card. The A2A spec itself doesn't define a registry API ([Google Cloud Agent Registry](https://docs.cloud.google.com/agent-registry/a2a-protocol) is a vendor example). Borrow the card shape now so interop stays cheap later. The card format changed between 0.3 and 1.0, so check the current spec before relying on it.
 

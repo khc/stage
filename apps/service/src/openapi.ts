@@ -167,6 +167,28 @@ export const openApiDocument = {
         },
       },
     },
+    "/jobs/{jobName}/agents/{agentName}/card": {
+      get: {
+        operationId: "getAgentCard",
+        summary: "An agent as an A2A-style Agent Card",
+        description:
+          "A discovery document built from the registry: the agent's name, description, one skill, and its input and output modes (text/plain for a string schema, application/json otherwise). It has no endpoint, because this service does not implement the A2A protocol; the JSON Schemas are under x-stage.",
+        parameters: [
+          jobName,
+          { name: "agentName", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          200: response("Agent Card", {
+            type: "object",
+            required: ["name", "skills"],
+            additionalProperties: true,
+          }),
+          400: invalid,
+          404: response("Agent not registered for the job", error("agent_not_found")),
+          502: response("Registry failure", error("agents_error")),
+        },
+      },
+    },
     "/jobs/{jobName}/register": {
       post: {
         operationId: "registerJobAgents",

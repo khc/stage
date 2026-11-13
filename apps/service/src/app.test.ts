@@ -726,6 +726,30 @@ describe("agent registry routes", () => {
     expect((await app.request("/jobs/Bad_Name/agents")).status).toBe(400);
   });
 
+  test("GET /jobs/:jobName/agents/:agentName/card returns the agent as a card", async () => {
+    const list = mock(async (_job: string) => [
+      { name: "haiku", description: "Writes a haiku.", inputSchema: { type: "object" } },
+    ]);
+    const { app } = registryApp({ register: async () => "", list });
+    const res = await app.request("/jobs/my-job/agents/haiku/card");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      name: "haiku",
+      skills: [{ id: "haiku", tags: ["my-job"] }],
+      defaultInputModes: ["application/json"],
+    });
+    expect(list).toHaveBeenCalledWith("my-job");
+  });
+
+  test("GET agent card returns 404 for an unregistered agent and 400 for bad names", async () => {
+    const { app } = registryApp({ register: async () => "", list: async () => registered });
+    const missing = await app.request("/jobs/my-job/agents/nope/card");
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ error: "agent_not_found" });
+    expect((await app.request("/jobs/my-job/agents/1bad/card")).status).toBe(400);
+    expect((await registryApp().app.request("/jobs/my-job/agents/x/card")).status).toBe(404);
+  });
+
   test("POST /jobs/:jobName/register submits the register run", async () => {
     const register = mock(async (_job: string) => "op-7");
     const { app } = registryApp({ register, list: async () => [] });

@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   FLOCI: http://localhost:4588
+  FLOCI_HOST: localhost:4588
   PROJECT: floci-local
   REGION: us-central1
   # One Cloud Run job per agent app (agents/<name>). The image is
@@ -36,10 +37,10 @@ tasks:
         cmd: JOB_NAME={{.ITEM}}-agents JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
 
   register-agents:
-    desc: Record the agents inside each job image in the registry (needs the service running; override JOBS, SERVICE_URL)
+    desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT)
     cmds:
       - for: { var: JOBS }
-        cmd: curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.ITEM}}-agents/register
+        cmd: JOB_NAME={{.ITEM}}-agents FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun agents/{{.ITEM}}/src/main.ts register
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
