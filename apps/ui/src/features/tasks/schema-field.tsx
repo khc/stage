@@ -72,13 +72,13 @@ export function SchemaField({
       {field.kind !== "boolean" && (
         <Label htmlFor={id} className="justify-between">
           {field.label}
-          <span className="text-muted-foreground text-xs font-normal">
+          <span className="text-xs font-normal text-muted-foreground">
             {field.required ? "Required" : "Optional"}
           </span>
         </Label>
       )}
       {control}
-      {field.description && <p className="text-muted-foreground text-xs">{field.description}</p>}
+      {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
     </div>
   );
 }

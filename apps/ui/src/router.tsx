@@ -97,11 +97,11 @@ function Shell() {
           <Separator orientation="vertical" className="h-4" />
           <nav
             aria-label="Breadcrumb"
-            className="text-muted-foreground flex items-center gap-1 text-sm"
+            className="flex items-center gap-1 text-sm text-muted-foreground"
           >
             Workspace
             <ChevronRight className="size-3.5" />
-            <strong className="text-foreground font-medium">{crumb}</strong>
+            <strong className="font-medium text-foreground">{crumb}</strong>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
@@ -110,12 +110,12 @@ function Shell() {
         <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-primary mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest">
-                <span className="bg-primary h-px w-4" />
+              <p className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest text-primary">
+                <span className="h-px w-4 bg-primary" />
                 AGENT OPERATIONS
               </p>
               <h1 className="text-2xl font-semibold">{title}</h1>
-              <p className="text-muted-foreground text-sm">{subtitle}</p>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
             <div className="flex gap-2">
               <Button
@@ -135,7 +135,7 @@ function Shell() {
           </div>
           <Outlet />
         </main>
-        <footer className="text-muted-foreground flex items-center justify-between border-t px-6 py-3 text-xs">
+        <footer className="flex items-center justify-between border-t px-6 py-3 text-xs text-muted-foreground">
           <span>STAGE · YOUR AGENT WORKSPACE</span>
         </footer>
       </SidebarInset>
@@ -163,7 +163,7 @@ function Stat({
   note: string;
 }) {
   const card = (
-    <Card className={`relative ${to ? "hover:border-primary/40 transition-colors" : ""}`}>
+    <Card className={`relative ${to ? "transition-colors hover:border-primary/40" : ""}`}>
       <CardHeader>
         <span
           className={`absolute top-4 right-4 grid size-9 place-items-center rounded-lg [&_svg]:size-4 ${tone}`}
@@ -173,7 +173,7 @@ function Stat({
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-xs">{note}</CardContent>
+      <CardContent className="text-xs text-muted-foreground">{note}</CardContent>
     </Card>
   );
   return to ? (
@@ -224,32 +224,32 @@ function Overview() {
           }
         />
       </section>
-      <Card className="border-primary/20 from-primary/15 via-primary/5 to-card bg-gradient-to-br">
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-card">
         <CardContent className="flex flex-wrap items-center gap-4">
-          <span className="bg-primary/15 text-primary grid size-11 place-items-center rounded-xl">
+          <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
             <Workflow className="size-6" />
           </span>
           <div className="flex-1">
             <h2 className="font-medium">One task. Every conversation in view.</h2>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Give an agent a prompt, then inspect its work through execution sessions.
             </p>
           </div>
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <FileText className="size-4" /> Save <Play className="size-4" /> Run{" "}
             <Terminal className="size-4" /> Inspect
           </div>
         </CardContent>
       </Card>
       <TasksPanel title="Saved tasks" />
-      <p className="text-muted-foreground flex items-center gap-2 text-xs">
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Database className="size-3.5" />
         Tasks define the work. Jobs execute it. Sessions tell the story.
         <a
           href="/docs"
           target="_blank"
           rel="noreferrer"
-          className="text-primary ml-auto flex items-center gap-1"
+          className="ml-auto flex items-center gap-1 text-primary"
         >
           Explore the API <ArrowRight className="size-3" />
         </a>
@@ -274,7 +274,7 @@ function Jobs() {
           <Badge variant="secondary">{jobs.length}</Badge>
         </CardTitle>
         <div className="relative w-64 max-w-full">
-          <Search className="text-muted-foreground absolute top-2 left-2.5 size-4" />
+          <Search className="absolute top-2 left-2.5 size-4 text-muted-foreground" />
           <Input
             data-search
             aria-label="Search jobs"

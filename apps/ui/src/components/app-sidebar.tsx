@@ -64,14 +64,14 @@ export function AppSidebar() {
           Stage
         </Link>
         <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
-          <span className="bg-primary/10 text-primary grid size-7 place-items-center rounded-md text-xs font-semibold">
+          <span className="grid size-7 place-items-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
             A
           </span>
           <div className="flex flex-1 flex-col leading-tight">
             Agent workspace
-            <span className="text-muted-foreground text-xs">Task orchestration</span>
+            <span className="text-xs text-muted-foreground">Task orchestration</span>
           </div>
-          <ChevronRight className="text-muted-foreground size-3.5" />
+          <ChevronRight className="size-3.5 text-muted-foreground" />
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -106,7 +106,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="text-muted-foreground flex items-center gap-2 px-2 text-xs">
+        <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
           <StatusDot />
           {label}
           <span className="ml-auto">v1.0</span>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
-    <div className="text-muted-foreground flex items-center justify-center gap-2 p-8 text-sm">
+    <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
       <Loader2 className="size-4 animate-spin" />
       {label}
     </div>
@@ -43,9 +43,9 @@ export function Empty({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 p-8 text-center">
-      <div className="bg-muted text-muted-foreground rounded-full p-3 [&_svg]:size-5">{icon}</div>
+      <div className="rounded-full bg-muted p-3 text-muted-foreground [&_svg]:size-5">{icon}</div>
       <h3 className="font-medium">{title}</h3>
-      <p className="text-muted-foreground max-w-sm text-sm">{children}</p>
+      <p className="max-w-sm text-sm text-muted-foreground">{children}</p>
       {action}
     </div>
   );
@@ -81,7 +81,7 @@ export function CopyButton({ value, label = "Copy ID" }: { value: string; label?
 
 export function IdLine({ value }: { value: string }) {
   return (
-    <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+    <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
       <code className="truncate">{value}</code>
       <CopyButton value={value} />
     </div>
@@ -90,7 +90,7 @@ export function IdLine({ value }: { value: string }) {
 
 export function Overline({ children }: { children: ReactNode }) {
   return (
-    <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+    <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
       {children}
     </p>
   );

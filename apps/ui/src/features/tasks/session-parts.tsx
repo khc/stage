@@ -59,7 +59,7 @@ export function useSessionStream(taskId: string, sessionId: string | null) {
 
 function Preview({ children, wrap = true }: { children: ReactNode; wrap?: boolean }) {
   return (
-    <div className={cn("bg-muted/40 rounded-lg border p-3 text-sm", wrap && "whitespace-pre-wrap")}>
+    <div className={cn("rounded-lg border bg-muted/40 p-3 text-sm", wrap && "whitespace-pre-wrap")}>
       {children}
     </div>
   );
@@ -112,8 +112,8 @@ export function SessionStatsBar({
       aria-label="Token usage"
     >
       {items.map(([label, value]) => (
-        <div key={label} className="bg-muted/30 rounded-xl border px-3 py-2.5">
-          <dt className="text-muted-foreground text-[0.65rem] font-semibold tracking-wider uppercase">
+        <div key={label} className="rounded-xl border bg-muted/30 px-3 py-2.5">
+          <dt className="text-[0.65rem] font-semibold tracking-wider text-muted-foreground uppercase">
             {label}
           </dt>
           <dd className="text-xl font-medium">{value.toLocaleString()}</dd>
@@ -175,7 +175,7 @@ export function ContinueSession({
         if (canSend) resume.mutate();
       }}
     >
-      <InputGroup className="bg-muted dark:bg-muted rounded-3xl border-transparent">
+      <InputGroup className="rounded-3xl border-transparent bg-muted dark:bg-muted">
         <InputGroupTextarea
           className="max-h-40 min-h-0 resize-none p-3"
           aria-label="Message to continue the session"
@@ -204,19 +204,19 @@ export function ContinueSession({
         </InputGroupAddon>
       </InputGroup>
       {resume.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {resume.error.message}
         </p>
       ) : resume.isSuccess ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           Sent. New events appear when the agent responds.
         </p>
       ) : running ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           The agent is still running. You can reply when it finishes.
         </p>
       ) : (
-        <p className="text-muted-foreground text-xs">Enter to send · Shift+Enter for a new line</p>
+        <p className="text-xs text-muted-foreground">Enter to send · Shift+Enter for a new line</p>
       )}
     </form>
   );
@@ -323,7 +323,7 @@ export function LastOutput({
       {output ? (
         <>
           <OutputText text={output.text} schema={agent?.outputSchema} />
-          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock3 className="size-3" />
             {formatTime(output.timestamp ?? latest.lastUpdateTime)}
           </p>
@@ -362,7 +362,7 @@ export function TaskDocuments({
       <div className="flex items-start justify-between gap-2">
         <div>
           <Overline>Documents</Overline>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Uploaded files are extracted to text and attached to this task.
           </p>
         </div>
@@ -395,7 +395,7 @@ export function TaskDocuments({
         <div className="flex flex-col gap-2">
           {query.data.documents.map((doc) => (
             <div key={doc.documentId} className="flex items-center gap-3 rounded-lg border p-3">
-              <FileText className="text-muted-foreground size-4" />
+              <FileText className="size-4 text-muted-foreground" />
               <span className="min-w-0 flex-1">
                 <strong className="block truncate text-sm">{doc.filename}</strong>
                 <small className="text-muted-foreground">{doc.contentType}</small>
@@ -427,12 +427,12 @@ function ToolEvent({
 }) {
   return (
     <Collapsible defaultOpen={open}>
-      <CollapsibleTrigger className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         {icon}
         {name}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <JsonView className="bg-muted overflow-x-auto rounded-md p-2" value={data} />
+        <JsonView className="overflow-x-auto rounded-md bg-muted p-2" value={data} />
       </CollapsibleContent>
     </Collapsible>
   );
@@ -446,7 +446,7 @@ export function EventCard({ event, index }: { event: SessionEvent; index: number
     <Message align={align}>
       <MessageContent>
         <MessageHeader className={cn("gap-2", isUser && "justify-end")}>
-          <strong className="text-primary font-medium capitalize">
+          <strong className="font-medium text-primary capitalize">
             {event.author ?? event.content?.role ?? "Event"}
           </strong>
           <span className="font-normal">

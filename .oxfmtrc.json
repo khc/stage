@@ -9,8 +9,8 @@
   "trailingComma": "all",
 
   "sortImports": {},
-  "sortTailwindcss": { "stylesheet": "./apps/web/src/styles.css", "functions": ["cn", "cva"] },
+  "sortTailwindcss": { "stylesheet": "./apps/ui/src/index.css", "functions": ["cn", "cva"] },
   "sortPackageJson": true,
 
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**", "apps/web/src/dash.html"]
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**"]
 }

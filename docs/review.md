@@ -41,7 +41,7 @@ Sessions, tasks and the agent registry all live in Firestore. A task run is a on
 
 6. **Session store scalability.** `listSessions` loads every session for the app and filters in memory ([session-service.ts](../packages/agents/src/session-service.ts)). `getSession` reads all events. `userId` is hardcoded to `"user"`. Fine at this scale; querying by `taskId` is the first fix.
 
-7. **Two dashboards.** `apps/web` (still in the README, `Dockerfile.web` and the Taskfile) and `apps/ui` (newer commits) are both live. The README doesn't mention `apps/ui`.
+7. **Done: two dashboards.** `apps/web`, `Dockerfile.web` and the root `bunfig.toml` are removed; `apps/ui` is the only dashboard and the README describes it. It has no Docker image yet.
    - **Fix:** pick one and delete the other.
 
 8. **Only single agents, no orchestration.** `AgentSpec` takes any ADK `BaseAgent`, so sequential, parallel or loop agents drop in without changes. Don't add them until a real task needs one. First candidates: a reviewer or evaluator pass on `document_analyser` output, and a human-approval step, which finding 1 would make possible.

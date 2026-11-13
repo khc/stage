@@ -9,7 +9,6 @@ COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
-COPY apps/web/package.json ./apps/web/package.json
 RUN bun install --frozen-lockfile --production
 
 FROM ${BUN_IMAGE} AS runtime

@@ -51,13 +51,13 @@ export function RegisterAgentsButton({
 export function RegisterAgentsNote({ register }: { register: Register }) {
   if (register.isError)
     return (
-      <p className="text-destructive text-xs" role="alert">
+      <p className="text-xs text-destructive" role="alert">
         {register.error.message}
       </p>
     );
   if (register.isSuccess)
     return (
-      <p className="text-muted-foreground text-xs" role="status">
+      <p className="text-xs text-muted-foreground" role="status">
         Registration submitted. Agents appear here when the job finishes.
       </p>
     );
@@ -75,7 +75,7 @@ export function AgentContract({ agent }: { agent: AgentInfo }) {
         const fields = schemaRows(schema);
         return (
           <div key={label}>
-            <dt className="text-muted-foreground text-xs font-semibold uppercase">{label}</dt>
+            <dt className="text-xs font-semibold text-muted-foreground uppercase">{label}</dt>
             <dd>
               {fields.length ? (
                 <ul className="flex flex-col gap-1">
@@ -84,10 +84,10 @@ export function AgentContract({ agent }: { agent: AgentInfo }) {
                       <code className="font-mono text-xs">{row.name}</code>{" "}
                       <span className="text-muted-foreground">{row.type}</span>
                       {row.required && (
-                        <em className="text-muted-foreground ml-1 text-xs">required</em>
+                        <em className="ml-1 text-xs text-muted-foreground">required</em>
                       )}
                       {row.description && (
-                        <p className="text-muted-foreground text-xs">{row.description}</p>
+                        <p className="text-xs text-muted-foreground">{row.description}</p>
                       )}
                     </li>
                   ))}

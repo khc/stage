@@ -157,7 +157,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-primary -ml-1.5"
+                  className="-ml-1.5 text-primary"
                   aria-label="All sessions"
                   title="All sessions"
                   onClick={() => setSessionId(null)}
@@ -167,7 +167,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                 {detail.data && (
                   <>
                     <h3 className="text-lg font-semibold">Session activity</h3>
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-sm text-muted-foreground">
                       {detail.data.events.length} events
                     </span>
                     <RunBadge run={detail.data.run} />
@@ -205,7 +205,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                               sessionId={detail.data.id}
                               events={detail.data.events.length}
                             />
-                            <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock3 className="size-3" />
                               Updated {formatTime(detail.data.lastUpdateTime)}
                             </p>
@@ -213,12 +213,12 @@ function TaskDetails({ taskId }: { taskId: string }) {
                               <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-medium">
                                 <Database className="size-4" />
                                 Session state
-                                <span className="text-muted-foreground ml-auto text-xs font-normal">
+                                <span className="ml-auto text-xs font-normal text-muted-foreground">
                                   {Object.keys(detail.data.state).length} keys
                                 </span>
                               </CollapsibleTrigger>
                               <CollapsibleContent>
-                                <pre className="bg-muted mt-2 overflow-x-auto rounded-md p-2 text-xs">
+                                <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-2 text-xs">
                                   {JSON.stringify(detail.data.state, null, 2)}
                                 </pre>
                               </CollapsibleContent>
@@ -257,7 +257,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <Overline>Execution sessions</Overline>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     Each attempt has its own conversation.
                   </p>
                 </div>
@@ -284,10 +284,10 @@ function TaskDetails({ taskId }: { taskId: string }) {
                 list.map((session, i) => (
                   <button
                     key={session.id}
-                    className="hover:bg-muted flex items-center gap-3 rounded-lg border p-3 text-left"
+                    className="flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted"
                     onClick={() => setSessionId(session.id)}
                   >
-                    <span className="bg-primary/10 text-primary grid size-9 place-items-center rounded-lg">
+                    <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
                       <Terminal className="size-4" />
                     </span>
                     <span className="flex-1">
@@ -298,7 +298,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                     </span>
                     <RunBadge run={session.run} />
                     {i === 0 && <Badge variant="secondary">Latest</Badge>}
-                    <ChevronRight className="text-muted-foreground size-4" />
+                    <ChevronRight className="size-4 text-muted-foreground" />
                   </button>
                 ))
               )}

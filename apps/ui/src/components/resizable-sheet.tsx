@@ -74,7 +74,7 @@ export function ResizableSheetContent({
         aria-label={`Resize ${label}`}
         tabIndex={0}
         data-dragging={dragging}
-        className="hover:bg-primary/40 focus-visible:bg-primary/60 data-[dragging=true]:bg-primary/60 absolute inset-y-0 left-0 z-10 w-1.5 -translate-x-1/2 cursor-col-resize touch-none transition-colors focus-visible:outline-none"
+        className="absolute inset-y-0 left-0 z-10 w-1.5 -translate-x-1/2 cursor-col-resize touch-none transition-colors hover:bg-primary/40 focus-visible:bg-primary/60 focus-visible:outline-none data-[dragging=true]:bg-primary/60"
         {...handle}
       />
       {children}

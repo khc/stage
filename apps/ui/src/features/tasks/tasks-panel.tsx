@@ -53,7 +53,7 @@ export function TasksPanel({ title }: { title: string }) {
           {tasksQuery.data && <Badge variant="secondary">{tasks.length}</Badge>}
         </CardTitle>
         <div className="relative w-64 max-w-full">
-          <Search className="text-muted-foreground absolute top-2 left-2.5 size-4" />
+          <Search className="absolute top-2 left-2.5 size-4 text-muted-foreground" />
           <Input
             data-search
             aria-label="Search tasks"
@@ -110,7 +110,7 @@ export function TasksPanel({ title }: { title: string }) {
                       className="flex items-center gap-2 text-left"
                       onClick={() => void openTask(task.taskId)}
                     >
-                      <FileText className="text-muted-foreground size-4 shrink-0" />
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0">
                         <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
                         <small className="text-muted-foreground md:hidden">
@@ -168,7 +168,7 @@ export function TasksPanel({ title }: { title: string }) {
           </Table>
         )}
       </CardContent>
-      <CardFooter className="text-muted-foreground justify-between text-xs">
+      <CardFooter className="justify-between text-xs text-muted-foreground">
         <span>
           {tasksQuery.data
             ? `${filtered.length} task${filtered.length === 1 ? "" : "s"}`

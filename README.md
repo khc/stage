@@ -6,7 +6,8 @@ Bun workspace monorepo with apps under `apps/`, agent apps under `agents/` and s
 - `@stage/generic-agents` (`agents/generic`): a Cloud Run Job image with the general-purpose agents (`assistant`, which can tell the time in a city).
 - `@stage/poet-agents` (`agents/poet`): a Cloud Run Job image with the poetry agents (`haiku`).
 - `@stage/service` (`apps/service`): Hono HTTP API and OpenAPI/Scalar reference on port `3000`.
-- `@stage/web` (`apps/web`): Standalone React/Tailwind dashboard server on port `3001` (proxies API requests to `SERVICE_URL`, default `http://localhost:3000`).
+- `@stage/ui` (`apps/ui`): the React/Tailwind/shadcn dashboard, served by Vite on port `5173` (proxies API requests to `SERVICE_URL`, default `http://localhost:3000`).
+- `@stage/extract` (`apps/extract`): turns an uploaded document into text for tasks.
 
 To install dependencies:
 
@@ -18,7 +19,7 @@ To run in development:
 
 ```bash
 bun run dev:service   # HTTP API service on http://localhost:3000
-bun run dev:web       # Web dashboard on http://localhost:3001
+bun run dev:ui        # Dashboard on http://localhost:5173
 ```
 
 To type check:
@@ -36,7 +37,7 @@ docker compose up -d --build   # start (builds the service image)
 docker compose down            # stop
 ```
 
-- Configuration lives in `.env` (gitignored; Bun and `docker compose` both read it). Put your `GEMINI_API_KEY` there; the file lists every other variable the project uses. The service and web start/dev scripts explicitly load this root file even when Bun runs them from a workspace directory.
+- Configuration lives in `.env` (gitignored; Bun and `docker compose` both read it). Put your `GEMINI_API_KEY` there; the file lists every other variable the project uses. The service start/dev scripts and the UI (through Vite) explicitly load this root file even when Bun runs them from a workspace directory.
 - Model: `AGENT_MODEL` picks it (default `gemini-2.5-flash`, Gemini API). With `GOOGLE_GENAI_USE_VERTEXAI=true` and an API key the agent uses Vertex AI in express mode, e.g. `AGENT_MODEL=publishers/google/models/gemini-2.5-flash`; ADK 2.4.0 cannot do this itself, so `packages/agents/src/model.ts` provides a small `Gemini` subclass. Without a key, the flag selects ADK's own Vertex mode (needs `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` and Google Cloud credentials).
 - `service` (`Dockerfile.service`, `apps/service`) is the Hono HTTP service on `localhost:3000`: `GET /health`, `GET /jobs`, and the task-contract routes below. `curl localhost:3000/jobs` lists all Cloud Run Jobs in the configured `GCP_PROJECT` and `GCP_REGION`, returning `{ "jobs": [...] }` (or `{ "jobs": [] }`) and collecting all upstream pages automatically. In compose the service uses Floci for Firestore (`FIRESTORE_EMULATOR_HOST=floci-gcp:4588`) and Cloud Run jobs (`CLOUD_RUN_EMULATOR_HOST=floci-gcp:4588`, REST without credentials). Without `CLOUD_RUN_EMULATOR_HOST` it uses the real Cloud Run API and needs Application Default Credentials.
 - With the stack up, `task create-job` (needs [go-task](https://taskfile.dev)) creates the agent Cloud Run job in Floci. Override with `task create-job JOB=my-job`; it fails if the job already exists. Creation reads `.env` through Bun and supplies `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `GEMINI_API_KEY` (required), and optional `AGENT_MODEL` / `GOOGLE_GENAI_USE_VERTEXAI`. No prompt or task ID is stored in the job definition. Job containers use `floci-gcp:4588` for Firestore; set `JOB_FIRESTORE_EMULATOR_HOST` to override that container-visible address. `task update-job` updates the existing job image/environment and removes legacy `AGENT_MESSAGE` and static `RUN_ID` / `TASK_ID` entries from the agent container; running executions keep their original settings. These commands print only the resource name to avoid exposing credentials. `task list-jobs` prints jobs as JSON (pipe to `jq`; `{}` when there are none). `task remove-job JOB=my-job` deletes one after confirmation (`--yes` skips it). Floci supports the Cloud Run v2 REST API only, not `gcloud run jobs`.
@@ -120,7 +121,7 @@ The agent publishes every event the ADK runner yields (model responses, tool cal
 
 ### Streaming session events
 
-`GET /tasks/:taskId/sessions/:sessionId/messages` is a Server-Sent Events stream (via the dashboard server this is `http://localhost:3001/tasks/:taskId/sessions/:sessionId/messages`). It first replays the stored events in order, then streams events the agent publishes to Pub/Sub until the client disconnects. Each message has `id` = event ID and `data` = the event JSON, a duplicate event ID is sent once, and a comment line is sent every 5 seconds to keep the connection open. Missing tasks and sessions (or a session of another task) return 404 before the stream starts; a Firestore or Pub/Sub failure returns 502 `events_error`.
+`GET /tasks/:taskId/sessions/:sessionId/messages` is a Server-Sent Events stream (through the dashboard's dev server this is `http://localhost:5173/tasks/:taskId/sessions/:sessionId/messages`). It first replays the stored events in order, then streams events the agent publishes to Pub/Sub until the client disconnects. Each message has `id` = event ID and `data` = the event JSON, a duplicate event ID is sent once, and a comment line is sent every 5 seconds to keep the connection open. Missing tasks and sessions (or a session of another task) return 404 before the stream starts; a Firestore or Pub/Sub failure returns 502 `events_error`.
 
 Live events need `PUBSUB_TOPIC` (and `PUBSUB_EMULATOR_HOST=localhost:4588` locally) in the service environment, matching the agent's topic (`agent-events` by default). The service creates one ephemeral subscription per process on the first stream and shares it between clients; it expires after 24 hours without a consumer. Without `PUBSUB_TOPIC` only the stored events are sent and the connection stays open (it never ends on its own, so `EventSource` does not reconnect in a loop). Events published before the first stream are served from Firestore, so nothing is missed. Browsers can read it with `new EventSource(url)`.
 
@@ -168,11 +169,9 @@ Open [Scalar API docs](http://localhost:3000/docs) while the service is running.
 
 ## Web dashboard
 
-Run `bun run dev:service` (port `3000`) and `bun run dev:web` (port `3001`), then open [the dashboard](http://localhost:3001/web). The root URL `/` on the web server also serves the dashboard. `@stage/web` runs as a standalone Bun server (`apps/web/src/index.ts`, `Dockerfile.web`) that bundles the React/Tailwind frontend via Bun's HTML routes and proxies API requests to `SERVICE_URL` (default `http://localhost:3000`). Browser network requests therefore use port `3001`; the web server forwards them to the API on port `3000`. Both servers must be running.
+Run `bun run dev:service` (port `3000`) and `bun run dev:ui` (port `5173`), then open [the dashboard](http://localhost:5173). `@stage/ui` is a Vite app (`apps/ui`) that proxies `/tasks`, `/jobs`, `/health`, `/events`, `/docs` and `/openapi.json` to `SERVICE_URL` (default `http://localhost:3000`), so the browser only talks to port `5173`. Both servers must be running. `bun run --filter @stage/ui build` produces a static bundle in `apps/ui/dist`; there is no Docker image for it yet.
 
 The dashboard lists tasks and Cloud Run jobs, saves new tasks, submits task executions, and shows session summaries, state, and ordered events. Tasks, jobs, and visible sessions refresh every 15 seconds. An open session also streams new events live from the messages endpoint above (when the service has `PUBSUB_TOPIC`), its form can continue the session with a new message, and a trash button (with an inline confirmation) deletes it. Execution notices indicate submission only; they do not claim agent completion. Search tasks by prompt/job/ID, or use `/` to focus search. New-task creation saves without executing. API documentation remains at `/docs`.
-
-The original `apps/web/src/dash.html` is retained as an unused design reference. The app entrypoint is `apps/web/src/index.html` with `dashboard.tsx`. `bunfig.toml` enables the Tailwind plugin.
 
 ### Appearance
 

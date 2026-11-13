@@ -9,7 +9,7 @@
           <mxGeometry x="40" y="20" width="600" height="50" as="geometry" />
         </mxCell>
 
-        <mxCell id="ui" value="&lt;b&gt;apps/ui&lt;/b&gt;&lt;br&gt;React + Vite :5173&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;tasks, jobs, sessions, run badge&lt;br&gt;(apps/web :3001 is the older dashboard)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+        <mxCell id="ui" value="&lt;b&gt;apps/ui&lt;/b&gt;&lt;br&gt;React + Vite :5173&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;tasks, jobs, sessions, run badge&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
           <mxGeometry x="40" y="300" width="220" height="110" as="geometry" />
         </mxCell>
 

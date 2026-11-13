@@ -28,7 +28,7 @@ export function JobCard({ job }: { job: Job }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <span className="bg-primary/10 text-primary grid size-8 place-items-center rounded-lg">
+          <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
             <Server className="size-4" />
           </span>
           <button className="hover:underline" onClick={() => void openJob(name)}>
@@ -46,7 +46,7 @@ export function JobCard({ job }: { job: Job }) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3">
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Badge variant="outline" className="font-mono">
             <Box />
             {jobLocation(job) ?? "Cloud Run"}
@@ -74,7 +74,7 @@ export function JobCard({ job }: { job: Job }) {
             <small className="text-muted-foreground">No agents registered yet</small>
           )}
         </div>
-        <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           <code className="truncate">{job.name ?? "Resource name unavailable"}</code>
           {job.name && <CopyButton value={job.name} label="Copy resource name" />}
         </div>

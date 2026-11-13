@@ -57,12 +57,12 @@ function Node({ name, value, comma }: { name?: string; value: unknown; comma: bo
       <button
         type="button"
         aria-expanded={open}
-        className="hover:bg-muted -ml-4 inline-flex items-center rounded text-left"
+        className="-ml-4 inline-flex items-center rounded text-left hover:bg-muted"
         onClick={() => setOpen(!open)}
       >
         <ChevronRight
           className={cn(
-            "text-muted-foreground mr-1 size-3 transition-transform",
+            "mr-1 size-3 text-muted-foreground transition-transform",
             open && "rotate-90",
           )}
         />
@@ -78,7 +78,7 @@ function Node({ name, value, comma }: { name?: string; value: unknown; comma: bo
       </button>
       {open && (
         <>
-          <div className="border-border ml-1 border-l pl-3">
+          <div className="ml-1 border-l border-border pl-3">
             {entries.map(([key, item], i) => (
               <Node key={key ?? i} name={key} value={item} comma={i < entries.length - 1} />
             ))}

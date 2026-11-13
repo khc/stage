@@ -117,7 +117,7 @@ function JobDetails({
               <TableBody>
                 {jobDetails(job).map(([label, value]) => (
                   <TableRow key={label}>
-                    <TableCell className="text-muted-foreground w-[40%]">{label}</TableCell>
+                    <TableCell className="w-[40%] text-muted-foreground">{label}</TableCell>
                     <TableCell className="break-all whitespace-normal">{value}</TableCell>
                   </TableRow>
                 ))}
@@ -132,7 +132,7 @@ function JobDetails({
           )}
         </TabsContent>
         <TabsContent value="agents" className={paneBody}>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             The agents inside this job&apos;s container.
           </p>
           {query.isError ? (
@@ -151,7 +151,7 @@ function JobDetails({
                   {agent.name}
                 </h3>
                 {agent.description && (
-                  <p className="text-muted-foreground text-sm">{agent.description}</p>
+                  <p className="text-sm text-muted-foreground">{agent.description}</p>
                 )}
                 <AgentContract agent={agent} />
               </article>
@@ -167,7 +167,7 @@ function JobDetails({
             jobTasks.map((task) => (
               <button
                 key={task.taskId}
-                className="hover:bg-muted flex flex-col rounded-lg border p-3 text-left"
+                className="flex flex-col rounded-lg border p-3 text-left hover:bg-muted"
                 onClick={() => onOpenTask(task.taskId)}
               >
                 <strong className="line-clamp-2 text-sm">{task.prompt}</strong>

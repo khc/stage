@@ -38,18 +38,18 @@ const components: Components = {
     </a>
   ),
   blockquote: (props) => (
-    <blockquote className="text-muted-foreground my-2 border-l-2 pl-3 italic" {...props} />
+    <blockquote className="my-2 border-l-2 pl-3 text-muted-foreground italic" {...props} />
   ),
   hr: () => <hr className="my-3" />,
   code: ({ className, ...props }) => (
     <code
-      className={cn("bg-muted rounded px-1 py-0.5 font-mono text-[0.85em]", className)}
+      className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]", className)}
       {...props}
     />
   ),
   pre: (props) => (
     <pre
-      className="bg-muted my-2 overflow-x-auto rounded-md p-2 text-xs [&_code]:bg-transparent [&_code]:p-0"
+      className="my-2 overflow-x-auto rounded-md bg-muted p-2 text-xs [&_code]:bg-transparent [&_code]:p-0"
       {...props}
     />
   ),

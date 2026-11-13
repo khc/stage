@@ -23,11 +23,11 @@ export function PaneHeader({
 }) {
   return (
     <header>
-      <div className="bg-muted/40 flex h-14 items-center border-b px-6">
+      <div className="flex h-14 items-center border-b bg-muted/40 px-6">
         <Overline>{eyebrow}</Overline>
       </div>
       <div className="flex items-center gap-4 px-6 pt-5 pb-4">
-        <span className="bg-primary/10 text-primary ring-primary/15 grid size-12 shrink-0 place-items-center rounded-xl ring-1 [&_svg]:size-6">
+        <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15 [&_svg]:size-6">
           {icon}
         </span>
         <div className="flex min-w-0 flex-col gap-1">
@@ -38,7 +38,7 @@ export function PaneHeader({
       <div className="mx-6 border-t" />
       <SheetDescription
         render={<div />}
-        className="text-foreground flex flex-wrap items-center gap-2 px-6 py-4"
+        className="flex flex-wrap items-center gap-2 px-6 py-4 text-foreground"
       >
         {children}
       </SheetDescription>
@@ -57,7 +57,7 @@ export const PaneTabsList = ({ className, ...props }: ComponentProps<typeof Tabs
 export const PaneTab = ({ className, ...props }: ComponentProps<typeof TabsTrigger>) => (
   <TabsTrigger
     className={cn(
-      "data-active:text-primary after:bg-primary h-full flex-none px-1 pb-1 group-data-horizontal/tabs:after:bottom-[-1px]",
+      "h-full flex-none px-1 pb-1 after:bg-primary group-data-horizontal/tabs:after:bottom-[-1px] data-active:text-primary",
       className,
     )}
     {...props}
@@ -65,7 +65,7 @@ export const PaneTab = ({ className, ...props }: ComponentProps<typeof TabsTrigg
 );
 
 export const TabCount = ({ children }: { children: ReactNode }) => (
-  <span className="bg-primary/10 text-primary rounded-full px-1.5 text-xs font-medium">
+  <span className="rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
     {children}
   </span>
 );

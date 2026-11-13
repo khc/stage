@@ -111,7 +111,7 @@ function NewTaskForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <DialogHeader>
-        <span className="bg-primary/10 text-primary mb-1 grid size-9 place-items-center rounded-lg">
+        <span className="mb-1 grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
           <Layers3 className="size-5" />
         </span>
         <DialogTitle>Create a task</DialogTitle>
@@ -119,7 +119,7 @@ function NewTaskForm({
       </DialogHeader>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="job-name" className="justify-between">
-          Cloud Run job<span className="text-muted-foreground text-xs font-normal">Required</span>
+          Cloud Run job<span className="text-xs font-normal text-muted-foreground">Required</span>
         </Label>
         <Select
           value={jobName || null}
@@ -141,11 +141,11 @@ function NewTaskForm({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">The Cloud Run job that executes this task.</p>
+        <p className="text-xs text-muted-foreground">The Cloud Run job that executes this task.</p>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="agent-name" className="justify-between">
-          Agent<span className="text-muted-foreground text-xs font-normal">Optional</span>
+          Agent<span className="text-xs font-normal text-muted-foreground">Optional</span>
         </Label>
         <Select
           value={agentName || DEFAULT_AGENT}
@@ -172,7 +172,7 @@ function NewTaskForm({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {!jobName
             ? "Choose a job first."
             : registered.isPending
@@ -188,7 +188,7 @@ function NewTaskForm({
         </div>
       )}
       {noInput ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           This agent takes no input. Upload documents to the task after creating it.
         </p>
       ) : fields ? (
@@ -206,7 +206,7 @@ function NewTaskForm({
       ) : (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="task-prompt" className="justify-between">
-            Prompt<span className="text-muted-foreground text-xs font-normal">Required</span>
+            Prompt<span className="text-xs font-normal text-muted-foreground">Required</span>
           </Label>
           <Textarea
             id="task-prompt"
@@ -221,18 +221,18 @@ function NewTaskForm({
             rows={8}
             className="min-h-48"
           />
-          <div className="text-muted-foreground text-right text-xs">
+          <div className="text-right text-xs text-muted-foreground">
             {prompt.length.toLocaleString()} / 10,000
           </div>
         </div>
       )}
       {promptProblem && (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {promptProblem}
         </p>
       )}
       {mutation.isError && <ErrorBox error={mutation.error} />}
-      <p className="text-muted-foreground flex items-center gap-2 text-xs">
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <FileText className="size-4" />
         Creating a task saves it. You choose when to run it.
       </p>

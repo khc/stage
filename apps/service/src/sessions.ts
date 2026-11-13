@@ -28,10 +28,7 @@ const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => (
   userId: doc.get("userId") as string,
   sessionId,
 });
-const toSummary = (
-  taskId: string,
-  doc: { get: (field: string) => unknown },
-): SessionSummary => {
+const toSummary = (taskId: string, doc: { get: (field: string) => unknown }): SessionSummary => {
   const summary: SessionSummary = {
     id: doc.get("sessionId") as string,
     taskId,
