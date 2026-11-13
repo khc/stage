@@ -11,9 +11,12 @@ import { createGetTask, type GetTask } from "./task-contract";
 export type GetMessage = (taskId: string, sessionId: string) => Promise<string | undefined>;
 
 export const createGetMessage =
-  (sessions: Pick<FirestoreSessionService, "pendingMessage">): GetMessage =>
-  (_taskId, sessionId) =>
-    sessions.pendingMessage({ appName, userId, sessionId });
+  (sessions: Pick<FirestoreSessionService, "findOwner" | "pendingMessage">): GetMessage =>
+  async (_taskId, sessionId) =>
+    sessions.pendingMessage({
+      ...((await sessions.findOwner(sessionId)) ?? { appName, userId }),
+      sessionId,
+    });
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());
 const promptSchema = z.string().trim().min(1).max(10_000);

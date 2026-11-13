@@ -259,7 +259,7 @@ export const openApiDocument = {
           404: response("Task or session not found", error("task_not_found", "session_not_found")),
           409: response(
             "Stored jobName is missing or invalid, or the session being resumed is already running",
-            error("task_not_executable", "run_in_progress"),
+            error("task_not_executable", "run_in_progress", "message_pending"),
           ),
           502: response(
             "Firestore lookup or Cloud Run submission failure",

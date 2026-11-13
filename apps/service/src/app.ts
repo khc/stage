@@ -1,5 +1,5 @@
 import type { ListAgents } from "@stage/agents/agent-registry";
-import { RunInProgressError } from "@stage/agents/session-service";
+import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
@@ -414,6 +414,7 @@ export const createApp = (
             return c.json({ error: "session_not_found" }, 404);
         } catch (err) {
           if (err instanceof RunInProgressError) return c.json({ error: "run_in_progress" }, 409);
+          if (err instanceof MessageQueuedError) return c.json({ error: "message_pending" }, 409);
           console.error(err);
           throw new HTTPException(502, {
             res: c.json({ error: "session_error" }, 502),

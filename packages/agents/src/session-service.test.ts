@@ -3,7 +3,12 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
 
-import { FirestoreSessionService, RunInProgressError, runState } from "./session-service";
+import {
+  FirestoreSessionService,
+  MessageQueuedError,
+  RunInProgressError,
+  runState,
+} from "./session-service";
 
 const db = new Firestore();
 const newService = () => new FirestoreSessionService(db);
@@ -270,7 +275,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(
       (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason,
-    ).toBeInstanceOf(RunInProgressError);
+    ).toBeInstanceOf(MessageQueuedError);
     expect(["one", "two"]).toContain((await service.pendingMessage(ref)) ?? "");
   });
 
@@ -285,6 +290,14 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     await service.startRun(ref);
     await service.finishRun(ref);
     expect(await service.pendingMessage(ref)).toBeUndefined();
+  });
+
+  test("findOwner returns the app and user a session was created under", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    expect(await service.findOwner(id)).toEqual(key);
+    expect(await service.findOwner(crypto.randomUUID())).toBeUndefined();
   });
 
   test("finishRun with an error records a failed run", async () => {
@@ -355,7 +368,7 @@ describe("queued messages", () => {
     const service = new FirestoreSessionService(fakeDb(f).db, 5);
     await service.queueMessage(key, "one", 1_000);
     await expect(service.queueMessage(key, "two", 2_000)).rejects.toBeInstanceOf(
-      RunInProgressError,
+      MessageQueuedError,
     );
     await service.queueMessage(key, "two", 1_000 + 61_000);
     expect(f.pendingMessage).toBe("two");

@@ -28,6 +28,12 @@ export type RunState = {
   endedAt?: number;
   error?: string;
 };
+export class MessageQueuedError extends Error {
+  constructor() {
+    super("A message for this session is still waiting to be delivered");
+    this.name = "MessageQueuedError";
+  }
+}
 export class RunInProgressError extends Error {
   constructor() {
     super("A run is already in progress for this session");
@@ -219,9 +225,21 @@ export class FirestoreSessionService extends BaseSessionService {
         snapshot.get("pendingMessage") != null &&
         (queuedAt ?? 0) > (snapshot.get("runStartedAt") ?? 0) &&
         now - (queuedAt ?? 0) < PENDING_TTL_MS;
-      if (isLive(runFields(snapshot), now) || queued) throw new RunInProgressError();
+      if (isLive(runFields(snapshot), now)) throw new RunInProgressError();
+      if (queued) throw new MessageQueuedError();
       tx.update(ref, { pendingMessage: message, pendingMessageAt: now });
     });
+  }
+
+  // The app and user a session was created under; undefined for an unknown session.
+  async findOwner(sessionId: string): Promise<{ appName: string; userId: string } | undefined> {
+    const found = await this.db
+      .collection(SESSIONS)
+      .where("sessionId", "==", sessionId)
+      .limit(1)
+      .get();
+    const doc = found.docs[0];
+    return doc && { appName: doc.get("appName"), userId: doc.get("userId") };
   }
 
   async pendingMessage(key: CompositeSessionKey): Promise<string | undefined> {

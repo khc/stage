@@ -116,6 +116,7 @@ const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
   task_not_executable: "This task needs a valid job name before it can run.",
   session_not_found: "This session could not be found for this task.",
+  message_pending: "Your previous message is still being delivered. Try again in a minute.",
   run_in_progress: "This session is still running. Wait for it to finish before continuing.",
   job_error: "Cloud Run could not complete the request. Check the job configuration and try again.",
   task_error: "Tasks could not be loaded. Check the service connection and try again.",

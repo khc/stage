@@ -141,6 +141,20 @@ test("createRunAgent rejects a message that does not match a structured agent's 
   );
 });
 
+test("a resumed session takes a free-text message even for a structured agent", async () => {
+  const noSession = {
+    collection: () => ({
+      where: () => ({ limit: () => ({ get: async () => ({ docs: [] }) }) }),
+      doc: () => ({ get: async () => ({ exists: false }) }),
+    }),
+  };
+  const run = createRunAgent(set, { db: noSession as never, publish: undefined });
+  // It gets past the input check and fails only because the session does not exist.
+  await expect(run("winter", crypto.randomUUID(), "s1", "structured")).rejects.toThrow(
+    "Session not found for this task",
+  );
+});
+
 test("records a succeeded run around a successful execution", async () => {
   const { run, sessionService } = setup(async function* () {
     yield reply("done");
@@ -187,4 +201,20 @@ test("does not run the agent when the session is already running", async () => {
   await expect(run("hi")).rejects.toThrow("already in progress");
   expect(runAsync).not.toHaveBeenCalled();
   expect(sessionService.finishRun).not.toHaveBeenCalled();
+});
+
+test("resumes a session under the app and user it was created with", async () => {
+  const taskId = crypto.randomUUID();
+  const getSession = mock(async (_key: unknown) => ({ id: "s9", taskId }));
+  const sessionService = { createSession: mock(), getSession, ...runs() };
+  const runAsync = mock(async function* (_request: unknown) {
+    yield reply("again");
+  });
+  const owner = { appName: "agent-jobs", userId: "legacy" };
+  const run = createTaskAgent({ sessionService, runAsync } as never, undefined, owner);
+
+  expect(await run("more", taskId, "s9")).toBe("again");
+  expect(getSession).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
+  expect(sessionService.startRun).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
+  expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: "legacy" }));
 });

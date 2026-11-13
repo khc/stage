@@ -20,19 +20,24 @@ type RunnerLike = Pick<Runner, "runAsync"> & {
 
 export const appName = "stage";
 export const userId = "user";
+// Who a session belongs to: new sessions use the defaults, an existing one keeps its own.
+export type Owner = { appName: string; userId: string };
+const defaultOwner: Owner = { appName, userId };
 
 const resumeSession = async (
   service: RunnerLike["sessionService"],
+  owner: Owner,
   sessionId: string,
   taskId?: string,
 ) => {
-  const session = await service.getSession({ appName, userId, sessionId });
+  const session = await service.getSession({ ...owner, sessionId });
   if (!session || session.taskId !== taskId) throw new Error("Session not found for this task");
   return session;
 };
 
 const runSession = async (
   runner: RunnerLike,
+  owner: Owner,
   sessionId: string,
   message: string,
   taskId?: string,
@@ -40,7 +45,7 @@ const runSession = async (
 ) => {
   let reply = "";
   for await (const event of runner.runAsync({
-    userId,
+    userId: owner.userId,
     sessionId,
     newMessage: { role: "user", parts: [{ text: message }] },
   })) {
@@ -56,20 +61,19 @@ const runSession = async (
 };
 
 export const createTaskAgent =
-  (runner: RunnerLike, publish?: PublishEvent): RunAgent =>
+  (runner: RunnerLike, publish?: PublishEvent, owner: Owner = defaultOwner): RunAgent =>
   async (message, taskId, sessionId) => {
     const session = sessionId
-      ? await resumeSession(runner.sessionService, sessionId, taskId)
+      ? await resumeSession(runner.sessionService, owner, sessionId, taskId)
       : await runner.sessionService.createSession({
-          appName,
-          userId,
+          ...owner,
           ...(taskId !== undefined && { taskId }),
         });
-    const key = { appName, userId, sessionId: session.id };
+    const key = { ...owner, sessionId: session.id };
     await runner.sessionService.startRun(key);
     let reply: string;
     try {
-      reply = await runSession(runner, session.id, message, taskId, publish);
+      reply = await runSession(runner, owner, session.id, message, taskId, publish);
     } catch (err) {
       await runner.sessionService
         .finishRun(key, err instanceof Error ? err.message : String(err))
@@ -95,10 +99,17 @@ export const createRunAgent = (
   return async (message, taskId, sessionId, agentName) => {
     const spec = agents[agentName ?? defaultAgent];
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
-    checkInput(spec, message);
+    // The schema describes the task's first message; follow-up messages are free text.
+    if (!sessionId) checkInput(spec, message);
     const { agent } = spec;
-    const runner = new Runner({ appName, agent, sessionService });
+    // A session created under another app name (before the rename) is resumed under its own.
+    const owner = (sessionId && (await sessionService.findOwner(sessionId))) || defaultOwner;
+    const runner = new Runner({ appName: owner.appName, agent, sessionService });
     const runAsync = runner.runAsync.bind(runner);
-    return createTaskAgent({ sessionService, runAsync }, publish)(message, taskId, sessionId);
+    return createTaskAgent({ sessionService, runAsync }, publish, owner)(
+      message,
+      taskId,
+      sessionId,
+    );
   };
 };

@@ -4,9 +4,9 @@ vars:
   FLOCI: http://localhost:4588
   PROJECT: floci-local
   REGION: us-central1
-  # One Cloud Run job per agent app (agents/<name>); the job, the app and the
-  # image (stage-<name>:latest) share its name. Override to pick some,
-  # e.g. `task rebuild JOBS=poet`.
+  # One Cloud Run job per agent app (agents/<name>). The image is
+  # stage-<name>:latest and the job is named <name>-agents (generic-agents).
+  # Override to pick some, e.g. `task rebuild JOBS=poet`.
   JOBS: generic poet
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
@@ -27,19 +27,19 @@ tasks:
     desc: Create the agent Cloud Run jobs in Floci (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
+        cmd: JOB_NAME={{.ITEM}}-agents JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
 
   update-job:
     desc: Update the agent jobs' image and environment in Floci from .env (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}} JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
+        cmd: JOB_NAME={{.ITEM}}-agents JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
 
   register-agents:
     desc: Record the agents inside each job image in the registry (needs the service running; override JOBS, SERVICE_URL)
     cmds:
       - for: { var: JOBS }
-        cmd: curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.ITEM | urlquery}}/register
+        cmd: curl -fsS -X POST {{.SERVICE_URL | default "http://localhost:3000" | shellQuote}}/jobs/{{.ITEM}}-agents/register
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
@@ -48,7 +48,7 @@ tasks:
       - curl -fsS {{.JOBS_URL | shellQuote}}
 
   remove-job:
-    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic, --yes to skip the prompt)
+    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic-agents, --yes to skip the prompt)
     requires:
       vars: [JOB]
     prompt: Remove job {{.JOB}} from Floci?

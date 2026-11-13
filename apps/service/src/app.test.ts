@@ -523,6 +523,17 @@ test("run returns 409 when the message cannot be queued because a run or message
   expect(job).not.toHaveBeenCalled();
 });
 
+test("run returns 409 message_pending when an earlier message still waits for its job", async () => {
+  const { MessageQueuedError } = await import("@stage/agents/session-service");
+  const { app, job } = resumeApp(true, undefined, async () => {
+    throw new MessageQueuedError();
+  });
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "message_pending" });
+  expect(job).not.toHaveBeenCalled();
+});
+
 test("run clears the queued message when the job cannot be started", async () => {
   const { app, job, clearMessage } = resumeApp(true);
   job.mockRejectedValue(new Error("cloud run down"));

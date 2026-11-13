@@ -130,9 +130,21 @@ test("register mode needs JOB_NAME and fails when storing fails", async () => {
 
 test("createGetMessage reads the queued message of the session in the stage app", async () => {
   const pendingMessage = mock(async (_key: unknown) => "queued");
-  expect(await createGetMessage({ pendingMessage })(taskId, "s1")).toBe("queued");
+  const findOwner = async () => undefined;
+  expect(await createGetMessage({ findOwner, pendingMessage })(taskId, "s1")).toBe("queued");
   expect(pendingMessage).toHaveBeenCalledWith({
     appName: "stage",
+    userId: "user",
+    sessionId: "s1",
+  });
+});
+
+test("createGetMessage reads a session created under another app name", async () => {
+  const pendingMessage = mock(async (_key: unknown) => "queued");
+  const findOwner = async () => ({ appName: "agent-jobs", userId: "user" });
+  await createGetMessage({ findOwner, pendingMessage })(taskId, "s1");
+  expect(pendingMessage).toHaveBeenCalledWith({
+    appName: "agent-jobs",
     userId: "user",
     sessionId: "s1",
   });
