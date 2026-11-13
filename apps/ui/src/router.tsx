@@ -3,6 +3,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Link,
   Outlet,
   useRouterState,
   useParams,
@@ -136,7 +137,6 @@ function Shell() {
         </main>
         <footer className="text-muted-foreground flex items-center justify-between border-t px-6 py-3 text-xs">
           <span>STAGE · YOUR AGENT WORKSPACE</span>
-          <span>Powered by your jobs</span>
         </footer>
       </SidebarInset>
       <NewTaskDialog open={!!search.new} initialJob={search.for ?? ""} />
@@ -153,15 +153,17 @@ function Stat({
   label,
   value,
   note,
+  to,
 }: {
+  to?: "/tasks" | "/jobs";
   icon: React.ReactNode;
   tone: string;
   label: string;
   value: React.ReactNode;
   note: string;
 }) {
-  return (
-    <Card className="relative">
+  const card = (
+    <Card className={`relative ${to ? "hover:border-primary/40 transition-colors" : ""}`}>
       <CardHeader>
         <span
           className={`absolute top-4 right-4 grid size-9 place-items-center rounded-lg [&_svg]:size-4 ${tone}`}
@@ -173,6 +175,13 @@ function Stat({
       </CardHeader>
       <CardContent className="text-muted-foreground text-xs">{note}</CardContent>
     </Card>
+  );
+  return to ? (
+    <Link to={to} aria-label={`${label}: view all`}>
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }
 
@@ -186,6 +195,7 @@ function Overview() {
         <Stat
           icon={<Layers3 />}
           tone="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          to="/tasks"
           label="Saved tasks"
           value={tasks.data ? tasks.data.tasks.length : "—"}
           note="Ready for your next execution"
@@ -193,6 +203,7 @@ function Overview() {
         <Stat
           icon={<Server />}
           tone="bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          to="/jobs"
           label="Cloud Run jobs"
           value={jobs.data ? jobs.data.jobs.length : "—"}
           note="Configured workers in your workspace"

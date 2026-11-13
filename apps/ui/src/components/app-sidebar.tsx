@@ -1,15 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  BookOpen,
-  ChevronRight,
-  LayoutDashboard,
-  Layers3,
-  Server,
-  Sparkles,
-} from "lucide-react";
+import { BookOpen, ChevronRight, LayoutDashboard, Layers3, Server } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +14,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useNav } from "@/lib/nav";
 import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +52,6 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tasks = useTasks();
   const { label } = useHealthLabel();
-  const { openCreate } = useNav();
   return (
     <Sidebar>
       <SidebarHeader>
@@ -107,23 +96,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <div className="bg-primary/5 mx-2 mt-auto flex flex-col gap-1 rounded-lg border p-3 text-sm">
-          <span className="bg-primary/10 text-primary grid size-8 place-items-center rounded-lg">
-            <Sparkles className="size-4" />
-          </span>
-          <h3 className="font-medium">From prompt to progress.</h3>
-          <p className="text-muted-foreground text-xs">
-            Create a task, run your job, and follow the conversation.
-          </p>
-          <Button
-            variant="link"
-            size="sm"
-            className="justify-start px-0"
-            onClick={() => void openCreate()}
-          >
-            Create your next task <ArrowRight />
-          </Button>
-        </div>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>

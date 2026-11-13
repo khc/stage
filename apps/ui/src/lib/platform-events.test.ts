@@ -3,8 +3,14 @@ import { afterEach, expect, mock, test } from "bun:test";
 import { invalidationsFor, isLive, pollUnlessLive, startPlatformEvents } from "./platform-events";
 
 test("maps each platform event to the queries it affects", () => {
-  expect(invalidationsFor({ type: "task.created", taskId: "t1" })).toEqual([["tasks"], ["task", "t1"]]);
-  expect(invalidationsFor({ type: "task.deleted", taskId: "t1" })).toEqual([["tasks"], ["task", "t1"]]);
+  expect(invalidationsFor({ type: "task.created", taskId: "t1" })).toEqual([
+    ["tasks"],
+    ["task", "t1"],
+  ]);
+  expect(invalidationsFor({ type: "task.deleted", taskId: "t1" })).toEqual([
+    ["tasks"],
+    ["task", "t1"],
+  ]);
   expect(invalidationsFor({ type: "task.run_requested", taskId: "t1" })).toEqual([
     ["tasks"],
     ["sessions", "t1"],

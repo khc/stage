@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 const POLL_MS = 15_000;
 
 export const useTasks = () => useQuery({ queryKey: ["tasks"], queryFn: api.tasks });
-export const useJobs = () => useQuery({ queryKey: ["jobs"], queryFn: api.jobs, refetchInterval: POLL_MS });
+export const useJobs = () =>
+  useQuery({ queryKey: ["jobs"], queryFn: api.jobs, refetchInterval: POLL_MS });
 export const useHealth = () =>
   useQuery({ queryKey: ["health"], queryFn: api.health, retry: false, refetchInterval: POLL_MS });

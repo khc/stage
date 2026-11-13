@@ -426,3 +426,16 @@ export const formatTime = (timestamp: number) =>
     minute: "2-digit",
     second: "2-digit",
   });
+
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+export const timeAgo = (timestamp: number, now = Date.now()) => {
+  const seconds = Math.round((timestamp - now) / 1000);
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["day", 86_400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  for (const [unit, size] of units)
+    if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
+  return "Just now";
+};

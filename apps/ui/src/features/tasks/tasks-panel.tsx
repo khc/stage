@@ -93,15 +93,18 @@ export function TasksPanel({ title }: { title: string }) {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-4">Task / prompt</TableHead>
-                <TableHead>Job</TableHead>
-                <TableHead>Agent</TableHead>
-                <TableHead>Contract</TableHead>
+                <TableHead className="hidden md:table-cell">Job</TableHead>
+                <TableHead className="hidden md:table-cell">Agent</TableHead>
                 <TableHead className="pr-4 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((task) => (
-                <TableRow key={task.taskId}>
+                <TableRow
+                  key={task.taskId}
+                  className="cursor-pointer"
+                  onClick={() => void openTask(task.taskId)}
+                >
                   <TableCell className="max-w-xs pl-4">
                     <button
                       className="flex items-center gap-2 text-left"
@@ -110,32 +113,33 @@ export function TasksPanel({ title }: { title: string }) {
                       <FileText className="text-muted-foreground size-4 shrink-0" />
                       <span className="min-w-0">
                         <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
-                        <small className="text-muted-foreground">
-                          {task.taskId.slice(0, 8)}…{task.taskId.slice(-6)}
+                        <small className="text-muted-foreground md:hidden">
+                          {task.jobName ?? "Needs job"}
+                          {task.agentName ? ` · ${task.agentName}` : ""}
                         </small>
                       </span>
                     </button>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono">
+                  <TableCell className="hidden md:table-cell">
+                    <Badge variant={task.jobName ? "outline" : "destructive"} className="font-mono">
                       <Box />
-                      {task.jobName ?? "Unassigned"}
+                      {task.jobName ?? "Needs job"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Badge variant={task.agentName ? "secondary" : "outline"} className="font-mono">
                       <Workflow />
                       {task.agentName ?? "Default"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={task.jobName ? "secondary" : "destructive"}>
-                      {task.jobName ? "Saved" : "Needs job"}
-                    </Badge>
-                  </TableCell>
                   <TableCell className="pr-4">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => void openTask(task.taskId)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="hidden md:inline-flex"
+                        onClick={() => void openTask(task.taskId)}
+                      >
                         Details
                         <ChevronRight />
                       </Button>
@@ -143,7 +147,10 @@ export function TasksPanel({ title }: { title: string }) {
                         variant="outline"
                         size="sm"
                         disabled={!task.jobName || runTask.isPending}
-                        onClick={() => runTask.mutate(task.taskId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          runTask.mutate(task.taskId);
+                        }}
                         aria-label={`Run task ${task.taskId}`}
                       >
                         {runTask.isPending && runTask.variables === task.taskId ? (

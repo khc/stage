@@ -242,6 +242,13 @@ function NewTaskForm({
         </Button>
         <Button
           type="submit"
+          title={
+            !jobName
+              ? "Choose a job first"
+              : !effectivePrompt.trim()
+                ? "Write a prompt first"
+                : undefined
+          }
           disabled={!effectivePrompt.trim() || invalid || !jobName || mutation.isPending}
         >
           {mutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}

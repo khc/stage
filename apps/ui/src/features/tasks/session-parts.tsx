@@ -446,7 +446,7 @@ export function EventCard({ event, index }: { event: SessionEvent; index: number
                       {part.text}
                     </div>
                   ) : (
-                    <JsonView value={parseJsonObject(part.text)} />
+                    <OutputText text={part.text} />
                   ))}
                 {part.functionCall && (
                   <ToolEvent

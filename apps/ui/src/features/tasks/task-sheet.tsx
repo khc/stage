@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/message-scroller";
 import { Sheet } from "@/components/ui/sheet";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { api, formatTime, taskTitle } from "@/lib/api";
+import { api, formatTime, taskTitle, timeAgo } from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
 import {
@@ -281,9 +281,9 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       <Terminal className="size-4" />
                     </span>
                     <span className="flex-1">
-                      <strong className="block text-sm">Session {session.id.slice(0, 8)}</strong>
+                      <strong className="block text-sm">{timeAgo(session.lastUpdateTime)}</strong>
                       <small className="text-muted-foreground">
-                        {formatTime(session.lastUpdateTime)}
+                        {formatTime(session.lastUpdateTime)} · {session.id.slice(0, 8)}
                       </small>
                     </span>
                     {i === 0 && <Badge variant="secondary">Latest</Badge>}
