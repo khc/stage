@@ -22,6 +22,14 @@ export const jobEnvironment = (env: Env, project: string) => {
   ];
 };
 
+// A run is not safe to repeat: each attempt of a failed first run would create
+// another session, and a retried resume would append its message again. Cloud
+// Run Jobs retry a failed task 3 times unless told otherwise.
+export const jobTaskTemplate = (
+  containers: protos.google.cloud.run.v2.IContainer[],
+  base: protos.google.cloud.run.v2.ITaskTemplate = {},
+): protos.google.cloud.run.v2.ITaskTemplate => ({ ...base, maxRetries: 0, containers });
+
 if (import.meta.main) {
   try {
     const mode = process.argv[2];
@@ -43,14 +51,12 @@ if (import.meta.main) {
     const body: protos.google.cloud.run.v2.IJob = {
       ...(mode === "update" ? { name } : {}),
       template: {
-        template: {
-          containers: [
-            {
-              image: env.JOB_IMAGE || `stage-${job}:latest`,
-              env: jobEnvironment(env, project),
-            },
-          ],
-        },
+        template: jobTaskTemplate([
+          {
+            image: env.JOB_IMAGE || `stage-${job}:latest`,
+            env: jobEnvironment(env, project),
+          },
+        ]),
       },
     };
     if (mode === "update") {
@@ -71,9 +77,8 @@ if (import.meta.main) {
       ]);
       body.template = {
         ...template,
-        template: {
-          ...template.template,
-          containers: [
+        template: jobTaskTemplate(
+          [
             {
               ...agent,
               image: env.JOB_IMAGE || `stage-${job}:latest`,
@@ -84,7 +89,8 @@ if (import.meta.main) {
             },
             ...others,
           ],
-        },
+          template.template,
+        ),
       };
     }
     const response = await fetch(url, {

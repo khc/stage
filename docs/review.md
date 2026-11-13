@@ -55,8 +55,7 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 ## Open findings
 
-1. **Retries multiply failed runs (finding 4, medium, likely).** The jobs in Floci have `maxRetries: 3` and `timeout: 600s`, which is the Cloud Run default. A failed first run is retried, and each attempt creates its own session, so one failure can leave up to four failed sessions. A retried resume can append the same user message twice, because the message now stays queued after a failure. Whether Floci retries the same way as Cloud Run was not tested.
-   - **Fix:** set `maxRetries: 0` in the job template in [cloud-run-job.ts](../scripts/cloud-run-job.ts), or derive the session id from the execution so a retry reuses it, and skip appending a user message that is already the last event.
+1. **Done: retries multiplied failed runs (finding 4).** The jobs had `maxRetries: 3`, the Cloud Run default, so a failed first run could leave up to four failed sessions and a retried resume could append the same user message twice. `create-job` and `update-job` now set `maxRetries: 0` ([cloud-run-job.ts](../scripts/cloud-run-job.ts)). I updated both Floci jobs and confirmed a deliberately failing run makes one execution and no retry. The cost: a run lost to an infrastructure failure is not retried either, so the user starts it again. I did not test whether Floci retried before the change.
 
 2. **No agent-level limits (finding 4, low).** There are no step limits, token budgets or timeouts inside `createTaskAgent`; only the job's own 600-second timeout applies. Stats exist but nothing enforces them.
    - **Fix:** add a maximum number of model calls in `createTaskAgent` and record hitting it as a failed run.
@@ -91,10 +90,9 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 ## Suggested order
 
-1. Retry behaviour (open finding 1), because it can quietly create duplicate sessions and messages.
-2. The job script defaults (3) and the README and compose mismatch (4), because they make the setup unreliable for a new reader.
-3. The "queued" state, only if the gap before a job starts becomes a problem for users.
-4. Everything else (5 to 9) when touching those files.
+1. The job script defaults (3) and the README and compose mismatch (4), because they make the setup unreliable for a new reader.
+2. The "queued" state, only if the gap before a job starts becomes a problem for users.
+3. Everything else (5 to 9) when touching those files.
 
 ## Sources
 

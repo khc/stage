@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { jobEnvironment } from "./cloud-run-job";
+import { jobEnvironment, jobTaskTemplate } from "./cloud-run-job";
 
 test("supplies the job with Firestore configuration and model credentials", () => {
   expect(
@@ -235,4 +235,14 @@ test("update stops without patching when the existing job cannot be read", async
   } finally {
     server.stop(true);
   }
+});
+
+test("the task template turns retries off and keeps the other task settings", () => {
+  const containers = [{ image: "stage-poet:latest" }];
+  expect(jobTaskTemplate(containers)).toEqual({ maxRetries: 0, containers });
+  expect(jobTaskTemplate(containers, { maxRetries: 3, timeout: { seconds: 600 } })).toEqual({
+    maxRetries: 0,
+    timeout: { seconds: 600 },
+    containers,
+  });
 });
