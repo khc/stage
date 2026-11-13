@@ -26,5 +26,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // apps/ui has its own tsconfig (the "@/" alias, Vite types), checked by its typecheck script.
+  "exclude": ["apps/ui", "node_modules"]
 }

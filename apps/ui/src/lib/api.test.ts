@@ -130,9 +130,11 @@ test("streamMessages parses events, ignores bad data and closes the source", () 
   const instances: { url: string; handlers: Handler[]; close: () => void }[] = [];
   const original = globalThis.EventSource;
   globalThis.EventSource = class {
+    url: string;
     handlers: Handler[] = [];
     close = mock(() => {});
-    constructor(public url: string) {
+    constructor(url: string) {
+      this.url = url;
       instances.push(this);
     }
     addEventListener(type: string, handler: Handler) {

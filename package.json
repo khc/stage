@@ -13,7 +13,7 @@
     "dev:service": "bun --filter @stage/service dev",
     "dev:web": "bun --filter @stage/web dev",
     "test": "bun test",
-    "typecheck": "bun check",
+    "typecheck": "bun check scripts && bun --filter '*' typecheck",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",

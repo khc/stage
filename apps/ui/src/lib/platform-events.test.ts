@@ -34,9 +34,11 @@ test("ignores unknown events and events missing their id", () => {
 type Handler = (m?: { data: string }) => void;
 const instances: FakeSource[] = [];
 class FakeSource {
+  url: string;
   handlers: Record<string, Handler> = {};
   close = mock(() => {});
-  constructor(public url: string) {
+  constructor(url: string) {
+    this.url = url;
     instances.push(this);
   }
   addEventListener(type: string, handler: Handler) {
