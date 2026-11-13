@@ -96,6 +96,8 @@ export const createRunAgent = (
   }: { db?: Firestore; publish?: PublishEvent } = {},
 ): RunAgent => {
   const sessionService = new FirestoreSessionService(db);
+  sessionService.onUserEvent = async (event, { id, taskId }) =>
+    publish?.(event, { sessionId: id, taskId });
   return async (message, taskId, sessionId, agentName) => {
     const spec = agents[agentName ?? defaultAgent];
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);

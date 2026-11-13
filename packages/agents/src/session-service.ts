@@ -82,6 +82,10 @@ const withMeta = (session: Session, taskId?: string, run?: RunState): TaskSessio
   });
 
 export class FirestoreSessionService extends BaseSessionService {
+  // Called after a user message is stored. The ADK runner appends it without
+  // yielding it, so this is the only way to tell live subscribers about it.
+  onUserEvent?: (event: Event, session: TaskSession) => Promise<void>;
+
   // Sessions this instance runs: a timer renews each lease between events.
   private readonly leased = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -323,6 +327,10 @@ export class FirestoreSessionService extends BaseSessionService {
       ...(this.leased.has(session.id) && { runLeaseUntil: Date.now() + RUN_LEASE_MS }),
     });
     await batch.commit();
+    if (appended.author === "user")
+      await this.onUserEvent?.(appended, session as TaskSession).catch((err) =>
+        console.error("Failed to publish the user message", err),
+      );
 
     return appended;
   }

@@ -292,6 +292,19 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     expect(await service.pendingMessage(ref)).toBeUndefined();
   });
 
+  test("appendEvent tells onUserEvent about user messages only", async () => {
+    const key = newApp();
+    const service = newService();
+    const seen: string[] = [];
+    service.onUserEvent = async (event) => {
+      seen.push(event.author ?? "");
+    };
+    const session = await service.createSession(key);
+    await service.appendEvent({ session, event: reply("hi", { author: "user" }) });
+    await service.appendEvent({ session, event: reply("hello") });
+    expect(seen).toEqual(["user"]);
+  });
+
   test("findOwner returns the app and user a session was created under", async () => {
     const key = newApp();
     const service = newService();
