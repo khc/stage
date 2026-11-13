@@ -2,14 +2,29 @@ import { resolve } from "node:path";
 
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+
+// SPA routes that share a path with an API route: browser navigations get the app.
+const spaRoutes = ["/tasks", "/jobs"];
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": resolve(import.meta.dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, resolve(import.meta.dirname, "../.."), "");
+  const target = env.SERVICE_URL ?? "http://localhost:3000";
+  const proxy = {
+    target,
+    bypass: (req: { url?: string; headers: { accept?: string } }) =>
+      spaRoutes.includes(req.url?.split("?")[0] ?? "") && req.headers.accept?.includes("text/html")
+        ? "/index.html"
+        : undefined,
+  };
+  return {
+    plugins: [react(), tailwindcss()],
+    resolve: { alias: { "@": resolve(import.meta.dirname, "./src") } },
+    server: {
+      proxy: Object.fromEntries(
+        ["/tasks", "/jobs", "/health", "/docs", "/openapi.json"].map((path) => [path, proxy]),
+      ),
     },
-  },
+  };
 });

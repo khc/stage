@@ -1,0 +1,421 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  ArrowUp,
+  Check,
+  Clock3,
+  Loader2,
+  Sparkles,
+  Terminal,
+  Upload,
+  FileText,
+  Workflow,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import { ConfirmDelete } from "@/components/confirm-delete";
+import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  api,
+  formatTime,
+  lastOutput,
+  parseJsonObject,
+  streamMessages,
+  withEvent,
+  type DocumentSummary,
+  type Session,
+  type SessionEvent,
+  type SessionSummary,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+// Keeps the cached session in step with the live message stream.
+export function useSessionStream(taskId: string, sessionId: string | null) {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!sessionId) return;
+    return streamMessages(taskId, sessionId, (event) =>
+      client.setQueryData<Session>(
+        ["session", taskId, sessionId],
+        (old) => old && withEvent(old, event),
+      ),
+    );
+  }, [client, taskId, sessionId]);
+}
+
+const Pre = ({ children }: { children: string }) => (
+  <pre className="bg-muted overflow-x-auto rounded-md p-2 text-xs">{children}</pre>
+);
+
+function Preview({ children }: { children: string }) {
+  return (
+    <div className="bg-muted/40 rounded-lg border p-3 text-sm whitespace-pre-wrap">{children}</div>
+  );
+}
+
+export function SessionStatsBar({
+  taskId,
+  sessionId,
+  events,
+}: {
+  taskId: string;
+  sessionId: string;
+  events: number;
+}) {
+  // The event count in the key refetches the totals as live events arrive.
+  const stats = useQuery({
+    queryKey: ["session-stats", taskId, sessionId, events],
+    queryFn: () => api.stats(taskId, sessionId),
+    placeholderData: (previous) => previous,
+  });
+  if (!stats.data) return null;
+  const { tokens, llmCalls } = stats.data;
+  const items: [string, number][] = [
+    ["Total", tokens.total],
+    ["Prompt", tokens.prompt],
+    ["Output", tokens.candidates],
+    ["Thinking", tokens.thoughts],
+    ["Model calls", llmCalls],
+  ];
+  return (
+    <dl
+      className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-3"
+      aria-label="Token usage"
+    >
+      {items.map(([label, value]) => (
+        <div key={label} className="bg-muted/30 rounded-xl border px-3 py-2.5">
+          <dt className="text-muted-foreground text-[0.65rem] font-semibold tracking-wider uppercase">
+            {label}
+          </dt>
+          <dd className="text-xl font-medium">{value.toLocaleString()}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function DeleteSession({
+  taskId,
+  sessionId,
+  onDeleted,
+}: {
+  taskId: string;
+  sessionId: string;
+  onDeleted: () => void;
+}) {
+  const client = useQueryClient();
+  return (
+    <ConfirmDelete
+      label="Delete session"
+      question="Delete this session?"
+      remove={() => api.deleteSession(taskId, sessionId)}
+      onDeleted={() => {
+        onDeleted();
+        client.removeQueries({ queryKey: ["session", taskId, sessionId] });
+        void client.invalidateQueries({ queryKey: ["sessions", taskId] });
+      }}
+    />
+  );
+}
+
+export function ContinueSession({ taskId, sessionId }: { taskId: string; sessionId: string }) {
+  const client = useQueryClient();
+  const [message, setMessage] = useState("");
+  const resume = useMutation({
+    mutationFn: () => api.resume(taskId, sessionId, message.trim()),
+    onSuccess: () => {
+      setMessage("");
+      void client.invalidateQueries({ queryKey: ["session", taskId, sessionId] });
+    },
+  });
+  const canSend = !!message.trim() && !resume.isPending;
+  return (
+    <form
+      className="flex flex-col gap-1"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (canSend) resume.mutate();
+      }}
+    >
+      <div className="focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl border p-2 focus-within:ring-3">
+        <Textarea
+          className="max-h-40 min-h-0 min-w-0 flex-1 basis-0 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          aria-label="Message to continue the session"
+          rows={1}
+          value={message}
+          maxLength={10_000}
+          placeholder="Message the agent…"
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            e.currentTarget.form?.requestSubmit();
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="rounded-full"
+          aria-label="Send message"
+          disabled={!canSend}
+        >
+          {resume.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+        </Button>
+      </div>
+      {resume.isError ? (
+        <p className="text-destructive text-xs" role="alert">
+          {resume.error.message}
+        </p>
+      ) : resume.isSuccess ? (
+        <p className="text-muted-foreground text-xs" role="status">
+          Sent. New events appear when the agent responds.
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-xs">Enter to send · Shift+Enter for a new line</p>
+      )}
+    </form>
+  );
+}
+
+function OutputText({ text }: { text: string }) {
+  const fields = parseJsonObject(text);
+  if (!fields) return <Preview>{text}</Preview>;
+  return (
+    <dl className="flex flex-col gap-3">
+      {Object.entries(fields).map(([key, value]) => (
+        <div key={key} className="flex flex-col gap-1">
+          <dt>
+            <Overline>{key}</Overline>
+          </dt>
+          <dd>
+            <Preview>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</Preview>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function LastOutput({
+  taskId,
+  latest,
+  loading,
+  onOpen,
+}: {
+  taskId: string;
+  latest?: SessionSummary;
+  loading: boolean;
+  onOpen: (sessionId: string) => void;
+}) {
+  const sessionId = latest?.id ?? null;
+  const session = useQuery({
+    queryKey: ["session", taskId, sessionId],
+    queryFn: () => api.session(taskId, sessionId!),
+    enabled: !!sessionId,
+  });
+  useSessionStream(taskId, sessionId);
+  if (loading || (sessionId && session.isPending)) return <Loading label="Loading output…" />;
+  if (!latest)
+    return (
+      <Empty icon={<Terminal />} title="No output yet">
+        Run this task to create a session. Its last answer appears here.
+      </Empty>
+    );
+  if (session.isError)
+    return <ErrorBox error={session.error} retry={() => void session.refetch()} />;
+  const output = lastOutput(session.data!.events);
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">Last output</h3>
+        <Button variant="link" size="sm" onClick={() => onOpen(latest.id)}>
+          View session
+          <ArrowRight />
+        </Button>
+      </div>
+      {output ? (
+        <>
+          <OutputText text={output.text} />
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <Clock3 className="size-3" />
+            {formatTime(output.timestamp ?? latest.lastUpdateTime)}
+          </p>
+        </>
+      ) : (
+        <Empty icon={<Terminal />} title="No answer yet">
+          The latest session has not produced a text answer. It may still be running.
+        </Empty>
+      )}
+    </>
+  );
+}
+
+export function TaskDocuments({
+  taskId,
+  query,
+}: {
+  taskId: string;
+  query: {
+    isPending: boolean;
+    isError: boolean;
+    error: Error | null;
+    data?: { documents: DocumentSummary[] };
+    refetch: () => unknown;
+  };
+}) {
+  const client = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const refresh = () => client.invalidateQueries({ queryKey: ["documents", taskId] });
+  const upload = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(taskId, file),
+    onSuccess: refresh,
+  });
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <Overline>Documents</Overline>
+          <p className="text-muted-foreground text-sm">
+            Uploaded files are extracted to text and attached to this task.
+          </p>
+        </div>
+        <input
+          ref={input}
+          type="file"
+          hidden
+          aria-label="Choose a document"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) upload.mutate(file);
+          }}
+        />
+        <Button size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
+          {upload.isPending ? <Loader2 className="animate-spin" /> : <Upload />}
+          Upload
+        </Button>
+      </div>
+      {upload.isError && <ErrorBox error={upload.error} />}
+      {query.isPending ? (
+        <Loading label="Loading documents…" />
+      ) : query.isError ? (
+        <ErrorBox error={query.error} retry={() => void query.refetch()} />
+      ) : !query.data?.documents.length ? (
+        <Empty icon={<FileText />} title="No documents yet">
+          Upload a file to make its extracted content available to this task.
+        </Empty>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {query.data.documents.map((doc) => (
+            <div key={doc.documentId} className="flex items-center gap-3 rounded-lg border p-3">
+              <FileText className="text-muted-foreground size-4" />
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm">{doc.filename}</strong>
+                <small className="text-muted-foreground">{doc.contentType}</small>
+              </span>
+              <ConfirmDelete
+                label="Remove document"
+                question="Remove this document?"
+                remove={() => api.deleteDocument(taskId, doc.documentId)}
+                onDeleted={() => void refresh()}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ToolEvent({
+  icon,
+  name,
+  data,
+  open,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  data: unknown;
+  open?: boolean;
+}) {
+  return (
+    <Collapsible defaultOpen={open}>
+      <CollapsibleTrigger className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+        {icon}
+        {name}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Pre>{JSON.stringify(data, null, 2)}</Pre>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+export function EventCard({ event, index }: { event: SessionEvent; index: number }) {
+  const parts = event.content?.parts ?? [];
+  const isUser = event.author === "user";
+  return (
+    <article className="group/event flex gap-3">
+      <div className="flex flex-col items-center">
+        <span
+          className={cn(
+            "bg-primary/10 text-primary ring-primary/20 grid size-7 shrink-0 place-items-center rounded-full ring-1",
+            event.errorMessage && "bg-destructive/10 text-destructive ring-destructive/30",
+          )}
+        >
+          {isUser ? <ArrowRight className="size-3.5" /> : <Sparkles className="size-3.5" />}
+        </span>
+        <span className="bg-border mt-1 w-px flex-1 group-last/event:hidden" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2 pb-6 group-last/event:pb-0">
+        <div className="flex items-center justify-between gap-2">
+          <strong className="text-primary font-medium capitalize">
+            {event.author ?? event.content?.role ?? "Event"}
+          </strong>
+          <span className="text-muted-foreground text-xs">
+            {event.timestamp ? formatTime(event.timestamp) : `Event ${index + 1}`}
+          </span>
+        </div>
+        {event.errorMessage && <p className="text-destructive text-sm">{event.errorMessage}</p>}
+        {parts.map((part, i) => (
+          // Parts have no id and never reorder, so their position is the key.
+          // oxlint-disable-next-line react/no-array-index-key
+          <div key={i} className="flex flex-col gap-1">
+            {part.text != null && (
+              <div
+                className={cn(
+                  "text-[13px] leading-relaxed whitespace-pre-wrap",
+                  part.thought && "text-muted-foreground italic",
+                )}
+              >
+                {part.thought && (
+                  <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
+                )}
+                {part.text}
+              </div>
+            )}
+            {part.functionCall && (
+              <ToolEvent
+                open
+                icon={<Workflow className="size-3.5" />}
+                name={part.functionCall.name ?? "Tool call"}
+                data={part.functionCall.args ?? {}}
+              />
+            )}
+            {part.functionResponse && (
+              <ToolEvent
+                icon={<Check className="size-3.5" />}
+                name={part.functionResponse.name ?? "Tool response"}
+                data={part.functionResponse.response ?? {}}
+              />
+            )}
+          </div>
+        ))}
+        <ToolEvent icon={null} name="Raw event" data={event} />
+      </div>
+    </article>
+  );
+}
