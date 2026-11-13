@@ -1,7 +1,7 @@
-import { createModel } from "@stage/agents/model";
-import { createLoadTaskDocuments, type LoadTaskDocuments } from "@stage/agents/task-documents";
 import { Firestore } from "@google-cloud/firestore";
 import { LlmAgent } from "@google/adk";
+import { createModel } from "@stage/agents/model";
+import { createLoadTaskDocuments, type LoadTaskDocuments } from "@stage/agents/task-documents";
 import { z } from "zod";
 
 // The agent reads the documents attached to its task, so the message carries nothing.

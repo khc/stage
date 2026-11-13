@@ -1,7 +1,7 @@
-import { toAgentCard, type ListAgents } from "@stage/agents/agent-registry";
-import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
 import { zValidator } from "@hono/zod-validator";
 import { Scalar } from "@scalar/hono-api-reference";
+import { toAgentCard, type ListAgents } from "@stage/agents/agent-registry";
+import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
@@ -10,8 +10,8 @@ import { streamSSE } from "hono/streaming";
 import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
 import type { ListJobs, RegisterJob, RunJob } from "./jobs";
 import type { LiveEvents } from "./live-events";
-import type { PlatformStream } from "./platform-stream";
 import { openApiDocument } from "./openapi";
+import type { PlatformStream } from "./platform-stream";
 import {
   jobNameSchema,
   documentParamSchema,

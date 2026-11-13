@@ -1,11 +1,11 @@
+import type { Firestore } from "@google-cloud/firestore";
+import type { Session } from "@google/adk";
 import {
   FirestoreSessionService,
   runFields,
   runState,
   type RunState,
 } from "@stage/agents/session-service";
-import type { Firestore } from "@google-cloud/firestore";
-import type { Session } from "@google/adk";
 
 export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUpdateTime"> & {
   taskId: string;

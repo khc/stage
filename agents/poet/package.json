@@ -8,8 +8,8 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@stage/agents": "workspace:*",
     "@google/adk": "^2.4.0",
+    "@stage/agents": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

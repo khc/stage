@@ -57,6 +57,7 @@ Findings 1 and 2 are implemented. Review `a30e8eb3` found no blocking issues; te
 - **Job environment (finding 3):** a job execution now gets only `TASK_ID`, plus `SESSION_ID` when resuming. The resume message is stored on the session document (`pendingMessage`) by `queueMessage` in a transaction, which refuses while the session runs or another message was queued in the last 60 seconds. The job reads it with `pendingMessage` and `startRun` clears it. If Cloud Run rejects the job, the service clears the queued message. A message queued for a job that never started expires after 60 seconds.
 
 **Still open from findings 1 and 2:**
+
 - No `runId` fencing token. A paused or hung process whose lease lapsed can still append after a second run starts. Fixing it means making `appendEvent` a transaction that checks the `runId`.
 - No "queued" state: a new run shows nothing until the job creates its session.
 - No idempotency key on `/run`; repeated runs of a task still create separate sessions.
