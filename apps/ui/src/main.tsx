@@ -7,6 +7,7 @@ import "./index.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import { pollUnlessLive } from "./lib/platform-events";
 import { router } from "./router";
 
 const client = new QueryClient({
@@ -14,7 +15,7 @@ const client = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 5_000,
-      refetchInterval: 15_000,
+      refetchInterval: pollUnlessLive,
       refetchOnWindowFocus: true,
     },
     mutations: { retry: false },

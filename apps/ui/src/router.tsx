@@ -42,6 +42,7 @@ import { TaskSheet } from "@/features/tasks/task-sheet";
 import { TasksPanel } from "@/features/tasks/tasks-panel";
 import { shortJobName } from "@/lib/api";
 import { useNav } from "@/lib/nav";
+import { startPlatformEvents } from "@/lib/platform-events";
 import { useHealth, useJobs, useTasks } from "@/lib/queries";
 
 const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
@@ -60,6 +61,7 @@ function Shell() {
     new?: boolean;
     for?: string;
   };
+  useEffect(() => startPlatformEvents(client), [client]);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { taskId } = useParams({ strict: false }) as { taskId?: string };
   const section = `/${pathname.split("/")[1]}`;

@@ -9,6 +9,7 @@ import { streamSSE } from "hono/streaming";
 import { DocumentTooLargeError, ExtractionError, type TaskDocuments } from "./documents";
 import type { ListJobs, RegisterJob, Resume, RunJob } from "./jobs";
 import type { LiveEvents } from "./live-events";
+import type { PlatformStream } from "./platform-stream";
 import { openApiDocument } from "./openapi";
 import {
   jobNameSchema,
@@ -24,6 +25,7 @@ import { sessionStats } from "./stats";
 import type { CreateTask, DeleteTask, ListTasks, GetTask } from "./tasks";
 
 const KEEPALIVE_MS = 5_000;
+const SEEN_LIMIT = 1_000;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const noop = () => {};
 
@@ -40,11 +42,52 @@ export const createApp = (
   registry?: AgentRegistry,
   deleteTask?: DeleteTask,
   documents?: TaskDocuments,
+  platformStream?: PlatformStream,
 ) =>
   new Hono()
     .get("/openapi.json", (c) => c.json(openApiDocument))
     .get("/docs", Scalar({ url: "/openapi.json", pageTitle: "Agent Jobs API" }))
     .get("/health", (c) => c.json({ status: "ok" }))
+    .get("/events", async (c) => {
+      if (!platformStream) return c.json({ error: "not_supported" }, 501);
+      const pending: [string, string][] = [];
+      let wake = noop;
+      let unsubscribe = noop;
+      try {
+        unsubscribe = await platformStream((id, json) => {
+          pending.push([id, json]);
+          wake();
+        });
+      } catch (err) {
+        console.error(err);
+        throw new HTTPException(502, { res: c.json({ error: "events_error" }, 502) });
+      }
+      return streamSSE(c, async (stream) => {
+        const seen = new Set<string>();
+        stream.onAbort(unsubscribe);
+        try {
+          while (!stream.aborted) {
+            for (const [id, data] of pending.splice(0)) {
+              if (seen.has(id)) continue;
+              seen.add(id);
+              if (seen.size > SEEN_LIMIT) seen.delete(seen.values().next().value!);
+              await stream.writeSSE({ id, data });
+            }
+            if (pending.length) continue;
+            await new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, KEEPALIVE_MS);
+              wake = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+            });
+            if (!pending.length) await stream.write(": keepalive\n\n");
+          }
+        } finally {
+          unsubscribe();
+        }
+      });
+    })
     .get("/jobs", async (c) => {
       try {
         return c.json({ jobs: await listJobs() });

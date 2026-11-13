@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { taskTitle } from "@/lib/api";
 import { useNav } from "@/lib/nav";
+import { usePlatformLive } from "@/lib/platform-events";
 import { useTasks } from "@/lib/queries";
 
 import { useRunTask } from "./use-run-task";
@@ -35,6 +36,7 @@ export function TasksPanel({ title }: { title: string }) {
   const tasksQuery = useTasks();
   const runTask = useRunTask();
   const { openTask, openCreate } = useNav();
+  const live = usePlatformLive();
   const [search, setSearch] = useState("");
   const tasks = tasksQuery.data?.tasks ?? [];
   const filtered = tasks.filter((task) =>
@@ -167,7 +169,7 @@ export function TasksPanel({ title }: { title: string }) {
         </span>
         <span className="flex items-center gap-1">
           <RefreshCw className="size-3" />
-          Refreshes every 15 seconds
+          {live ? "Live updates" : "Refreshes every 15 seconds"}
         </span>
       </CardFooter>
     </Card>

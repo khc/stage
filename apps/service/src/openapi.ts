@@ -412,6 +412,22 @@ export const openApiDocument = {
         },
       },
     },
+    "/events": {
+      get: {
+        operationId: "streamPlatformEvents",
+        summary: "Stream platform events (Server-Sent Events)",
+        description:
+          "Streams the lifecycle events published to PLATFORM_EVENTS_TOPIC (task.created, task.deleted, task.run_requested, document.added, document.removed, job.registration_requested) until the client disconnects. Each message has id = event ID and data = the event JSON. Events published while no client is connected are not replayed. A comment line is sent every 5 seconds to keep the connection open.",
+        responses: {
+          200: {
+            description: "Event stream",
+            content: { "text/event-stream": { schema: { type: "string" } } },
+          },
+          501: response("PLATFORM_EVENTS_TOPIC is not set", error("not_supported")),
+          502: response("Pub/Sub failure", error("events_error")),
+        },
+      },
+    },
     "/tasks/{taskId}/sessions/{sessionId}/messages": {
       get: {
         operationId: "streamTaskSessionMessages",

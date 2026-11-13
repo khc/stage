@@ -9,6 +9,7 @@ import { createExtractDocument, createTaskDocuments } from "./documents";
 import { createListJobs, createRegisterJob, createTaskJob } from "./jobs";
 import { createLiveEvents } from "./live-events";
 import { platformEventsFromEnv } from "./platform-events";
+import { createPlatformStream } from "./platform-stream";
 import { createTaskSessions } from "./sessions";
 import { createCreateTask, createDeleteTask, createListTasks, createGetTask } from "./tasks";
 
@@ -42,6 +43,9 @@ const app = createApp(
   { register: registerJob, list: createListAgents(db) },
   published(platform?.deleteTask, createDeleteTask(db)),
   taskDocuments && published(platform?.documents, taskDocuments),
+  process.env.PLATFORM_EVENTS_TOPIC
+    ? createPlatformStream(new PubSub(), process.env.PLATFORM_EVENTS_TOPIC)
+    : undefined,
 );
 
 export default {

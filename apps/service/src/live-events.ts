@@ -1,13 +1,13 @@
 import type { PubSub } from "@google-cloud/pubsub";
 
+import { createTopicListener } from "./topic-listener";
+
 export type EventListener = (eventId: string, json: string) => void;
 export type LiveEvents = (
   taskId: string,
   sessionId: string,
   listener: EventListener,
 ) => Promise<() => void>;
-
-const SUBSCRIPTION_TTL_SECONDS = 24 * 60 * 60;
 
 const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
 
@@ -20,26 +20,12 @@ export const createLiveEvents = (
   subscriptionName = `stage-service-${crypto.randomUUID()}`,
 ): LiveEvents => {
   const listeners = new Map<string, Set<EventListener>>();
-  let started: Promise<void> | undefined;
-
-  const start = () =>
-    (started ??= (async () => {
-      const [topic] = await pubsub.topic(topicName).get({ autoCreate: true });
-      const [subscription] = await topic.createSubscription(subscriptionName, {
-        expirationPolicy: { ttl: { seconds: SUBSCRIPTION_TTL_SECONDS } },
-      });
-      subscription.on("error", (err) => console.error("Event subscription error", err));
-      subscription.on("message", (message) => {
-        message.ack();
-        const { taskId, sessionId, eventId } = message.attributes;
-        if (!taskId || !sessionId || !eventId) return;
-        for (const listener of listeners.get(key(taskId, sessionId)) ?? [])
-          listener(eventId, message.data.toString());
-      });
-    })().catch((err) => {
-      started = undefined;
-      throw err;
-    }));
+  const start = createTopicListener(pubsub, topicName, subscriptionName, (message) => {
+    const { taskId, sessionId, eventId } = message.attributes;
+    if (!taskId || !sessionId || !eventId) return;
+    for (const listener of listeners.get(key(taskId, sessionId)) ?? [])
+      listener(eventId, message.data.toString());
+  });
 
   return async (taskId, sessionId, listener) => {
     await start();
