@@ -16,6 +16,7 @@ import { ConfirmDelete } from "@/components/confirm-delete";
 import { JsonView } from "@/components/json-view";
 import { Markdown } from "@/components/markdown";
 import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
+import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -35,6 +36,7 @@ import {
   withEvent,
   type DocumentSummary,
   type JsonSchema,
+  type RunState,
   type Session,
   type SessionEvent,
   type SessionSummary,
@@ -60,6 +62,23 @@ function Preview({ children, wrap = true }: { children: ReactNode; wrap?: boolea
     <div className={cn("bg-muted/40 rounded-lg border p-3 text-sm", wrap && "whitespace-pre-wrap")}>
       {children}
     </div>
+  );
+}
+
+const runBadge = {
+  running: { label: "Running", variant: "secondary" },
+  succeeded: { label: "Succeeded", variant: "outline" },
+  failed: { label: "Failed", variant: "destructive" },
+} as const;
+
+export function RunBadge({ run }: { run?: RunState }) {
+  if (!run) return null;
+  const { label, variant } = runBadge[run.status];
+  return (
+    <Badge variant={variant} title={run.error}>
+      {run.status === "running" && <Loader2 className="animate-spin" />}
+      {label}
+    </Badge>
   );
 }
 
@@ -129,7 +148,15 @@ export function DeleteSession({
   );
 }
 
-export function ContinueSession({ taskId, sessionId }: { taskId: string; sessionId: string }) {
+export function ContinueSession({
+  taskId,
+  sessionId,
+  running = false,
+}: {
+  taskId: string;
+  sessionId: string;
+  running?: boolean;
+}) {
   const client = useQueryClient();
   const [message, setMessage] = useState("");
   const resume = useMutation({
@@ -139,7 +166,7 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
       void client.invalidateQueries({ queryKey: ["session", taskId, sessionId] });
     },
   });
-  const canSend = !!message.trim() && !resume.isPending;
+  const canSend = !!message.trim() && !resume.isPending && !running;
   return (
     <form
       className="-mx-6 flex shrink-0 flex-col gap-1 border-t px-6 pt-3 pb-5"
@@ -183,6 +210,10 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
       ) : resume.isSuccess ? (
         <p className="text-muted-foreground text-xs" role="status">
           Sent. New events appear when the agent responds.
+        </p>
+      ) : running ? (
+        <p className="text-muted-foreground text-xs" role="status">
+          The agent is still running. You can reply when it finishes.
         </p>
       ) : (
         <p className="text-muted-foreground text-xs">Enter to send · Shift+Enter for a new line</p>

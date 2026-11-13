@@ -1,6 +1,6 @@
-import { createListAgents } from "@stage/agents/agent-registry";
 import { Firestore } from "@google-cloud/firestore";
 import { PubSub } from "@google-cloud/pubsub";
+import { createListAgents } from "@stage/agents/agent-registry";
 import { z } from "zod";
 
 import { createApp } from "./app";

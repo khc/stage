@@ -1,7 +1,11 @@
 import { expect, mock, test } from "bun:test";
 
 import { createApp } from "./app";
-import { createPlatformPublisher, platformEventsFromEnv, withPlatformEvents } from "./platform-events";
+import {
+  createPlatformPublisher,
+  platformEventsFromEnv,
+  withPlatformEvents,
+} from "./platform-events";
 
 const setup = () => {
   const publishMessage = mock(async (_message: unknown) => "1");
@@ -18,11 +22,13 @@ const setup = () => {
 
 test("publishes the event type, task id and JSON body", async () => {
   const { events, sent } = setup();
-  const createTask = events.createTask(async (i) => ({ taskId: "t1", documents: [], ...i }) as never);
+  const createTask = events.createTask(
+    async (i) => ({ taskId: "t1", documents: [], ...i }) as never,
+  );
 
   await createTask({ prompt: "hi", jobName: "job" });
 
-  const [message] = (await sent());
+  const [message] = await sent();
   const body = JSON.parse(message!.data.toString());
   expect(message!.attributes).toMatchObject({ eventType: "task.created", taskId: "t1" });
   expect(message!.attributes.eventId).toBe(body.eventId);
@@ -126,8 +132,14 @@ test("document.removed is published only when something was removed", async () =
   await documents.remove("t1", "d1");
   await documents.remove("t1", "missing");
 
-  expect((await sent()).map((m) => m.attributes.eventType)).toEqual(["document.added", "document.removed"]);
-  expect(JSON.parse((await sent())[0]!.data.toString())).toMatchObject({ taskId: "t1", documentId: "d1" });
+  expect((await sent()).map((m) => m.attributes.eventType)).toEqual([
+    "document.added",
+    "document.removed",
+  ]);
+  expect(JSON.parse((await sent())[0]!.data.toString())).toMatchObject({
+    taskId: "t1",
+    documentId: "d1",
+  });
 });
 
 test("resolves the topic once and retries after a topic failure", async () => {
@@ -149,5 +161,7 @@ test("resolves the topic once and retries after a topic failure", async () => {
 
 test("is disabled without PLATFORM_EVENTS_TOPIC", () => {
   expect(platformEventsFromEnv({}, { topic: mock() } as never)).toBeUndefined();
-  expect(platformEventsFromEnv({ PLATFORM_EVENTS_TOPIC: "t" }, { topic: mock() } as never)).toBeDefined();
+  expect(
+    platformEventsFromEnv({ PLATFORM_EVENTS_TOPIC: "t" }, { topic: mock() } as never),
+  ).toBeDefined();
 });

@@ -478,10 +478,10 @@ test("GET /openapi.json describes every API operation and its task input", async
   expect(document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"]).toBeDefined();
 });
 
-const resumeApp = (found: boolean) => {
+const resumeApp = (found: boolean, run?: unknown) => {
   const job = mock(async (_name: string, _taskId: string, _resume?: unknown) => "op-1");
   const get = mock(async (_taskId: string, _sessionId: string) =>
-    found ? ({ id: "s1" } as never) : undefined,
+    found ? ({ id: "s1", run } as never) : undefined,
   );
   const app = createApp(job, noJobs, noCreate, noTasks, async () => savedTask as TaskContract, {
     list: async () => [],
@@ -500,6 +500,14 @@ test("run with sessionId and message resumes an owned session", async () => {
     sessionId: "s1",
     message: "answer",
   });
+});
+
+test("run returns 409 run_in_progress while the session is running", async () => {
+  const { app, job } = resumeApp(true, { status: "running", startedAt: 1 });
+  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "run_in_progress" });
+  expect(job).not.toHaveBeenCalled();
 });
 
 test("run returns 404 session_not_found for a missing or foreign session", async () => {

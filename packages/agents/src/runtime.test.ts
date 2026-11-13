@@ -8,9 +8,12 @@ import type { AgentSet } from "./spec";
 
 const reply = (text: string) => createEvent({ content: { role: "model", parts: [{ text }] } });
 
+const runs = () => ({ startRun: mock(async () => {}), finishRun: mock(async () => {}) });
+
 const setup = (runAsync: () => AsyncGenerator<ReturnType<typeof createEvent>>) => {
   const sessionService = {
     createSession: mock(async () => ({ id: "s1" })),
+    ...runs(),
   };
   const run = createTaskAgent({ sessionService, runAsync } as never);
   return { run, sessionService };
@@ -62,6 +65,7 @@ test("resumes an existing session of the same task without creating one", async 
   const sessionService = {
     createSession: mock(async () => ({ id: "x" })),
     getSession,
+    ...runs(),
   };
   const runAsync = mock(async function* () {
     yield reply("again");
@@ -78,6 +82,7 @@ test("refuses to resume a missing session or one linked to another task", async 
     const sessionService = {
       createSession: mock(async () => ({ id: "x" })),
       getSession: mock(async () => found),
+      ...runs(),
     };
     const runAsync = mock(async function* () {
       yield reply("no");
@@ -89,7 +94,7 @@ test("refuses to resume a missing session or one linked to another task", async 
 });
 
 test("publishes every yielded event and survives a publish failure", async () => {
-  const sessionService = { createSession: mock(async () => ({ id: "s1" })) };
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })), ...runs() };
   const runAsync = async function* () {
     yield reply("a");
     yield reply("b");
@@ -134,4 +139,52 @@ test("createRunAgent rejects a message that does not match a structured agent's 
   await expect(runner()("{}", undefined, undefined, "structured")).rejects.toThrow(
     "does not match",
   );
+});
+
+test("records a succeeded run around a successful execution", async () => {
+  const { run, sessionService } = setup(async function* () {
+    yield reply("done");
+  });
+  await run("hi");
+  const key = { appName: "stage", userId: "user", sessionId: "s1" };
+  expect(sessionService.startRun).toHaveBeenCalledWith(key);
+  expect(sessionService.finishRun).toHaveBeenCalledWith(key);
+});
+
+test("a failed success write is logged and does not fail the run", async () => {
+  const { run, sessionService } = setup(async function* () {
+    yield reply("done");
+  });
+  sessionService.finishRun.mockRejectedValue(new Error("firestore down"));
+  const spy = spyOn(console, "error").mockImplementation(() => {});
+  expect(await run("hi")).toBe("done");
+  expect(sessionService.finishRun).toHaveBeenCalledTimes(1);
+  expect(spy).toHaveBeenCalledWith("Failed to record run success", expect.any(Error));
+  spy.mockRestore();
+});
+
+test("records a failed run with the error and rethrows it", async () => {
+  // oxlint-disable-next-line require-yield
+  const { run, sessionService } = setup(async function* () {
+    throw new Error("boom");
+  });
+  await expect(run("hi")).rejects.toThrow("boom");
+  expect(sessionService.finishRun).toHaveBeenCalledWith(expect.anything(), "boom");
+});
+
+test("does not run the agent when the session is already running", async () => {
+  const runAsync = mock(async function* () {
+    yield reply("never");
+  });
+  const sessionService = {
+    createSession: mock(async () => ({ id: "s1" })),
+    startRun: mock(async () => {
+      throw new Error("A run is already in progress for this session");
+    }),
+    finishRun: mock(async () => {}),
+  };
+  const run = createTaskAgent({ sessionService, runAsync } as never);
+  await expect(run("hi")).rejects.toThrow("already in progress");
+  expect(runAsync).not.toHaveBeenCalled();
+  expect(sessionService.finishRun).not.toHaveBeenCalled();
 });

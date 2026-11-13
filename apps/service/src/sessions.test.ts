@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { FirestoreSessionService } from "@stage/agents/session-service";
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
+import { FirestoreSessionService } from "@stage/agents/session-service";
 
 import { createTaskSessions } from "./sessions";
 
@@ -62,6 +62,30 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("task sessions", () => {
     } finally {
       for (const session of [first, other, chat])
         await service.deleteSession({ ...key, sessionId: session.id });
+      await db.terminate();
+    }
+  });
+
+  test("exposes the run of a session in the list and the detail", async () => {
+    const db = new Firestore();
+    const service = new FirestoreSessionService(db);
+    const api = createTaskSessions(db);
+    const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
+    const taskId = crypto.randomUUID();
+    const session = await service.createSession({ ...key, taskId });
+    const ref = { ...key, sessionId: session.id };
+    try {
+      expect((await api.list(taskId))[0]?.run).toBeUndefined();
+      await service.startRun(ref);
+      expect((await api.list(taskId))[0]?.run).toMatchObject({ status: "running" });
+      expect((await api.get(taskId, session.id))?.run).toMatchObject({ status: "running" });
+      await service.finishRun(ref, "boom");
+      expect((await api.get(taskId, session.id))?.run).toMatchObject({
+        status: "failed",
+        error: "boom",
+      });
+    } finally {
+      await service.deleteSession(ref);
       await db.terminate();
     }
   });

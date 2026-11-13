@@ -38,6 +38,7 @@ import { useNav } from "@/lib/nav";
 
 import {
   ContinueSession,
+  RunBadge,
   DeleteSession,
   EventCard,
   LastOutput,
@@ -73,7 +74,10 @@ function TaskDetails({ taskId }: { taskId: string }) {
     queryKey: ["sessions", taskId],
     queryFn: () => api.sessions(taskId),
     enabled: !!task.data,
-    refetchInterval: tab === "output" ? 5000 : false,
+    refetchInterval: (query) =>
+      tab === "output" || query.state.data?.sessions.some((s) => s.run?.status === "running")
+        ? 5000
+        : false,
   });
   const documents = useQuery({
     queryKey: ["documents", taskId],
@@ -84,6 +88,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
     queryKey: ["session", taskId, sessionId],
     queryFn: () => api.session(taskId, sessionId!),
     enabled: !!sessionId,
+    refetchInterval: (query) => (query.state.data?.run?.status === "running" ? 5000 : false),
   });
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
   const list = (sessions.data?.sessions ?? []).toSorted(
@@ -165,6 +170,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                     <span className="text-muted-foreground text-sm">
                       {detail.data.events.length} events
                     </span>
+                    <RunBadge run={detail.data.run} />
                     <span className="ml-auto flex">
                       <DeleteSession
                         taskId={taskId}
@@ -238,7 +244,11 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       <MessageScrollerButton />
                     </MessageScroller>
                   </MessageScrollerProvider>
-                  <ContinueSession taskId={taskId} sessionId={detail.data.id} />
+                  <ContinueSession
+                    taskId={taskId}
+                    sessionId={detail.data.id}
+                    running={detail.data.run?.status === "running"}
+                  />
                 </>
               )}
             </>
@@ -286,6 +296,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                         {formatTime(session.lastUpdateTime)} · {session.id.slice(0, 8)}
                       </small>
                     </span>
+                    <RunBadge run={session.run} />
                     {i === 0 && <Badge variant="secondary">Latest</Badge>}
                     <ChevronRight className="text-muted-foreground size-4" />
                   </button>

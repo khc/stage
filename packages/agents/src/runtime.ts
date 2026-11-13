@@ -12,7 +12,10 @@ export type RunAgent = (
   agentName?: string,
 ) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
-  sessionService: Pick<FirestoreSessionService, "createSession" | "getSession">;
+  sessionService: Pick<
+    FirestoreSessionService,
+    "createSession" | "getSession" | "startRun" | "finishRun"
+  >;
 };
 
 const appName = "stage";
@@ -28,6 +31,30 @@ const resumeSession = async (
   return session;
 };
 
+const runSession = async (
+  runner: RunnerLike,
+  sessionId: string,
+  message: string,
+  taskId?: string,
+  publish?: PublishEvent,
+) => {
+  let reply = "";
+  for await (const event of runner.runAsync({
+    userId,
+    sessionId,
+    newMessage: { role: "user", parts: [{ text: message }] },
+  })) {
+    await publish?.(event, { sessionId, taskId }).catch((err) =>
+      console.error("Failed to publish event", err),
+    );
+    if (isFinalResponse(event) && event.content?.parts?.length) {
+      reply = stringifyContent(event).trim();
+    }
+  }
+  if (!reply) throw new Error("Agent returned no final response");
+  return reply;
+};
+
 export const createTaskAgent =
   (runner: RunnerLike, publish?: PublishEvent): RunAgent =>
   async (message, taskId, sessionId) => {
@@ -38,22 +65,21 @@ export const createTaskAgent =
           userId,
           ...(taskId !== undefined && { taskId }),
         });
-    let reply = "";
-
-    for await (const event of runner.runAsync({
-      userId,
-      sessionId: session.id,
-      newMessage: { role: "user", parts: [{ text: message }] },
-    })) {
-      await publish?.(event, { sessionId: session.id, taskId }).catch((err) =>
-        console.error("Failed to publish event", err),
-      );
-      if (isFinalResponse(event) && event.content?.parts?.length) {
-        reply = stringifyContent(event).trim();
-      }
+    const key = { appName, userId, sessionId: session.id };
+    await runner.sessionService.startRun(key);
+    let reply: string;
+    try {
+      reply = await runSession(runner, session.id, message, taskId, publish);
+    } catch (err) {
+      await runner.sessionService
+        .finishRun(key, err instanceof Error ? err.message : String(err))
+        .catch((finishErr) => console.error("Failed to record run failure", finishErr));
+      throw err;
     }
-
-    if (!reply) throw new Error("Agent returned no final response");
+    // The answer exists; failing to record that must not fail the job.
+    await runner.sessionService
+      .finishRun(key)
+      .catch((finishErr) => console.error("Failed to record run success", finishErr));
     return reply;
   };
 
@@ -71,10 +97,8 @@ export const createRunAgent = (
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
     checkInput(spec, message);
     const { agent } = spec;
-    return createTaskAgent(new Runner({ appName, agent, sessionService }), publish)(
-      message,
-      taskId,
-      sessionId,
-    );
+    const runner = new Runner({ appName, agent, sessionService });
+    const runAsync = runner.runAsync.bind(runner);
+    return createTaskAgent({ sessionService, runAsync }, publish)(message, taskId, sessionId);
   };
 };

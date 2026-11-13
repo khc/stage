@@ -1,5 +1,5 @@
-import { toContract, type TaskContract } from "@stage/agents/task-contract";
 import type { Firestore } from "@google-cloud/firestore";
+import { toContract, type TaskContract } from "@stage/agents/task-contract";
 
 export type { TaskContract, GetTask } from "@stage/agents/task-contract";
 export { createGetTask } from "@stage/agents/task-contract";

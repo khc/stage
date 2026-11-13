@@ -75,6 +75,17 @@ const summaryFields = {
   appName: { type: "string" },
   userId: { type: "string" },
   lastUpdateTime: { type: "number" },
+  run: {
+    type: "object",
+    description: "The latest run of the session; absent when it never ran.",
+    required: ["status", "startedAt"],
+    properties: {
+      status: { type: "string", enum: ["running", "succeeded", "failed"] },
+      startedAt: { type: "number" },
+      endedAt: { type: "number" },
+      error: { type: "string" },
+    },
+  },
 };
 
 export const openApiDocument = {
@@ -246,7 +257,10 @@ export const openApiDocument = {
           ),
           400: invalid,
           404: response("Task or session not found", error("task_not_found", "session_not_found")),
-          409: response("Stored jobName is missing or invalid", error("task_not_executable")),
+          409: response(
+            "Stored jobName is missing or invalid, or the session being resumed is already running",
+            error("task_not_executable", "run_in_progress"),
+          ),
           502: response(
             "Firestore lookup or Cloud Run submission failure",
             error("task_error", "session_error", "job_error"),

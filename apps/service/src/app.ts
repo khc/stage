@@ -405,8 +405,9 @@ export const createApp = (
         if (!parsed.success) return c.json({ success: false, error: parsed.error }, 400);
         resume = parsed.data;
         try {
-          if (!(await sessions.get(taskId, resume.sessionId)))
-            return c.json({ error: "session_not_found" }, 404);
+          const existing = await sessions.get(taskId, resume.sessionId);
+          if (!existing) return c.json({ error: "session_not_found" }, 404);
+          if (existing.run?.status === "running") return c.json({ error: "run_in_progress" }, 409);
         } catch (err) {
           console.error(err);
           throw new HTTPException(502, {

@@ -3,7 +3,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
 
-import { FirestoreSessionService } from "./session-service";
+import { FirestoreSessionService, RunInProgressError, runState } from "./session-service";
 
 const db = new Firestore();
 const newService = () => new FirestoreSessionService(db);
@@ -204,5 +204,117 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("FirestoreSessionService",
 
   test("getSession returns undefined for an unknown session", async () => {
     expect(await newService().getSession({ ...newApp(), sessionId: "missing" })).toBeUndefined();
+  });
+});
+
+describe("runState", () => {
+  const base = { runStatus: "running", runStartedAt: 100, runLeaseUntil: 1_000 } as const;
+  test("reports nothing for a session that never ran", () => {
+    expect(runState({})).toBeUndefined();
+  });
+  test("reports a live run as running", () => {
+    expect(runState(base, 500)).toEqual({ status: "running", startedAt: 100 });
+  });
+  test("reports a run whose lease lapsed as failed", () => {
+    expect(runState(base, 2_000)).toEqual({
+      status: "failed",
+      startedAt: 100,
+      endedAt: 1_000,
+      error: "The run stopped responding",
+    });
+  });
+  test("reports finished runs with their end and error", () => {
+    expect(
+      runState({ runStatus: "failed", runStartedAt: 1, runEndedAt: 2, runError: "boom" }),
+    ).toEqual({ status: "failed", startedAt: 1, endedAt: 2, error: "boom" });
+  });
+});
+
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
+  test("a live run blocks a second one until it finishes or its lease lapses", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    await service.startRun(ref, 1_000);
+    await expect(service.startRun(ref, 2_000)).rejects.toBeInstanceOf(RunInProgressError);
+    await service.finishRun(ref, undefined, 3_000);
+    const done = await service.getSession(ref);
+    expect((done as { run?: unknown }).run).toMatchObject({ status: "succeeded", endedAt: 3_000 });
+    await service.startRun(ref, 4_000);
+    await expect(service.startRun(ref, 5_000)).rejects.toBeInstanceOf(RunInProgressError);
+    await service.startRun(ref, 4_000 + 11 * 60_000);
+  });
+
+  test("of two simultaneous runs exactly one starts", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    const results = await Promise.allSettled([service.startRun(ref), service.startRun(ref)]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const [failure] = results.filter((r) => r.status === "rejected");
+    expect((failure as PromiseRejectedResult).reason).toBeInstanceOf(RunInProgressError);
+    await service.finishRun(ref);
+  });
+
+  test("finishRun with an error records a failed run", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    await service.startRun(ref);
+    await service.finishRun(ref, "boom");
+    expect(((await service.getSession(ref)) as { run?: unknown }).run).toMatchObject({
+      status: "failed",
+      error: "boom",
+    });
+  });
+});
+
+// A minimal in-memory Firestore: one session document, enough for the run lease.
+const fakeDb = (fields: Record<string, unknown> = {}) => {
+  const updates: Record<string, unknown>[] = [];
+  const ref = {
+    update: async (data: Record<string, unknown>) => {
+      updates.push(data);
+      Object.assign(fields, data);
+    },
+  };
+  const snapshot = { exists: true, get: (name: string) => fields[name] };
+  const db = {
+    collection: () => ({ doc: () => ref }),
+    runTransaction: async (fn: (tx: unknown) => Promise<void>) =>
+      fn({
+        get: async () => snapshot,
+        update: (_r: unknown, data: object) => Object.assign(fields, data),
+      }),
+  };
+  return { db: db as never, updates };
+};
+const key = { appName: "a", userId: "u", sessionId: "s" };
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe("run lease heartbeat", () => {
+  test("renews the lease between events until the run finishes", async () => {
+    const { db, updates } = fakeDb();
+    const service = new FirestoreSessionService(db, 5);
+    await service.startRun(key);
+    await sleep(30);
+    const renewals = updates.filter((u) => "runLeaseUntil" in u).length;
+    expect(renewals).toBeGreaterThan(1);
+    await service.finishRun(key);
+    const after = updates.length;
+    await sleep(20);
+    expect(updates.length).toBe(after);
+  });
+
+  test("finishRun keeps only the first line of the error, trimmed", async () => {
+    const fields: Record<string, unknown> = {};
+    const { db } = fakeDb(fields);
+    const service = new FirestoreSessionService(db, 5);
+    await service.startRun(key);
+    await service.finishRun(key, `${"x".repeat(500)}\n at secret/path.ts:1`);
+    expect(fields.runError).toBe("x".repeat(200));
   });
 });

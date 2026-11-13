@@ -1,15 +1,26 @@
-import { FirestoreSessionService } from "@stage/agents/session-service";
+import {
+  FirestoreSessionService,
+  runFields,
+  runState,
+  type RunState,
+} from "@stage/agents/session-service";
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
 
 export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUpdateTime"> & {
   taskId: string;
+  run?: RunState;
 };
 export type TaskSessions = {
   list: (taskId: string) => Promise<SessionSummary[]>;
-  get: (taskId: string, sessionId: string) => Promise<(Session & { taskId?: string }) | undefined>;
+  get: (
+    taskId: string,
+    sessionId: string,
+  ) => Promise<(Session & { taskId?: string; run?: RunState }) | undefined>;
   delete: (taskId: string, sessionId: string) => Promise<boolean>;
 };
+
+const withRun = (run?: RunState) => (run ? { run } : {});
 
 export const createTaskSessions = (db: Firestore): TaskSessions => {
   const service = new FirestoreSessionService(db);
@@ -31,6 +42,7 @@ export const createTaskSessions = (db: Firestore): TaskSessions => {
         appName: doc.get("appName"),
         userId: doc.get("userId"),
         lastUpdateTime: doc.get("lastUpdateTime"),
+        ...withRun(runState(runFields(doc))),
       }));
     },
     async get(taskId, sessionId) {

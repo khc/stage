@@ -41,12 +41,19 @@ export type Job = {
     };
   };
 };
+export type RunState = {
+  status: "running" | "succeeded" | "failed";
+  startedAt: number;
+  endedAt?: number;
+  error?: string;
+};
 export type SessionSummary = {
   id: string;
   taskId: string;
   appName: string;
   userId: string;
   lastUpdateTime: number;
+  run?: RunState;
 };
 export type SessionEvent = {
   id?: string;
@@ -109,6 +116,7 @@ const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
   task_not_executable: "This task needs a valid job name before it can run.",
   session_not_found: "This session could not be found for this task.",
+  run_in_progress: "This session is still running. Wait for it to finish before continuing.",
   job_error: "Cloud Run could not complete the request. Check the job configuration and try again.",
   task_error: "Tasks could not be loaded. Check the service connection and try again.",
   session_error: "Sessions could not be loaded. Try again in a moment.",
