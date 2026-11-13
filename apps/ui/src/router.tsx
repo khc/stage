@@ -5,6 +5,7 @@ import {
   createRouter,
   Outlet,
   useRouterState,
+  useParams,
   useSearch,
 } from "@tanstack/react-router";
 import {
@@ -55,15 +56,16 @@ function Shell() {
   const client = useQueryClient();
   const { openCreate } = useNav();
   const search = useSearch({ strict: false }) as {
-    task?: string;
     job?: string;
     new?: boolean;
     for?: string;
   };
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { taskId } = useParams({ strict: false }) as { taskId?: string };
+  const section = `/${pathname.split("/")[1]}`;
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
-  const [crumb, title, subtitle] = captions[pathname] ?? captions["/"]!;
+  const [crumb, title, subtitle] = captions[section] ?? captions["/"]!;
   const jobs = jobsQuery.data?.jobs ?? [];
   const openJob = search.job ? jobs.find((job) => shortJobName(job) === search.job) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
@@ -137,7 +139,7 @@ function Shell() {
       </SidebarInset>
       <NewTaskDialog open={!!search.new} initialJob={search.for ?? ""} />
       <JobSheet job={openJob} tasks={tasksQuery.data?.tasks ?? []} />
-      <TaskSheet taskId={search.task} />
+      <TaskSheet taskId={taskId} />
       <Toaster />
     </SidebarProvider>
   );
@@ -251,7 +253,7 @@ function Jobs() {
     `${job.name} ${job.description ?? ""}`.toLowerCase().includes(search.toLowerCase()),
   );
   return (
-    <Card>
+    <Card className="has-data-[slot=card-footer]:pb-(--card-spacing)">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle className="flex items-center gap-2">
           <Server className="size-4" />
@@ -299,7 +301,6 @@ function Jobs() {
 const rootRoute = createRootRoute({
   component: Shell,
   validateSearch: (search: Record<string, unknown>) => ({
-    task: str(search.task),
     job: str(search.job),
     new: search.new === true || search.new === "true" ? true : undefined,
     for: str(search.for),
@@ -311,6 +312,11 @@ const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/tasks",
+    component: () => <TasksPanel title="All tasks" />,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/tasks/$taskId",
     component: () => <TasksPanel title="All tasks" />,
   }),
   createRoute({ getParentRoute: () => rootRoute, path: "/jobs", component: Jobs }),

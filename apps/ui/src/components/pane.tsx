@@ -49,7 +49,7 @@ export function PaneHeader({
 export const PaneTabsList = ({ className, ...props }: ComponentProps<typeof TabsList>) => (
   <TabsList
     variant="line"
-    className={cn("h-11 w-full justify-start gap-4 rounded-none border-b px-6", className)}
+    className={cn("h-11 w-full justify-start gap-4 rounded-none border-b p-0 px-6", className)}
     {...props}
   />
 );
@@ -57,7 +57,7 @@ export const PaneTabsList = ({ className, ...props }: ComponentProps<typeof Tabs
 export const PaneTab = ({ className, ...props }: ComponentProps<typeof TabsTrigger>) => (
   <TabsTrigger
     className={cn(
-      "data-active:text-primary after:bg-primary flex-none px-1 group-data-horizontal/tabs-list:after:bottom-[-1px]",
+      "data-active:text-primary after:bg-primary h-full flex-none px-1 group-data-horizontal/tabs:after:bottom-[-1px]",
       className,
     )}
     {...props}

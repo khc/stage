@@ -3,11 +3,19 @@ import { Box, ChevronRight, Plus, Server, Workflow } from "lucide-react";
 import { CopyButton } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { shortJobName, type Job } from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
-import { RegisterAgentsButton, useAgentRegistration } from "./agents";
+import { RegisterAgentsButton, RegisterAgentsNote, useAgentRegistration } from "./agents";
 
 export const jobLocation = (job: Job) => job.name?.split("/locations/")[1]?.split("/")[0];
 
@@ -19,16 +27,10 @@ export function JobCard({ job }: { job: Job }) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <span className="bg-primary/10 text-primary grid size-10 place-items-center rounded-lg">
-            <Server className="size-5" />
+        <CardTitle className="flex items-center gap-2">
+          <span className="bg-primary/10 text-primary grid size-8 place-items-center rounded-lg">
+            <Server className="size-4" />
           </span>
-          <Button variant="ghost" size="sm" onClick={() => void openJob(name)}>
-            Details
-            <ChevronRight />
-          </Button>
-        </div>
-        <CardTitle>
           <button className="hover:underline" onClick={() => void openJob(name)}>
             {name}
           </button>
@@ -36,10 +38,16 @@ export function JobCard({ job }: { job: Job }) {
         <CardDescription>
           {job.description || "An agent worker available for task execution."}
         </CardDescription>
+        <CardAction>
+          <Button variant="ghost" size="sm" onClick={() => void openJob(name)}>
+            Details
+            <ChevronRight />
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-1 flex-col gap-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="outline">
+          <Badge variant="outline" className="font-mono">
             <Box />
             {jobLocation(job) ?? "Cloud Run"}
           </Badge>
@@ -70,12 +78,15 @@ export function JobCard({ job }: { job: Job }) {
           <code className="truncate">{job.name ?? "Resource name unavailable"}</code>
           {job.name && <CopyButton value={job.name} label="Copy resource name" />}
         </div>
-        <RegisterAgentsButton register={register} disabled={!job.name} />
-        <Button variant="outline" className="w-full" onClick={() => void openCreate(name)}>
-          <Plus />
-          Create task for this job
-        </Button>
+        <RegisterAgentsNote register={register} />
       </CardContent>
+      <CardFooter className="justify-end gap-2">
+        <RegisterAgentsButton register={register} disabled={!job.name} />
+        <Button onClick={() => void openCreate(name)}>
+          <Plus />
+          Create task
+        </Button>
+      </CardFooter>
     </Card>
   );
 }

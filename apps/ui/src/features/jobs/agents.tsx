@@ -24,35 +24,44 @@ export function useAgentRegistration(jobName: string, enabled = true) {
   return { agents: query.data?.agents ?? [], query, register };
 }
 
+type Register = ReturnType<typeof useAgentRegistration>["register"];
+
 export function RegisterAgentsButton({
   register,
   disabled,
+  className,
 }: {
-  register: ReturnType<typeof useAgentRegistration>["register"];
+  register: Register;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
-    <>
-      <Button
-        variant="outline"
-        className="w-full"
-        disabled={disabled || register.isPending}
-        onClick={() => register.mutate()}
-      >
-        {register.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-        Register agents
-      </Button>
-      {register.isError ? (
-        <p className="text-destructive text-xs" role="alert">
-          {register.error.message}
-        </p>
-      ) : register.isSuccess ? (
-        <p className="text-muted-foreground text-xs" role="status">
-          Registration submitted. Agents appear here when the job finishes.
-        </p>
-      ) : null}
-    </>
+    <Button
+      variant="outline"
+      className={className}
+      disabled={disabled || register.isPending}
+      onClick={() => register.mutate()}
+    >
+      {register.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+      Register agents
+    </Button>
   );
+}
+
+export function RegisterAgentsNote({ register }: { register: Register }) {
+  if (register.isError)
+    return (
+      <p className="text-destructive text-xs" role="alert">
+        {register.error.message}
+      </p>
+    );
+  if (register.isSuccess)
+    return (
+      <p className="text-muted-foreground text-xs" role="status">
+        Registration submitted. Agents appear here when the job finishes.
+      </p>
+    );
+  return null;
 }
 
 export function AgentContract({ agent }: { agent: AgentInfo }) {

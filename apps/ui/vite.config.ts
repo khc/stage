@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
 // SPA routes that share a path with an API route: browser navigations get the app.
-const spaRoutes = ["/tasks", "/jobs"];
+const isSpaRoute = (path: string) => /^\/(tasks|jobs)(\/[^/]+)?$/.test(path);
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
   const proxy = {
     target,
     bypass: (req: { url?: string; headers: { accept?: string } }) =>
-      spaRoutes.includes(req.url?.split("?")[0] ?? "") && req.headers.accept?.includes("text/html")
+      isSpaRoute(req.url?.split("?")[0] ?? "") && req.headers.accept?.includes("text/html")
         ? "/index.html"
         : undefined,
   };

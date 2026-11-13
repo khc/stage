@@ -92,7 +92,10 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton isActive={pathname === item.to} render={<Link to={item.to} />}>
+                  <SidebarMenuButton
+                    isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
+                    render={<Link to={item.to} />}
+                  >
                     <item.icon />
                     <span>{item.label}</span>
                   </SidebarMenuButton>

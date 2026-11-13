@@ -2,17 +2,24 @@ import { useNavigate } from "@tanstack/react-router";
 
 type Search = Record<string, unknown>;
 
-// Dialog and pane state lives in the URL search params, so views are linkable.
+// The open task is the path (/tasks/:taskId); the job pane and create dialog are search params.
 export function useNav() {
   const navigate = useNavigate();
-  const set = (patch: Search) =>
-    navigate({ to: ".", search: (prev: Search) => ({ ...prev, ...patch }) });
+  const keepSearch =
+    (patch: Search = {}) =>
+    (prev: Search) => ({ ...prev, ...patch });
+  const setSearch = (patch: Search) => navigate({ to: ".", search: keepSearch(patch) });
   return {
-    openTask: (task: string) => set({ task, job: undefined }),
-    openJob: (job: string) => set({ job, task: undefined }),
-    openCreate: (forJob?: string) => set({ new: true, for: forJob }),
-    closeTask: () => set({ task: undefined }),
-    closeJob: () => set({ job: undefined }),
-    closeCreate: () => set({ new: undefined, for: undefined }),
+    openTask: (taskId: string) =>
+      navigate({
+        to: "/tasks/$taskId",
+        params: { taskId },
+        search: keepSearch({ job: undefined }),
+      }),
+    openJob: (job: string) => navigate({ to: "/jobs", search: keepSearch({ job }) }),
+    openCreate: (forJob?: string) => setSearch({ new: true, for: forJob }),
+    closeTask: () => navigate({ to: "/tasks", search: keepSearch() }),
+    closeJob: () => setSearch({ job: undefined }),
+    closeCreate: () => setSearch({ new: undefined, for: undefined }),
   };
 }

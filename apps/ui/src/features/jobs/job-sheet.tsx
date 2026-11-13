@@ -10,7 +10,12 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { jobDetails, jobEnvNames, shortJobName, type Job, type Task } from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
-import { AgentContract, RegisterAgentsButton, useAgentRegistration } from "./agents";
+import {
+  AgentContract,
+  RegisterAgentsButton,
+  RegisterAgentsNote,
+  useAgentRegistration,
+} from "./agents";
 import { jobLocation } from "./job-card";
 
 export function JobSheet({ job, tasks }: { job?: Job; tasks: Task[] }) {
@@ -132,7 +137,8 @@ function JobDetails({
               </article>
             ))
           )}
-          <RegisterAgentsButton register={register} disabled={!job.name} />
+          <RegisterAgentsButton className="w-full" register={register} disabled={!job.name} />
+          <RegisterAgentsNote register={register} />
         </TabsContent>
         <TabsContent value="tasks" className={paneBody}>
           {!jobTasks.length ? (
