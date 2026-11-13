@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { jobEnvironment, jobTaskTemplate } from "./cloud-run-job";
+import { jobEnvironment, jobTarget, jobTaskTemplate } from "./cloud-run-job";
 
 test("supplies the job with Firestore configuration and model credentials", () => {
   expect(
@@ -223,6 +223,7 @@ test("update stops without patching when the existing job cannot be read", async
       env: {
         ...process.env,
         JOB_FLOCI: `http://localhost:${server.port}`,
+        JOB_APP: "poet",
         GEMINI_API_KEY: "test-key",
       },
       stdout: "pipe",
@@ -245,4 +246,21 @@ test("the task template turns retries off and keeps the other task settings", ()
     timeout: { seconds: 600 },
     containers,
   });
+});
+
+test("jobTarget derives the job and image from JOB_APP and lets JOB_NAME and JOB_IMAGE override", () => {
+  expect(jobTarget({ JOB_APP: "poet" })).toEqual({
+    job: "poet-agents",
+    image: "stage-poet:latest",
+  });
+  expect(jobTarget({ JOB_APP: "poet", JOB_NAME: "other", JOB_IMAGE: "img:1" })).toEqual({
+    job: "other",
+    image: "img:1",
+  });
+  expect(jobTarget({ JOB_NAME: "j", JOB_IMAGE: "i" })).toEqual({ job: "j", image: "i" });
+});
+
+test("jobTarget refuses to guess when no app, job or image is given", () => {
+  expect(() => jobTarget({})).toThrow("JOB_APP");
+  expect(() => jobTarget({ JOB_NAME: "j" })).toThrow("JOB_APP");
 });

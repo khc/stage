@@ -28,13 +28,13 @@ tasks:
     desc: Create the agent Cloud Run jobs in Floci (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}}-agents JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts create
+        cmd: JOB_APP={{.ITEM}} bun scripts/cloud-run-job.ts create
 
   update-job:
     desc: Update the agent jobs' image and environment in Floci from .env (one per job in JOBS)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}}-agents JOB_IMAGE=stage-{{.ITEM}}:latest bun scripts/cloud-run-job.ts update
+        cmd: JOB_APP={{.ITEM}} bun scripts/cloud-run-job.ts update
 
   register-agents:
     desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT)

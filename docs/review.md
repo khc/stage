@@ -60,11 +60,9 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 2. **No agent-level limits (finding 4, low).** There are no step limits, token budgets or timeouts inside `createTaskAgent`; only the job's own 600-second timeout applies. Stats exist but nothing enforces them.
    - **Fix:** add a maximum number of model calls in `createTaskAgent` and record hitting it as a failed run.
 
-3. **Job script defaults are stale (medium).** [cloud-run-job.ts](../scripts/cloud-run-job.ts) defaults the job to `my-agent-job` and the image to `stage-${job}:latest`. Jobs are named `generic-agents` and `poet-agents` while the images are `stage-generic` and `stage-poet`, so only the Taskfile's explicit `JOB_IMAGE` makes it work.
-   - **Fix:** require `JOB_IMAGE`, or take an app name and derive both the image and the `<app>-agents` job name.
+3. **Done: job script defaults were stale.** [cloud-run-job.ts](../scripts/cloud-run-job.ts) no longer defaults to `my-agent-job` and a guessed image. `jobTarget` takes `JOB_APP` (`generic`, `poet`) and derives `<app>-agents` and `stage-<app>:latest` from it; `JOB_NAME` and `JOB_IMAGE` override either, and the script fails with a clear message when nothing is set. The Taskfile passes only `JOB_APP`.
 
-4. **README and compose disagree (medium).** README says `docker compose up -d --build` builds and starts the service, and tells readers to run `docker compose up -d --build service`, but the `service` block in [docker-compose.yml](../docker-compose.yml) is commented out. `apps/ui` also has no Docker image or compose entry.
-   - **Fix:** enable the service block, or change the README to say the service runs with `bun run dev:service`; decide how the UI is served in production.
+4. **Done: README and compose disagreed.** The README now says compose starts Floci, Floci UI and the extract service, and that the API and the dashboard run on the host (`bun run dev:service`, `bun run dev:ui`). It explains the commented `service` block as the container alternative, drops the stale `JOB=my-job` and `my-agent-job` examples, and gives the restart step for the host service. `apps/ui` still has no Docker image or compose entry.
 
 5. **Session store scalability (finding 6, low).** The service lists sessions by `taskId`, which is fine, but the ADK `listSessions` still loads every session of the app and filters in memory, `getSession` reads all events, and `userId` is hardcoded to `"user"`. `findOwner` adds a lookup by `sessionId`.
    - **Fix:** query by `taskId` or `userId` in `listSessions`, and page the event read when sessions get long.
@@ -90,7 +88,9 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 ## Suggested order
 
-1. The job script defaults (3) and the README and compose mismatch (4), because they make the setup unreliable for a new reader.
+Open findings 1, 3 and 4 are done. What remains, in the order I would take it:
+
+1. Agent-level limits (2), so a runaway agent cannot spend unbounded model calls.
 2. The "queued" state, only if the gap before a job starts becomes a problem for users.
 3. Everything else (5 to 9) when touching those files.
 

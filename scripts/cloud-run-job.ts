@@ -22,6 +22,17 @@ export const jobEnvironment = (env: Env, project: string) => {
   ];
 };
 
+// The job and image a run of this script targets. JOB_APP (generic, poet) gives
+// both by convention (<app>-agents and stage-<app>:latest); JOB_NAME and
+// JOB_IMAGE override either. Nothing is guessed when neither is set.
+export const jobTarget = (env: Env) => {
+  const job = env.JOB_NAME || (env.JOB_APP ? `${env.JOB_APP}-agents` : undefined);
+  const image = env.JOB_IMAGE || (env.JOB_APP ? `stage-${env.JOB_APP}:latest` : undefined);
+  if (!job || !image)
+    throw new Error("Set JOB_APP (for example generic), or JOB_NAME and JOB_IMAGE");
+  return { job, image };
+};
+
 // A run is not safe to repeat: each attempt of a failed first run would create
 // another session, and a retried resume would append its message again. Cloud
 // Run Jobs retry a failed task 3 times unless told otherwise.
@@ -37,7 +48,7 @@ if (import.meta.main) {
     const env = process.env;
     const project = env.JOB_PROJECT || "floci-local";
     const region = env.JOB_REGION || "us-central1";
-    const job = env.JOB_NAME || "my-agent-job";
+    const { job, image } = jobTarget(env);
     const name = `projects/${project}/locations/${region}/jobs/${job}`;
     const base = (env.JOB_FLOCI || "http://localhost:4588").replace(/\/$/, "");
     const collection = `${base}/v2/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(region)}/jobs`;
@@ -53,7 +64,7 @@ if (import.meta.main) {
       template: {
         template: jobTaskTemplate([
           {
-            image: env.JOB_IMAGE || `stage-${job}:latest`,
+            image,
             env: jobEnvironment(env, project),
           },
         ]),
@@ -81,7 +92,7 @@ if (import.meta.main) {
           [
             {
               ...agent,
-              image: env.JOB_IMAGE || `stage-${job}:latest`,
+              image,
               env: [
                 ...(agent?.env ?? []).filter((entry) => !replacedNames.has(entry.name ?? "")),
                 ...requiredEnv,
