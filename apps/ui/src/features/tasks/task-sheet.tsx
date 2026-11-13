@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
+  CircleArrowLeft,
   Box,
   Clock3,
   Database,
@@ -23,6 +23,14 @@ import { Empty, ErrorBox, IdLine, Loading, Overline } from "@/components/states"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { Sheet } from "@/components/ui/sheet";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { api, formatTime, taskTitle } from "@/lib/api";
@@ -39,6 +47,9 @@ import {
   useSessionStream,
 } from "./session-parts";
 import { useRunTask } from "./use-run-task";
+
+// The open session fills the pane: the thread scrolls and the composer stays below it.
+const sessionBody = "flex min-h-0 flex-col overflow-hidden px-6 pt-2";
 
 export function TaskSheet({ taskId }: { taskId?: string }) {
   const { closeTask } = useNav();
@@ -134,72 +145,99 @@ function TaskDetails({ taskId }: { taskId: string }) {
             Documents <TabCount>{documents.data?.documents.length ?? 0}</TabCount>
           </PaneTab>
         </PaneTabsList>
-        <TabsContent value="sessions" className={paneBody}>
+        <TabsContent value="sessions" className={sessionId ? sessionBody : paneBody}>
           {sessionId ? (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary self-start"
-                onClick={() => setSessionId(null)}
-              >
-                <ArrowLeft />
-                All sessions
-              </Button>
-              {detail.isPending ? (
-                <Loading label="Loading session…" />
-              ) : detail.isError ? (
-                <ErrorBox error={detail.error} retry={() => void detail.refetch()} />
-              ) : (
-                <>
-                  <div className="flex items-center gap-2">
+              <div className="-mx-6 flex items-center gap-2 border-b px-6 pb-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-primary -ml-1.5"
+                  aria-label="All sessions"
+                  title="All sessions"
+                  onClick={() => setSessionId(null)}
+                >
+                  <CircleArrowLeft className="size-5" />
+                </Button>
+                {detail.data && (
+                  <>
                     <h3 className="text-lg font-semibold">Session activity</h3>
                     <span className="text-muted-foreground text-sm">
                       {detail.data.events.length} events
                     </span>
-                    <span className="ml-auto">
+                    <span className="ml-auto flex">
                       <DeleteSession
                         taskId={taskId}
                         sessionId={detail.data.id}
                         onDeleted={() => setSessionId(null)}
                       />
                     </span>
-                  </div>
-                  <IdLine value={detail.data.id} />
-                  <SessionStatsBar
-                    taskId={taskId}
-                    sessionId={detail.data.id}
-                    events={detail.data.events.length}
-                  />
-                  <p className="text-muted-foreground flex items-center gap-1 text-xs">
-                    <Clock3 className="size-3" />
-                    Updated {formatTime(detail.data.lastUpdateTime)}
-                  </p>
-                  <Collapsible className="rounded-lg border p-2">
-                    <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-medium">
-                      <Database className="size-4" />
-                      Session state
-                      <span className="text-muted-foreground ml-auto text-xs font-normal">
-                        {Object.keys(detail.data.state).length} keys
-                      </span>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <pre className="bg-muted mt-2 overflow-x-auto rounded-md p-2 text-xs">
-                        {JSON.stringify(detail.data.state, null, 2)}
-                      </pre>
-                    </CollapsibleContent>
-                  </Collapsible>
-                  {detail.data.events.length ? (
-                    <div className="flex flex-col">
-                      {detail.data.events.map((event, i) => (
-                        <EventCard key={event.id ?? i} event={event} index={i} />
-                      ))}
-                    </div>
-                  ) : (
-                    <Empty icon={<Terminal />} title="No events yet">
-                      Events will appear here as the agent works.
-                    </Empty>
-                  )}
+                  </>
+                )}
+              </div>
+              {detail.isPending ? (
+                <div className="pt-4">
+                  <Loading label="Loading session…" />
+                </div>
+              ) : detail.isError ? (
+                <div className="pt-4">
+                  <ErrorBox error={detail.error} retry={() => void detail.refetch()} />
+                </div>
+              ) : (
+                <>
+                  <MessageScrollerProvider autoScroll>
+                    <MessageScroller className="-mx-6 w-auto flex-1">
+                      <MessageScrollerViewport className="[scrollbar-width:none]! [scrollbar-gutter:auto]! [&::-webkit-scrollbar]:hidden">
+                        <MessageScrollerContent className="px-6 py-4">
+                          <MessageScrollerItem
+                            messageId="session-info"
+                            className="flex flex-col gap-4"
+                          >
+                            <IdLine value={detail.data.id} />
+                            <SessionStatsBar
+                              taskId={taskId}
+                              sessionId={detail.data.id}
+                              events={detail.data.events.length}
+                            />
+                            <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                              <Clock3 className="size-3" />
+                              Updated {formatTime(detail.data.lastUpdateTime)}
+                            </p>
+                            <Collapsible className="rounded-lg border p-2">
+                              <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-medium">
+                                <Database className="size-4" />
+                                Session state
+                                <span className="text-muted-foreground ml-auto text-xs font-normal">
+                                  {Object.keys(detail.data.state).length} keys
+                                </span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <pre className="bg-muted mt-2 overflow-x-auto rounded-md p-2 text-xs">
+                                  {JSON.stringify(detail.data.state, null, 2)}
+                                </pre>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </MessageScrollerItem>
+                          {detail.data.events.length ? (
+                            detail.data.events.map((event, i) => (
+                              <MessageScrollerItem
+                                key={event.id ?? i}
+                                messageId={event.id ?? String(i)}
+                                scrollAnchor={event.author === "user"}
+                              >
+                                <EventCard event={event} index={i} />
+                              </MessageScrollerItem>
+                            ))
+                          ) : (
+                            <Empty icon={<Terminal />} title="No events yet">
+                              Events will appear here as the agent works.
+                            </Empty>
+                          )}
+                        </MessageScrollerContent>
+                      </MessageScrollerViewport>
+                      <MessageScrollerButton />
+                    </MessageScroller>
+                  </MessageScrollerProvider>
                   <ContinueSession taskId={taskId} sessionId={detail.data.id} />
                 </>
               )}

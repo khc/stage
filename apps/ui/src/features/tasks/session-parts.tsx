@@ -5,7 +5,6 @@ import {
   Check,
   Clock3,
   Loader2,
-  Sparkles,
   Terminal,
   Upload,
   FileText,
@@ -17,9 +16,16 @@ import { ConfirmDelete } from "@/components/confirm-delete";
 import { JsonView } from "@/components/json-view";
 import { Markdown } from "@/components/markdown";
 import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message";
 import {
   api,
   formatTime,
@@ -110,6 +116,7 @@ export function DeleteSession({
   const client = useQueryClient();
   return (
     <ConfirmDelete
+      variant="outline"
       label="Delete session"
       question="Delete this session?"
       remove={() => api.deleteSession(taskId, sessionId)}
@@ -135,17 +142,17 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
   const canSend = !!message.trim() && !resume.isPending;
   return (
     <form
-      className="bg-popover sticky -bottom-5 -mx-6 -mb-5 flex flex-col gap-1 border-t px-6 pt-3 pb-5"
+      className="-mx-6 flex shrink-0 flex-col gap-1 border-t px-6 pt-3 pb-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSend) resume.mutate();
       }}
     >
-      <div className="focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl border p-2 focus-within:ring-3">
-        <Textarea
-          className="max-h-40 min-h-0 min-w-0 flex-1 basis-0 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+      <InputGroup className="bg-muted dark:bg-muted rounded-3xl border-transparent">
+        <InputGroupTextarea
+          className="max-h-40 min-h-0 resize-none p-3"
           aria-label="Message to continue the session"
-          rows={1}
+          rows={2}
           value={message}
           maxLength={10_000}
           placeholder="Message the agent…"
@@ -156,16 +163,19 @@ export function ContinueSession({ taskId, sessionId }: { taskId: string; session
             e.currentTarget.form?.requestSubmit();
           }}
         />
-        <Button
-          type="submit"
-          size="icon"
-          className="rounded-full"
-          aria-label="Send message"
-          disabled={!canSend}
-        >
-          {resume.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-        </Button>
-      </div>
+        <InputGroupAddon align="block-end">
+          <InputGroupButton
+            type="submit"
+            size="icon-sm"
+            variant="default"
+            className="ml-auto rounded-full"
+            aria-label="Send message"
+            disabled={!canSend}
+          >
+            {resume.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
       {resume.isError ? (
         <p className="text-destructive text-xs" role="alert">
           {resume.error.message}
@@ -400,68 +410,67 @@ function ToolEvent({
 export function EventCard({ event, index }: { event: SessionEvent; index: number }) {
   const parts = event.content?.parts ?? [];
   const isUser = event.author === "user";
+  const align = isUser ? "end" : "start";
   return (
-    <article className="group/event flex gap-3">
-      <div className="flex flex-col items-center">
-        <span
-          className={cn(
-            "bg-primary/10 text-primary ring-primary/20 grid size-7 shrink-0 place-items-center rounded-full ring-1",
-            event.errorMessage && "bg-destructive/10 text-destructive ring-destructive/30",
-          )}
-        >
-          {isUser ? <ArrowRight className="size-3.5" /> : <Sparkles className="size-3.5" />}
-        </span>
-        <span className="bg-border mt-1 w-px flex-1 group-last/event:hidden" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 pb-6 group-last/event:pb-0">
-        <div className="flex items-center justify-between gap-2">
+    <Message align={align}>
+      <MessageContent>
+        <MessageHeader className={cn("gap-2", isUser && "justify-end")}>
           <strong className="text-primary font-medium capitalize">
             {event.author ?? event.content?.role ?? "Event"}
           </strong>
-          <span className="text-muted-foreground text-xs">
+          <span className="font-normal">
             {event.timestamp ? formatTime(event.timestamp) : `Event ${index + 1}`}
           </span>
-        </div>
-        {event.errorMessage && <p className="text-destructive text-sm">{event.errorMessage}</p>}
-        {parts.map((part, i) => (
-          // Parts have no id and never reorder, so their position is the key.
-          // oxlint-disable-next-line react/no-array-index-key
-          <div key={i} className="flex flex-col gap-1">
-            {part.text != null &&
-              (part.thought || !parseJsonObject(part.text) ? (
-                <div
-                  className={cn(
-                    "text-[13px] leading-relaxed whitespace-pre-wrap",
-                    part.thought && "text-muted-foreground italic",
-                  )}
-                >
-                  {part.thought && (
-                    <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
-                  )}
-                  {part.text}
-                </div>
-              ) : (
-                <JsonView value={parseJsonObject(part.text)} />
-              ))}
-            {part.functionCall && (
-              <ToolEvent
-                open
-                icon={<Workflow className="size-3.5" />}
-                name={part.functionCall.name ?? "Tool call"}
-                data={part.functionCall.args ?? {}}
-              />
-            )}
-            {part.functionResponse && (
-              <ToolEvent
-                icon={<Check className="size-3.5" />}
-                name={part.functionResponse.name ?? "Tool response"}
-                data={part.functionResponse.response ?? {}}
-              />
-            )}
-          </div>
-        ))}
-        <ToolEvent icon={null} name="Raw event" data={event} />
-      </div>
-    </article>
+        </MessageHeader>
+        <Bubble
+          align={align}
+          variant={event.errorMessage ? "destructive" : isUser ? "tinted" : "ghost"}
+        >
+          <BubbleContent className="flex flex-col gap-2">
+            {event.errorMessage && <p>{event.errorMessage}</p>}
+            {parts.map((part, i) => (
+              // Parts have no id and never reorder, so their position is the key.
+              // oxlint-disable-next-line react/no-array-index-key
+              <div key={i} className="flex flex-col gap-1">
+                {part.text != null &&
+                  (part.thought || !parseJsonObject(part.text) ? (
+                    <div
+                      className={cn(
+                        "text-[13px] leading-relaxed whitespace-pre-wrap",
+                        part.thought && "text-muted-foreground italic",
+                      )}
+                    >
+                      {part.thought && (
+                        <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
+                      )}
+                      {part.text}
+                    </div>
+                  ) : (
+                    <JsonView value={parseJsonObject(part.text)} />
+                  ))}
+                {part.functionCall && (
+                  <ToolEvent
+                    open
+                    icon={<Workflow className="size-3.5" />}
+                    name={part.functionCall.name ?? "Tool call"}
+                    data={part.functionCall.args ?? {}}
+                  />
+                )}
+                {part.functionResponse && (
+                  <ToolEvent
+                    icon={<Check className="size-3.5" />}
+                    name={part.functionResponse.name ?? "Tool response"}
+                    data={part.functionResponse.response ?? {}}
+                  />
+                )}
+              </div>
+            ))}
+          </BubbleContent>
+        </Bubble>
+        <MessageFooter className="px-0">
+          <ToolEvent icon={null} name="Raw event" data={event} />
+        </MessageFooter>
+      </MessageContent>
+    </Message>
   );
 }
