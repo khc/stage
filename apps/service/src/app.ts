@@ -12,6 +12,7 @@ import { jobRoute } from "./routes/job-route";
 import { metaRoute } from "./routes/meta-route";
 import { sessionRoute } from "./routes/session-route";
 import { taskRoute } from "./routes/task-route";
+import { createTaskService } from "./services/task-service";
 import type { DocumentStore } from "./stores/document-store";
 import type { SessionStore } from "./stores/session-store";
 import type { TaskStore } from "./stores/task-store";
@@ -34,7 +35,7 @@ export const createApp = (deps: Deps) =>
     .route("/", metaRoute())
     .route("/", eventRoute(deps.platformEventStream))
     .route("/jobs", jobRoute(deps.jobs, deps.registry))
-    .route("/tasks", taskRoute(deps))
+    .route("/tasks", taskRoute({ tasks: deps.tasks, service: createTaskService(deps) }))
     .route("/tasks", documentRoute(deps.tasks, deps.documents))
     .route("/tasks", sessionRoute(deps.tasks, deps.sessions, deps.sessionEventStream))
     .onError((err, c) => {

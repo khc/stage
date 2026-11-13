@@ -4,17 +4,18 @@ Tooling rules (Bun instead of Node, `bun test`, and so on) are in [CLAUDE.md](CL
 
 ## File naming
 
-- File names are kebab-case: `task-store.ts`, `run-task.ts`. Tests sit next to the file they test and end in `.test.ts`.
+- File names are kebab-case: `task-store.ts`, `task-service.ts`. Tests sit next to the file they test and end in `.test.ts`.
 - In a layered folder, a file's role is a suffix on its name, singular noun first. The folder alone is not enough, because editors, quick-open and stack traces show only the file name, and the same feature name appears in several layers.
 
   | Folder      | Pattern                         | Example                                                                      |
   | ----------- | ------------------------------- | ---------------------------------------------------------------------------- |
   | `stores/`   | `<thing>-store.ts`              | `task-store.ts`, `session-store.ts`                                          |
   | `routes/`   | `<feature>-route.ts`            | `task-route.ts`, `job-route.ts`                                              |
-  | `usecases/` | named after what it does        | `run-task.ts`, `delete-task.ts`                                              |
+  | `services/` | `<thing>-service.ts`            | `task-service.ts`                                                            |
   | `platform/` | named after the system it wraps | `cloud-run-jobs-client.ts`, `session-event-stream.ts`, `topic-subscriber.ts` |
 
 - A `*-route.ts` file exports its Hono app as a named export `*Route`, camel-cased from the file name (`task-route.ts` exports `taskRoute`, `session-route.ts` exports `sessionRoute`). It is a factory that takes the dependencies it needs and returns a `new Hono()`, so `app.ts` mounts it with `.route(path, taskRoute(deps))`. No default exports. A route file holds one feature; a second feature gets its own file.
+- `services/` holds the operations on one thing that need more than one store or platform client, as an object like a store: a type `<Thing>Service`, a factory `create<Thing>Service(deps)`, and one method per operation (`TaskService` has `create`, `run` and `delete`). Each method returns a status for every expected outcome and throws a `DependencyError` when a dependency fails. The word is unrelated to the app `apps/service`: that is the whole HTTP service, and these are objects inside it.
 - Apply the rule to the whole folder or not at all. `apps/service` is the only app with layered folders today; a new layered app follows the same patterns.
 - Files that hold shared plumbing rather than one role keep a plain name: `errors.ts`, `schemas.ts`, `shared.ts`.
 
@@ -33,7 +34,7 @@ A file in `platform/` that wraps an external system exports the same kind of obj
 
 ## Layout of `apps/service`
 
-`routes` call `usecases` and `stores`; `usecases` call `stores` and `platform`; nothing imports a route. See [apps/service/README.md](apps/service/README.md) for the full layout and how to add an endpoint.
+`routes` call `services` and `stores`; `services` call `stores` and `platform`; nothing imports a route. See [apps/service/README.md](apps/service/README.md) for the full layout and how to add an endpoint.
 
 ## Code naming
 

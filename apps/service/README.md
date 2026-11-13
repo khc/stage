@@ -34,7 +34,7 @@ src/
   index.ts        composition root: reads the environment, builds the stores and clients, calls createApp
   app.ts          createApp(deps): mounts the route modules, maps errors to HTTP
   routes/         one Hono app per feature, mounted with app.route()
-  usecases/       logic that spans several stores: run-task, delete-task
+  services/       operations that span several stores: task-service (create, run, delete)
   stores/         Firestore access, one store per thing: task, session, document
   platform/       Cloud Run, Pub/Sub listeners, platform-event publisher
   errors.ts       DependencyError and guard()
@@ -43,7 +43,7 @@ src/
   stats.ts        token usage of a session
 ```
 
-Dependencies point downwards: `routes` use `usecases` and `stores`, `usecases` use `stores` and `platform`, and nothing imports a route. Tests sit next to the file they test. Files in the layered folders carry their role as a suffix: `stores/task-store.ts`, `routes/task-route.ts`, and `platform/cloud-run-jobs.ts` for the one that would otherwise repeat a route name. Use-case files are named after what they do (`run-task.ts`).
+Dependencies point downwards: `routes` use `services` and `stores`, `services` use `stores` and `platform`, and nothing imports a route. Tests sit next to the file they test. Files in the layered folders carry their role as a suffix: `stores/task-store.ts`, `routes/task-route.ts`, and `platform/cloud-run-jobs.ts` for the one that would otherwise repeat a route name. A service is an object like a store: `services/task-service.ts` exports `TaskService` and `createTaskService(deps)`, with one method per operation.
 
 ### Dependency injection
 
@@ -51,7 +51,7 @@ Dependencies point downwards: `routes` use `usecases` and `stores`, `usecases` u
 
 ### Routes
 
-Each file in `routes/` is named `<feature>-route.ts` and exports one `<feature>Route` factory (`taskRoute(deps)`) that returns a chained `new Hono()` with paths relative to where it is mounted (`/jobs`, `/tasks`). Handlers stay inline right after their path, as the [Hono guide](https://hono.dev/docs/guides/best-practices#building-a-larger-application) recommends, so path parameters keep their types. A handler parses the request, calls a store or a use case, and maps the result to a status code.
+Each file in `routes/` is named `<feature>-route.ts` and exports one `<feature>Route` factory (`taskRoute(deps)`) that returns a chained `new Hono()` with paths relative to where it is mounted (`/jobs`, `/tasks`). Handlers stay inline right after their path, as the [Hono guide](https://hono.dev/docs/guides/best-practices#building-a-larger-application) recommends, so path parameters keep their types. A handler parses the request, calls a store or a service, and maps the result to a status code.
 
 ### Errors
 
@@ -60,9 +60,9 @@ Expected outcomes (not found, conflict, too large) are returned where they happe
 ## Adding an endpoint
 
 1. Add the handler to the matching file in `routes/` (or a new file mounted in `app.ts`), validating params with `zValidator` and a schema from `schemas.ts`.
-2. If it touches more than one store, put the logic in `usecases/` and return a status for each expected outcome.
+2. If it touches more than one store, put the logic in `services/` and return a status for each expected outcome.
 3. Add the operation to `openapi.ts`. `openapi.test.ts` fails when a route and the document disagree.
-4. Add tests: a use case test for the logic and an `app.test.ts` case for the HTTP mapping.
+4. Add tests: a service test for the logic and an `app.test.ts` case for the HTTP mapping.
 
 ## Tests
 
