@@ -1,4 +1,4 @@
-import type { Firestore } from "@google-cloud/firestore";
+import type { DocumentReference, Firestore, Transaction } from "@google-cloud/firestore";
 import {
   BaseSessionService,
   createSession,
@@ -19,6 +19,8 @@ const EVENTS = "events";
 // A run holds the session until its lease lapses; every persisted event renews it.
 export const RUN_LEASE_MS = 10 * 60_000;
 const MAX_RUN_ERROR = 200;
+// The run this instance holds on a session: its id fences every write, its timer renews the lease.
+type HeldRun = { runId: string; timer?: ReturnType<typeof setInterval>; lost?: boolean };
 // A queued message blocks another one only this long: later it belongs to a job that never started.
 const PENDING_TTL_MS = 60_000;
 
@@ -32,6 +34,13 @@ export class MessageQueuedError extends Error {
   constructor() {
     super("A message for this session is still waiting to be delivered");
     this.name = "MessageQueuedError";
+  }
+}
+// Another run took the session over (the lease lapsed), so this one must stop writing.
+export class RunLostError extends Error {
+  constructor() {
+    super("This run no longer holds the session");
+    this.name = "RunLostError";
   }
 }
 export class RunInProgressError extends Error {
@@ -87,7 +96,7 @@ export class FirestoreSessionService extends BaseSessionService {
   onUserEvent?: (event: Event, session: TaskSession) => Promise<void>;
 
   // Sessions this instance runs: a timer renews each lease between events.
-  private readonly leased = new Map<string, ReturnType<typeof setInterval>>();
+  private readonly leased = new Map<string, HeldRun>();
 
   constructor(
     private readonly db: Firestore,
@@ -256,13 +265,45 @@ export class FirestoreSessionService extends BaseSessionService {
 
   // Takes the session for one run. Fails when another run holds a live lease,
   // so two executions never append to the same session at once.
+  private release(sessionId: string) {
+    clearInterval(this.leased.get(sessionId)?.timer);
+    this.leased.delete(sessionId);
+  }
+
+  // Runs a write inside a transaction that first checks this run still owns the
+  // session; a run that lost it (its lease lapsed and another started) gets
+  // RunLostError instead of overwriting the newer run.
+  private async fenced(
+    key: CompositeSessionKey,
+    held: HeldRun,
+    write: (tx: Transaction, ref: DocumentReference) => void,
+  ) {
+    const ref = this.ref(key);
+    try {
+      await this.db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        if (snapshot.get("runId") !== held.runId) throw new RunLostError();
+        write(tx, ref);
+      });
+    } catch (err) {
+      if (err instanceof RunLostError) {
+        // Kept in the map, marked lost, so later writes and finishRun stay refused.
+        clearInterval(held.timer);
+        held.lost = true;
+      }
+      throw err;
+    }
+  }
+
   async startRun(key: CompositeSessionKey, now = Date.now()): Promise<void> {
     const ref = this.ref(key);
+    const runId = crypto.randomUUID();
     await this.db.runTransaction(async (tx) => {
       const snapshot = await tx.get(ref);
       if (!snapshot.exists) throw new Error("Session not found");
       if (isLive(runFields(snapshot), now)) throw new RunInProgressError();
       tx.update(ref, {
+        runId,
         runStatus: "running",
         runStartedAt: now,
         runEndedAt: null,
@@ -270,20 +311,25 @@ export class FirestoreSessionService extends BaseSessionService {
         runLeaseUntil: now + RUN_LEASE_MS,
       });
     });
-    clearInterval(this.leased.get(key.sessionId));
-    const timer = setInterval(() => {
-      this.ref(key)
-        .update({ runLeaseUntil: Date.now() + RUN_LEASE_MS })
-        .catch((err) => console.error("Failed to renew the run lease", err));
+    this.release(key.sessionId);
+    const held: HeldRun = { runId };
+    held.timer = setInterval(() => {
+      this.fenced(key, held, (tx, sessionRef) =>
+        tx.update(sessionRef, { runLeaseUntil: Date.now() + RUN_LEASE_MS }),
+      ).catch((err) => console.error("Failed to renew the run lease", err));
     }, this.heartbeatMs);
-    timer.unref();
-    this.leased.set(key.sessionId, timer);
+    held.timer.unref();
+    this.leased.set(key.sessionId, held);
   }
 
   async finishRun(key: CompositeSessionKey, error?: string, now = Date.now()): Promise<void> {
-    clearInterval(this.leased.get(key.sessionId));
-    this.leased.delete(key.sessionId);
-    await this.ref(key).update({
+    const held = this.leased.get(key.sessionId);
+    this.release(key.sessionId);
+    if (held?.lost) {
+      console.error("Not recording the end of a run that lost its session");
+      return;
+    }
+    const result = {
       runStatus: error === undefined ? "succeeded" : "failed",
       runEndedAt: now,
       runLeaseUntil: 0,
@@ -291,7 +337,15 @@ export class FirestoreSessionService extends BaseSessionService {
       runError: error?.split("\n")[0]?.slice(0, MAX_RUN_ERROR) ?? null,
       // The queued message is consumed only by a successful run, so a retried task still finds it.
       ...(error === undefined && { pendingMessage: null, pendingMessageAt: null }),
-    });
+    };
+    if (!held) return void (await this.ref(key).update(result));
+    try {
+      await this.fenced(key, held, (tx, sessionRef) => tx.update(sessionRef, result));
+    } catch (err) {
+      // A run that lost the session must not overwrite the status of the one that took it.
+      if (!(err instanceof RunLostError)) throw err;
+      console.error("Not recording the end of a run that lost its session");
+    }
   }
 
   override async deleteSession(key: DeleteSessionRequest): Promise<void> {
@@ -314,19 +368,32 @@ export class FirestoreSessionService extends BaseSessionService {
       userId: session.userId,
       sessionId: session.id,
     });
-    const batch = this.db.batch();
-
-    batch.set(ref.collection(EVENTS).doc(appended.id), {
+    const eventData = {
       seq: session.events.findIndex((e) => e.id === appended.id),
       timestamp: appended.timestamp,
       json: JSON.stringify(appended),
-    });
-    batch.update(ref, {
-      state: session.state,
-      lastUpdateTime: session.lastUpdateTime,
-      ...(this.leased.has(session.id) && { runLeaseUntil: Date.now() + RUN_LEASE_MS }),
-    });
-    await batch.commit();
+    };
+    const sessionData = { state: session.state, lastUpdateTime: session.lastUpdateTime };
+    const held = this.leased.get(session.id);
+    if (held) {
+      // While a run holds the session, a write counts only if it still owns it.
+      await this.fenced(
+        { appName: session.appName, userId: session.userId, sessionId: session.id },
+        held,
+        (tx, sessionRef) => {
+          tx.set(sessionRef.collection(EVENTS).doc(appended.id), eventData);
+          tx.update(sessionRef, {
+            ...sessionData,
+            runLeaseUntil: Date.now() + RUN_LEASE_MS,
+          });
+        },
+      );
+    } else {
+      const batch = this.db.batch();
+      batch.set(ref.collection(EVENTS).doc(appended.id), eventData);
+      batch.update(ref, sessionData);
+      await batch.commit();
+    }
     if (appended.author === "user")
       await this.onUserEvent?.(appended, session as TaskSession).catch((err) =>
         console.error("Failed to publish the user message", err),

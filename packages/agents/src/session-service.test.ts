@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, spyOn, test } from "bun:test";
 
 import { Firestore } from "@google-cloud/firestore";
 import { createEvent } from "@google/adk";
@@ -7,6 +7,7 @@ import {
   FirestoreSessionService,
   MessageQueuedError,
   RunInProgressError,
+  RunLostError,
   runState,
 } from "./session-service";
 
@@ -305,6 +306,27 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     expect(seen).toEqual(["user"]);
   });
 
+  test("a run that lost the session cannot append events or end the new run", async () => {
+    const key = newApp();
+    const first = newService();
+    const second = newService();
+    const session = await first.createSession(key);
+    const ref = { ...key, sessionId: session.id };
+    // The first run started long ago and its lease lapsed, so a second run takes the session over.
+    await first.startRun(ref, Date.now() - 11 * 60_000);
+    await second.startRun(ref);
+    const stale = await first.getSession(ref);
+    const lost = await first.appendEvent({ session: stale!, event: reply("late") }).catch((e) => e);
+    expect(lost).toBeInstanceOf(RunLostError);
+    await first.finishRun(ref, "late failure");
+    const current = await second.getSession(ref);
+    expect((current as { run?: { status: string } }).run?.status).toBe("running");
+    await second.appendEvent({ session: current!, event: reply("current") });
+    const after = await second.getSession(ref);
+    expect(texts(after!.events)).toEqual(["current"]);
+    await second.finishRun(ref);
+  });
+
   test("findOwner returns the app and user a session was created under", async () => {
     const key = newApp();
     const service = newService();
@@ -343,7 +365,10 @@ const fakeDb = (fields: Record<string, unknown> = {}) => {
     runTransaction: async (fn: (tx: unknown) => Promise<void>) =>
       fn({
         get: async () => snapshot,
-        update: (_r: unknown, data: object) => Object.assign(fields, data),
+        update: (_r: unknown, data: object) => {
+          updates.push(data as Record<string, unknown>);
+          Object.assign(fields, data);
+        },
       }),
   };
   return { db: db as never, updates };
@@ -424,6 +449,24 @@ describe("run lease heartbeat", () => {
     const after = updates.length;
     await sleep(20);
     expect(updates.length).toBe(after);
+  });
+
+  test("a run that lost the session stops renewing the lease and cannot end the other run", async () => {
+    const fields: Record<string, unknown> = {};
+    const { db, updates } = fakeDb(fields);
+    const service = new FirestoreSessionService(db, 5);
+    await service.startRun(key);
+    // Another run takes the session over.
+    Object.assign(fields, { runId: "other", runStatus: "running", runLeaseUntil: 9e15 });
+    const spy = spyOn(console, "error").mockImplementation(() => {});
+    await sleep(30);
+    const before = updates.length;
+    await sleep(20);
+    expect(updates.length).toBe(before);
+    await service.finishRun(key);
+    expect(fields.runStatus).toBe("running");
+    expect(fields.runId).toBe("other");
+    spy.mockRestore();
   });
 
   test("finishRun keeps only the first line of the error, trimmed", async () => {

@@ -1,71 +1,100 @@
 # Architecture review
 
-**Scope and verification:** Read `packages/agents`, `apps/service`, `agents/*` and parts of the README, plus 3 web searches. The stack was not run. `apps/extract` and `scripts/` were not read. No authentication was seen in the service code that was read, so it is not judged here.
+Re-review of the whole project at commit `66c2bf6`. The first version of this document reviewed `packages/agents`, `apps/service` and `agents/*`; this one also covers `apps/extract`, `scripts/`, the Taskfile, Docker and compose files and the tooling.
+
+**Verification:** `bun run typecheck`, `bun run lint`, `bun run format:check` and `bun test` (278 tests) pass. The emulator-backed tests for `packages/agents` and the service sessions (92 tests) pass against Floci. `apps/ui` was reviewed through the work done on it, not file by file, and no authentication was seen in the service code, so it is not judged here. The architecture diagram is [architecture.drawio](architecture.drawio).
 
 ## Overview
 
 ```
-UI (apps/ui) → Hono service → Cloud Run Job (one image per agent set)
+UI (apps/ui) → Hono service → Cloud Run Job (one image per agent app)
                   │                 └─ ADK Runner → Firestore sessions/events
+                  ├─ apps/extract (document → text)
                   └─ Firestore (tasks, docs, agent registry) + 2 Pub/Sub topics → SSE
 ```
 
-Sessions, tasks and the agent registry all live in Firestore. A task run is a one-shot Cloud Run Job execution that gets `TASK_ID`, and `SESSION_ID` plus `MESSAGE` when resuming.
+Sessions, tasks and the agent registry live in Firestore. A task run is a one-shot Cloud Run Job execution that gets `TASK_ID`, plus `SESSION_ID` when resuming. A resume message is queued on the session in Firestore, not passed in the environment.
 
 ## What's sound
 
-- **State lives outside the process.** Events are written to Firestore as each event arrives ([session-service.ts](../packages/agents/src/session-service.ts)). A resume is a fresh execution that loads the session from Firestore. This is the "persist outside the process, resume later" pattern that durable-execution guidance recommends for human waits ([Sista AI](https://blog.sista.ai/2026/03/resumable-agent-workflows-how-to-build.html)).
-- **Typed agent contracts.** Each agent is registered with input and output JSON Schemas ([spec.ts](../packages/agents/src/spec.ts)). Input is validated before the model runs, and the UI renders output from the schema.
-- **Simple agents.** `assistant` and `document_analyser` are single LLM agents with tools or structured output. This matches Anthropic's advice to start with the simplest pattern and add orchestration only when it pays off ([Anthropic](https://www.anthropic.com/research/building-effective-agents)). That page notes that much of its tooling description has changed since December 2024.
-- **Pub/Sub is best effort and Firestore is the source of truth.** Failed publishes never fail a run.
+- **State lives outside the process.** Events are written to Firestore as each event arrives, and a resume is a fresh execution that loads the session ([session-service.ts](../packages/agents/src/session-service.ts)). This is the "persist outside the process, resume later" pattern ([Sista AI](https://blog.sista.ai/2026/03/resumable-agent-workflows-how-to-build.html)).
+- **Typed agent contracts.** Each agent is registered with input and output JSON Schemas ([spec.ts](../packages/agents/src/spec.ts)); the UI renders output from the schema, and each agent is also served as an Agent Card.
+- **Run state and a lease.** Each session records its latest run (running, succeeded, failed) and a lease with a heartbeat, so two runs cannot start on one session.
+- **A minimal job environment.** An execution gets only `TASK_ID` and, for a resume, `SESSION_ID`.
+- **Simple agents.** `assistant`, `document_analyser` and `haiku` are single LLM agents, in line with Anthropic's advice to add orchestration only when it pays off ([Anthropic](https://www.anthropic.com/research/building-effective-agents)).
+- **Pub/Sub is best effort and Firestore is the source of truth.** A failed publish never fails a run, and user messages are now published too.
+- **Consistent conventions.** `createX` factories, `toX` converters, snake_case error codes and kebab-case files are used throughout, apart from the exceptions listed below.
 
-## Findings, by priority
+## Findings from the first review
 
-**Status:** findings 1 and 2 are implemented and re-reviewed (see [Implementation status](#implementation-status)). Finding 3 is also implemented (not yet re-reviewed). Findings 4 to 8 are open.
+| #   | Finding                                            | Status                                 |
+| --- | -------------------------------------------------- | -------------------------------------- |
+| 1   | No execution state                                 | Done.                                  |
+| 2   | No guard against concurrent runs of one session    | Done, including a `runId` fence.       |
+| 3   | `MESSAGE` passed as a container env override       | Done.                                  |
+| 4   | No failure or retry policy                         | Partly done; see finding 4 below.      |
+| 5   | Agent registry is bespoke and registering is heavy | Done.                                  |
+| 6   | Session store scalability                          | Partly addressed; see finding 6 below. |
+| 7   | Two dashboards                                     | Done: `apps/web` is removed.           |
+| 8   | Only single agents, no orchestration               | Unchanged by design.                   |
 
-1. **Done: no execution state.** The README says no status is written to the task. `POST /run` returns an operation name, and the UI drops it. The UI can't show running, succeeded or failed, or link a failure to a session. This is why the session list has no status.
-   - **Fix:** write a small `runs/{sessionId}` document (`queued`, `running`, `succeeded`, `failed`, error, start and end times) from `main()` in [cli.ts](../packages/agents/src/cli.ts). The UI and stats then get it for free.
+### What was built
 
-2. **Done (fencing open): no guard against concurrent runs of the same session.** Two resumes of one session, or repeated runs of a task, can append events at the same time. `seq` is computed from the in-memory event list ([session-service.ts:166](../packages/agents/src/session-service.ts#L166)), so two writers can produce duplicate or interleaved sequence numbers. Durable-agent guidance names this duplicate-resume risk: no lease, no fencing ([Diagrid](https://www.diagrid.io/blog/still-not-durable-how-microsoft-agent-framework-and-strands-agents-repeat-the-same-mistake)).
-   - **Fix:** a Firestore transaction that takes an `activeRun` lease on the session before running, and a 409 from the service if one exists. Also make `/run` accept an idempotency key.
+- **Run state (1):** each session document stores `runStatus`, `runStartedAt`, `runEndedAt`, `runError` and `runLeaseUntil`. `runState()` turns them into `{status, startedAt, endedAt?, error?}`, and a run whose lease lapsed is reported as failed ("The run stopped responding"). The session endpoints return it as `run`, and the UI shows a badge and polls every 5 seconds while a run is `running`.
+- **Lease (2):** `startRun` takes a 10-minute lease in a Firestore transaction and throws `RunInProgressError` when a live lease exists. A timer renews it every third of the lease period, and each persisted event renews it too. `finishRun` records `succeeded` or `failed` with only the first line of the error (200 characters at most). The service answers a resume of a running session with 409 `run_in_progress`.
+- **Fencing (2):** `startRun` also stores a fresh `runId` on the session. While an instance holds a run, every event append, lease renewal and `finishRun` is a transaction that first checks the stored `runId` is still its own. A run whose lease lapsed and was taken over gets `RunLostError` on its next write, stops renewing, and its `finishRun` is a no-op, so it cannot overwrite the new run's events or status.
+- **Queued message (3):** `queueMessage` stores the next message on the session in a transaction. It refuses while the session runs (`run_in_progress`) or while an earlier message queued after the last run started is under 60 seconds old (`message_pending`). The job reads the message with `pendingMessage`, and a successful `finishRun` clears it, so a retried task still finds it. If Cloud Run rejects the job, the service clears the message. A follow-up to a structured agent is free text: its input schema is checked only for a task's first message.
+- **Registry (5):** `task register-agents` writes straight to Firestore with no Cloud Run execution; `POST /jobs/:jobName/register` stays for the dashboard button. `GET /jobs/:jobName/agents/:agentName/card` serves an A2A-style Agent Card derived from the registry. It has no endpoint, because the service does not speak the A2A protocol.
+- **Legacy sessions:** sessions created before the rename carry `appName` `agent-jobs`. `findOwner` looks up the real app and user at read time, so they can be resumed. The data itself is not migrated.
 
-3. **Done: `MESSAGE` was passed as a container env override.** It is limited in size and visible in Cloud Run execution metadata. The prompt can be up to 10k characters.
-   - **Fix:** store the pending message in Firestore, for example `sessions/{id}.pendingMessage`, and pass only `SESSION_ID`.
+### Still open from findings 1 to 3
 
-4. **No failure or retry policy.** A crash mid-run exits 1 and leaves a half-written session with no recorded error and no resume path. There are no step limits, timeouts or token budgets on agents either; the stats exist but nothing enforces them. This is not tested; retry settings on the Cloud Run job definition were not inspected.
-   - **Fix:** record the failure on the run document (finding 1), and add `maxLlmCalls` and a timeout in `createTaskAgent`.
-
-5. **Done: agent registry is bespoke, and registering is heavy.** Registering at deploy time is implemented (`task register-agents` writes straight to Firestore, no Cloud Run execution; `POST /jobs/:jobName/register` stays for the dashboard button). `GET /jobs/:jobName/agents/:agentName/card` serves each agent as an A2A-style Agent Card, derived from the registry (no stored-data change; no A2A endpoint).
-   - Registration runs the whole container in `register` mode as a Cloud Run execution ([jobs.ts](../apps/service/src/jobs.ts)). Registering at image build or deploy time would be cheaper.
-   - The registry shape (name, description, input and output schemas) is close to an A2A Agent Card. The A2A spec itself doesn't define a registry API ([Google Cloud Agent Registry](https://docs.cloud.google.com/agent-registry/a2a-protocol) is a vendor example). Borrow the card shape now so interop stays cheap later. The card format changed between 0.3 and 1.0, so check the current spec before relying on it.
-
-6. **Session store scalability.** `listSessions` loads every session for the app and filters in memory ([session-service.ts](../packages/agents/src/session-service.ts)). `getSession` reads all events. `userId` is hardcoded to `"user"`. Fine at this scale; querying by `taskId` is the first fix.
-
-7. **Done: two dashboards.** `apps/web`, `Dockerfile.web` and the root `bunfig.toml` are removed; `apps/ui` is the only dashboard and the README describes it. It has no Docker image yet.
-   - **Fix:** pick one and delete the other.
-
-8. **Only single agents, no orchestration.** `AgentSpec` takes any ADK `BaseAgent`, so sequential, parallel or loop agents drop in without changes. Don't add them until a real task needs one. First candidates: a reviewer or evaluator pass on `document_analyser` output, and a human-approval step, which finding 1 would make possible.
-
-## Implementation status
-
-Findings 1 and 2 are implemented. Review `a30e8eb3` found no blocking issues; tests (287) and the emulator session tests pass.
-
-- **Run state:** each session document stores `runStatus`, `runStartedAt`, `runEndedAt`, `runError` and `runLeaseUntil`. `runState()` in [session-service.ts](../packages/agents/src/session-service.ts) turns them into `{status, startedAt, endedAt?, error?}`; a run whose lease lapsed is reported as failed ("The run stopped responding"). The session list and detail endpoints return it as `run`, and the UI shows a badge and polls every 5 seconds while a run is `running`.
-- **Lease:** `startRun` takes a 10-minute lease in a Firestore transaction and throws `RunInProgressError` if a live lease exists. A timer renews it every third of the lease period, and every persisted event renews it too. `finishRun` records `succeeded` or `failed`, keeping only the first line of the error (200 characters at most).
-- **Service:** `POST /tasks/:id/run` with a `sessionId` returns 409 `run_in_progress` while the session is running. The job-side transaction is the real guard; the service check only avoids starting a job that would fail.
-- **Failure handling:** a failed success write is logged and does not fail the job.
-- **Job environment (finding 3):** a job execution now gets only `TASK_ID`, plus `SESSION_ID` when resuming. The resume message is stored on the session document (`pendingMessage`) by `queueMessage` in a transaction, which refuses while the session runs or another message was queued in the last 60 seconds. The job reads it with `pendingMessage` and `startRun` clears it. If Cloud Run rejects the job, the service clears the queued message. A message queued for a job that never started expires after 60 seconds.
-
-**Still open from findings 1 and 2:**
-
-- No `runId` fencing token. A paused or hung process whose lease lapsed can still append after a second run starts. Fixing it means making `appendEvent` a transaction that checks the `runId`.
 - No "queued" state: a new run shows nothing until the job creates its session.
-- No idempotency key on `/run`; repeated runs of a task still create separate sessions.
-- The heartbeat unit test is timing-based and can flake on a loaded machine.
+- No idempotency key on `/run`; repeated runs of a task create separate sessions.
+- The heartbeat unit test is timing-based (5 ms interval, 30 ms sleep) and can flake on a loaded machine.
+
+## Open findings
+
+1. **Retries multiply failed runs (finding 4, medium, likely).** The jobs in Floci have `maxRetries: 3` and `timeout: 600s`, which is the Cloud Run default. A failed first run is retried, and each attempt creates its own session, so one failure can leave up to four failed sessions. A retried resume can append the same user message twice, because the message now stays queued after a failure. Whether Floci retries the same way as Cloud Run was not tested.
+   - **Fix:** set `maxRetries: 0` in the job template in [cloud-run-job.ts](../scripts/cloud-run-job.ts), or derive the session id from the execution so a retry reuses it, and skip appending a user message that is already the last event.
+
+2. **No agent-level limits (finding 4, low).** There are no step limits, token budgets or timeouts inside `createTaskAgent`; only the job's own 600-second timeout applies. Stats exist but nothing enforces them.
+   - **Fix:** add a maximum number of model calls in `createTaskAgent` and record hitting it as a failed run.
+
+3. **Job script defaults are stale (medium).** [cloud-run-job.ts](../scripts/cloud-run-job.ts) defaults the job to `my-agent-job` and the image to `stage-${job}:latest`. Jobs are named `generic-agents` and `poet-agents` while the images are `stage-generic` and `stage-poet`, so only the Taskfile's explicit `JOB_IMAGE` makes it work.
+   - **Fix:** require `JOB_IMAGE`, or take an app name and derive both the image and the `<app>-agents` job name.
+
+4. **README and compose disagree (medium).** README says `docker compose up -d --build` builds and starts the service, and tells readers to run `docker compose up -d --build service`, but the `service` block in [docker-compose.yml](../docker-compose.yml) is commented out. `apps/ui` also has no Docker image or compose entry.
+   - **Fix:** enable the service block, or change the README to say the service runs with `bun run dev:service`; decide how the UI is served in production.
+
+5. **Session store scalability (finding 6, low).** The service lists sessions by `taskId`, which is fine, but the ADK `listSessions` still loads every session of the app and filters in memory, `getSession` reads all events, and `userId` is hardcoded to `"user"`. `findOwner` adds a lookup by `sessionId`.
+   - **Fix:** query by `taskId` or `userId` in `listSessions`, and page the event read when sessions get long.
+
+6. **Subscriptions are never cleaned up (low, likely).** Each service process creates a Pub/Sub subscription named with a random UUID and a 24-hour expiry ([live-events.ts](../apps/service/src/live-events.ts), [platform-stream.ts](../apps/service/src/platform-stream.ts)) and never deletes it, so each restart, including each `bun --hot` reload, can leave one behind.
+   - **Fix:** delete the subscription on shutdown, or use a stable per-environment name.
+
+7. **`createSession` overwrites (low, likely).** It writes with `set`, so a caller-supplied `sessionId` would replace an existing session. The runtime never supplies one today.
+   - **Fix:** use `create`, or a transaction that refuses an existing document.
+
+8. **Naming inconsistencies (low).**
+   - `EventListener` in `live-events.ts` shadows the DOM global type of the same name.
+   - `TaskDocument` is declared twice with different shapes, in `apps/service/src/documents.ts` and `packages/agents/src/task-documents.ts`.
+   - `createCreateTask` repeats the verb.
+   - Converters are named `summary`, `toSummary`, `toContract` and `toExtraction`.
+   - The upload limits are `MAX_UPLOAD_BYTES` (25 MiB, service) and `MAX_FILE_BYTES` (50 MiB, extract).
+   - The fallback error code is `agent_error` although it covers any unhandled error.
+   - `apps/extract` names caught errors `e`; the rest uses `err`.
+   - **Fix:** rename to `StreamListener`, `StoredDocument`, a `toX` name per converter, limits that say who enforces them, `internal_error` and `err`.
+
+9. **Stray text in a commit message (low).** Commit `bd7b359` ends with `<|think_end|>`, a model-output token that was committed by mistake.
+   - **Fix:** amend or ignore it; it only affects history.
 
 ## Suggested order
 
-Findings 1, 2 and 3 are done. Next: 7. The rest can wait.
+1. Retry behaviour (open finding 1), because it can quietly create duplicate sessions and messages.
+2. The job script defaults (3) and the README and compose mismatch (4), because they make the setup unreliable for a new reader.
+3. The "queued" state, only if the gap before a job starts becomes a problem for users.
+4. Everything else (5 to 9) when touching those files.
 
 ## Sources
 
