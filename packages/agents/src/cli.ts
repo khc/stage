@@ -1,5 +1,3 @@
-import "./telemetry-init";
-
 import { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 

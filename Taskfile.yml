@@ -69,7 +69,7 @@ tasks:
     desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}}-agents FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun agents/{{.ITEM}}/src/main.ts register
+        cmd: JOB_NAME={{.ITEM}}-agents FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun --preload ./packages/agents/src/telemetry-init.ts agents/{{.ITEM}}/src/main.ts register
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)

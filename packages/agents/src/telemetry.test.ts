@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+
 import { trace } from "@opentelemetry/api";
 
 import { annotateJob, flushTelemetry, setupTelemetry, traceJob } from "./telemetry";
