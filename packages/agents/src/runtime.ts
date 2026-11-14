@@ -4,6 +4,7 @@ import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 import { FirestoreSessionService } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
+import { annotateJob } from "./telemetry";
 
 export type RunAgent = (
   message: string,
@@ -70,6 +71,11 @@ export const createTaskAgent =
           ...(taskId !== undefined && { taskId }),
         });
     const key = { ...owner, sessionId: session.id };
+    // ADK and MLflow read these to group traces by session.
+    annotateJob({
+      "gcp.vertex.agent.session_id": session.id,
+      "gen_ai.conversation.id": session.id,
+    });
     await runner.sessionService.startRun(key);
     let reply: string;
     try {

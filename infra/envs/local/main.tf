@@ -46,6 +46,12 @@ variable "agent_model" {
   default = null
 }
 
+variable "otel_env" {
+  type        = map(string)
+  default     = {}
+  description = "OTEL_* variables for the agent jobs; task tf:apply fills it from .env."
+}
+
 variable "use_vertexai" {
   type    = string
   default = null
@@ -74,11 +80,11 @@ module "stage" {
   use_vertexai          = var.use_vertexai
   deletion_protection   = false
 
-  extra_env = {
+  extra_env = merge(var.otel_env, {
     FIRESTORE_EMULATOR_HOST = var.emulator_host
     PUBSUB_EMULATOR_HOST    = var.emulator_host
     GEMINI_API_KEY          = var.gemini_api_key
-  }
+  })
 }
 
 output "extract_url" {
