@@ -28,7 +28,7 @@ tasks:
   build:extract:
     desc: Build the extract service image (stage-extract:latest)
     cmds:
-      - docker compose build extract
+      - docker build -f Dockerfile.extract -t stage-extract:latest .
       - docker image prune -f
 
   build:service:

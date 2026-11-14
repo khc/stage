@@ -33,11 +33,13 @@ Run `bun run format` (oxfmt, configured in `.oxfmtrc.json`) to format the code, 
 ## Local environment
 
 ```bash
-docker compose up -d --build   # start Floci, Floci UI, the extract service and MLflow
+docker compose up -d           # start Floci, Floci UI and MLflow
 docker compose down            # stop
 bun run dev:service            # the API on http://localhost:3000 (runs on the host)
 bun run dev:ui                 # the dashboard on http://localhost:5173
 ```
+
+The extract service is not in the compose file: Terraform owns it as a Cloud Run service in Floci. Build its image with `task build:extract`, deploy it with `task tf:create-extract` (prints its URL), and set that URL as `EXTRACT_URL` for the service to turn on document upload.
 
 - Configuration lives in `.env` (gitignored; Bun and `docker compose` both read it). Put your `GEMINI_API_KEY` there; the file lists every other variable the project uses. The service start/dev scripts and the UI (through Vite) explicitly load this root file even when Bun runs them from a workspace directory.
 - MLflow (`mlflow`) is the tracking server on `http://localhost:5001` (host port 5001, since macOS uses 5000), with its SQLite database and artifacts on the named volume `mlflow-data` (`docker compose down -v` wipes it). It accepts OTLP traces at `http://localhost:5001/v1/traces` with the header `x-mlflow-experiment-id: <id>`: e.g. `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:5001/v1/traces`, `OTEL_EXPORTER_OTLP_TRACES_HEADERS=x-mlflow-experiment-id=0`, `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf`. Agent jobs in Floci reach it at `mlflow:5000` only if they share its compose network.

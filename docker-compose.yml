@@ -20,14 +20,6 @@ services:
     environment:
       FLOCI_GCP_ENDPOINT: http://floci-gcp:4588
 
-  extract:
-    image: stage-extract:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.extract
-    ports:
-      - "127.0.0.1:8081:8080"
-
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.18.0
     command: >-
@@ -39,29 +31,6 @@ services:
       - "127.0.0.1:5001:5000"
     volumes:
       - mlflow-data:/mlflow
-
-  # service:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.service
-  #   ports:
-  #     - "127.0.0.1:3000:3000"
-  #   depends_on:
-  #     floci-gcp:
-  #       condition: service_healthy
-  #   environment:
-  #     GCP_PROJECT: ${GCP_PROJECT:-floci-local}
-  #     GCP_REGION: ${GCP_REGION:-us-central1}
-  #     GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT:-floci-local}
-  #     FIRESTORE_EMULATOR_HOST: floci-gcp:4588
-  #     CLOUD_RUN_EMULATOR_HOST: floci-gcp:4588
-  #     PUBSUB_EMULATOR_HOST: floci-gcp:4588
-  #     PUBSUB_TOPIC: ${PUBSUB_TOPIC:-agent-events}
-  #     PLATFORM_EVENTS_TOPIC: ${PLATFORM_EVENTS_TOPIC:-platform-events}
-  #     EXTRACT_URL: http://extract:8080
-  #     GEMINI_API_KEY:
-  #     AGENT_MODEL:
-  #     GOOGLE_GENAI_USE_VERTEXAI:
 
 volumes:
   floci-gcp-data:
