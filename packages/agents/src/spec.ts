@@ -3,6 +3,13 @@ import { z } from "zod";
 
 import type { AgentInfo, JsonSchema } from "./agent-registry";
 
+// ADK's rule for agent names: a letter or underscore first, then letters,
+// digits, underscores and hyphens (`haiku-poet`). The service validates with it too.
+export const agentNameSchema = z
+  .string()
+  .regex(/^[A-Za-z_][A-Za-z0-9_-]*$/)
+  .max(64);
+
 // An agent with the contract it is registered under: what a task's message to
 // it should look like and what its final reply contains. Free-text agents use
 // string schemas; the schemas are published in the registry as JSON Schema.

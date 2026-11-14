@@ -712,11 +712,20 @@ test("POST /tasks passes a valid agentName and rejects an invalid one", async ()
     jobName: "my-job",
     agentName: "researcher_2",
   });
-  for (const agentName of ["", "has space", "1abc", "x".repeat(65), 7])
+  // ADK allows hyphens in agent names (haiku-poet, limerick-poet).
+  expect(
+    (
+      await app.request(
+        "/tasks",
+        post({ jobName: "poet-agents", prompt: "hi", agentName: "limerick-poet" }),
+      )
+    ).status,
+  ).toBe(201);
+  for (const agentName of ["", "has space", "1abc", "-abc", "x".repeat(65), 7])
     expect(
       (await app.request("/tasks", post({ jobName: "my-job", prompt: "hi", agentName }))).status,
     ).toBe(400);
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
 });
 
 describe("agent registry routes", () => {

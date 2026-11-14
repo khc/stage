@@ -2,7 +2,7 @@
 
 Re-review of the whole project at commit `28a0c5d`. The first version of this document reviewed `packages/agents`, `apps/service` and `agents/*`; the second added `apps/extract`, `scripts/`, the Taskfile, Docker and compose files and the tooling. This one also covers the Terraform in `infra/` and, for the first time, security.
 
-**Verification:** `bun test` (322 tests) passes. Typecheck, lint, format and the emulator-backed tests were not re-run for this version. `apps/ui` was reviewed through the work done on it, not file by file. The architecture diagram is [architecture.drawio](architecture.drawio).
+**Verification:** `bun test` (323 tests), typecheck, lint and `format:check` pass. The emulator-backed tests were not re-run for this version. `apps/ui` was reviewed through the work done on it, not file by file. The architecture diagram is [architecture.drawio](architecture.drawio).
 
 ## Overview
 
@@ -62,8 +62,7 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 
 Ordered by severity. "Likely" means the evidence is strong but was not exercised at runtime.
 
-1. **Hyphenated agent names are rejected (bug, high).** The poet agents were renamed to `haiku-poet` and `limerick-poet`, which ADK 2.4.0 accepts, but `agentNameSchema` in [schemas.ts](../apps/service/src/schemas.ts) still allows only letters, digits and underscores (`/^[A-Za-z_][A-Za-z0-9_]*$/`). `POST /tasks` with `agentName: "limerick-poet"` returns 400, so the limerick agent cannot be selected, and `GET /jobs/poet-agents/agents/<name>/card` returns 400 for both poet agents.
-   - **Fix:** export one name schema from `packages/agents/src/spec.ts` that matches ADK's rule (`/^[A-Za-z_][A-Za-z0-9_-]*$/`), use it in the service, and add an agents test that parses every registered name. Update the pattern in `openapi.ts` and the README.
+1. **Done: hyphenated agent names were rejected (bug, high).** The poet agents were renamed to `haiku-poet` and `limerick-poet`, which ADK 2.4.0 accepts, but the service's `agentNameSchema` allowed only letters, digits and underscores, so `POST /tasks` with `limerick-poet` and the agent-card route returned 400. There is now one `agentNameSchema` in [spec.ts](../packages/agents/src/spec.ts) (`/^[A-Za-z_][A-Za-z0-9_-]*$/`, ADK's rule) and [schemas.ts](../apps/service/src/schemas.ts) imports it. Tests cover `limerick-poet` through `POST /tasks` and the schema itself, and the README describes the new rule. A change review of the fix found nothing blocking and no security impact. Left over, all low: no test sends a hyphenated name to the card route, and [README.md](../README.md) lines 7, 67 and 146 still call the poet agent `haiku`. The fix is not committed yet.
 
 2. **No authentication (security, high).** No route in [app.ts](../apps/service/src/app.ts) has authentication, authorization or rate limiting. Anyone who can reach the service can list, read and delete tasks, sessions and extracted document text, upload, run jobs and read the event streams. A local instance also accepts cross-site simple POSTs (register, run, upload). How exposed this is depends on a deployment that is not in the repository (finding 4).
    - **Fix:** put the service behind Cloud Run IAM (invoker only for the UI or backend identity) or IAP, verify ID tokens in `createApp`, and on routes that change state require a JSON content type or a custom header and check `Origin`.
@@ -115,7 +114,7 @@ Ordered by severity. "Likely" means the evidence is strong but was not exercised
 16. **Stray text in a commit message (low).** Commits `bd7b359` and `c45dea1` end with `<|think_end|>`, a model-output token that was committed by mistake.
     - **Fix:** ignore it; it only affects history.
 
-Also worth watching: the queue of waiting events in [event-feed.ts](../apps/service/src/services/event-feed.ts) has no size limit, so a stalled `/events` client makes memory grow.
+Also worth watching: agent names such as `constructor` pass validation, and `agents[agentName ?? defaultAgent]` in [runtime.ts](../packages/agents/src/runtime.ts) would return an inherited member of the plain object; look names up with `Object.hasOwn`. Also, the queue of waiting events in [event-feed.ts](../apps/service/src/services/event-feed.ts) has no size limit, so a stalled `/events` client makes memory grow.
 
 ## Service structure
 
@@ -132,12 +131,11 @@ Done, then still to do in order:
 
 ## Suggested order
 
-1. The agent-name pattern (1): a one-line fix with a test, and it unblocks the limerick agent.
-2. Authentication and a job allowlist (2, 3), together with putting the service in Terraform (4), before the service is reachable by anyone untrusted. Trim `GET /jobs` (6) in the same pass.
-3. Agent-level limits (5), so a runaway agent cannot spend unbounded model calls.
-4. Extract hardening (8) before accepting uploads from untrusted users.
-5. The "queued" state, only if the gap before a job starts becomes a problem for users.
-6. Everything else (7, 9 to 16) when touching those files.
+1. Authentication and a job allowlist (2, 3), together with putting the service in Terraform (4), before the service is reachable by anyone untrusted. Trim `GET /jobs` (6) in the same pass.
+2. Agent-level limits (5), so a runaway agent cannot spend unbounded model calls.
+3. Extract hardening (8) before accepting uploads from untrusted users.
+4. The "queued" state, only if the gap before a job starts becomes a problem for users.
+5. Everything else (7, 9 to 16, and the README agent names) when touching those files.
 
 ## Sources
 

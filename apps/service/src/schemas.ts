@@ -1,3 +1,4 @@
+import { agentNameSchema } from "@stage/agents/spec";
 import { z } from "zod";
 
 const MAX_MESSAGE_LENGTH = 10_000;
@@ -8,10 +9,6 @@ export const jobNameSchema = z
   .regex(/^[a-z]([-a-z0-9]*[a-z0-9])?$/)
   .max(63);
 export const jobParamSchema = z.object({ jobName: jobNameSchema });
-export const agentNameSchema = z
-  .string()
-  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
-  .max(64);
 export const agentParamSchema = jobParamSchema.extend({ agentName: agentNameSchema });
 export const taskSchema = z.object({
   prompt: message,

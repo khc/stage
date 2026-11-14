@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { LlmAgent } from "@google/adk";
 import { z } from "zod";
 
-import { checkInput, describeAgents, type AgentSpec } from "./spec";
+import { agentNameSchema, checkInput, describeAgents, type AgentSpec } from "./spec";
 
 const agent = new LlmAgent({
   name: "fake",
@@ -53,4 +53,11 @@ test("checkInput accepts any text for free-text agents and validates JSON for st
   expect(() => checkInput(structured, '{"n":1}')).not.toThrow();
   expect(() => checkInput(structured, "nope")).toThrow("must be JSON");
   expect(() => checkInput(structured, '{"n":"x"}')).toThrow("does not match");
+});
+
+test("agentNameSchema accepts hyphenated ADK names and rejects the rest", () => {
+  for (const name of ["assistant", "haiku-poet", "_x", "a1-b_2"])
+    expect(agentNameSchema.safeParse(name).success).toBe(true);
+  for (const name of ["", "has space", "1abc", "-abc", "x".repeat(65)])
+    expect(agentNameSchema.safeParse(name).success).toBe(false);
 });
