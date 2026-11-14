@@ -4,6 +4,7 @@ import { checkInput, describeAgents } from "@stage/agents/spec";
 
 import { agentSet } from "./agents";
 import { haikuAgent } from "./haiku-agent";
+import { limerickAgent } from "./limerick-agent";
 
 test("the haiku-poet agent is registered, is the default and has no tools", () => {
   expect(agentSet.agents["haiku-poet"]?.agent).toBe(haikuAgent);
@@ -41,4 +42,10 @@ test("haiku input must be JSON with a non-empty topic", () => {
   expect(() => checkInput(haiku, "rain")).toThrow("must be JSON");
   expect(() => checkInput(haiku, "{}")).toThrow("does not match");
   expect(() => checkInput(haiku, '{"topic":""}')).toThrow("does not match");
+});
+
+test("the limerick-poet agent is registered with no tools", () => {
+  expect(agentSet.agents["limerick-poet"]?.agent).toBe(limerickAgent);
+  expect(limerickAgent.tools ?? []).toHaveLength(0);
+  expect(String(limerickAgent.instruction)).toContain("AABBA");
 });
