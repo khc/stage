@@ -27,7 +27,7 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 - **Pub/Sub is best effort and Firestore is the source of truth.** A failed publish never fails a run, and user messages are now published too.
 - **Careful GCP Terraform for what it covers.** `extract` is internal-only with no `allUsers` invoker, the jobs and extract run as dedicated service accounts, the Gemini secret is created without a value so the key stays out of state, and GCP images must be pinned (no `latest`).
 - **Hardened images.** All three Dockerfiles are multi-stage, run as `USER bun` and bake in no secrets; `.dockerignore` excludes `.env*`.
-- **Consistent conventions.** `createX` factories, `toX` converters, snake_case error codes and kebab-case files are used throughout, apart from the exceptions in finding 15.
+- **Consistent conventions.** `createX` factories, `toX` converters, snake_case error codes and kebab-case files are used throughout.
 
 ## Findings from the first review
 
@@ -104,12 +104,7 @@ Ordered by severity. "Likely" means the evidence is strong but was not exercised
 14. **Unused job script (low).** [cloud-run-job.ts](../scripts/cloud-run-job.ts) is no longer called now that Terraform owns the jobs; only its own test references it.
     - **Fix:** delete it and its test.
 
-15. **Naming leftovers (low).** `EventListener`, the duplicate `TaskDocument` and `createCreateTask` are fixed. Still open:
-    - Converters are named `summary` (documents) and `toSummary` (sessions).
-    - The upload limits are `MAX_UPLOAD_BYTES` (25 MiB, service) and `MAX_FILE_BYTES` (50 MiB, extract).
-    - The fallback error code is `agent_error` although it covers any unhandled error.
-    - `apps/extract` names caught errors `e`; the rest uses `err`.
-    - **Fix:** a `toX` name per converter, limits that say who enforces them, `internal_error` and `err`.
+15. **Done: naming leftovers (low).** The document converter is `toDocumentSummary` and the session one `toSessionSummary`; the upload limits are `MAX_SERVICE_UPLOAD_BYTES` (25 MiB, service) and `MAX_EXTRACT_BYTES` (50 MiB, extract); the fallback error code is `internal_error`, with a test that the message is not returned; and `apps/extract` names the caught error `err`. The error code changed from `agent_error`; nothing in the repository (UI, tests, OpenAPI, README) used the old one.
 
 16. **Stray text in a commit message (low).** Commits `bd7b359` and `c45dea1` end with `<|think_end|>`, a model-output token that was committed by mistake.
     - **Fix:** ignore it; it only affects history.
@@ -135,7 +130,7 @@ Done, then still to do in order:
 2. Agent-level limits (5), so a runaway agent cannot spend unbounded model calls.
 3. Extract hardening (8) before accepting uploads from untrusted users.
 4. The "queued" state, only if the gap before a job starts becomes a problem for users.
-5. Everything else (7, 9 to 16, and the README agent names) when touching those files.
+5. Everything else (7, 9 to 14, 16, and the README agent names) when touching those files.
 
 ## Sources
 

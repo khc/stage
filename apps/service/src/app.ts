@@ -50,5 +50,5 @@ export const createApp = (deps: Deps) =>
         return c.json({ error: err.code }, 502);
       }
       console.error(err);
-      return c.json({ error: "agent_error" }, 502);
+      return c.json({ error: "internal_error" }, 502);
     });

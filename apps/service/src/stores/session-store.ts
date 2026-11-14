@@ -28,7 +28,10 @@ const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => (
   userId: doc.get("userId") as string,
   sessionId,
 });
-const toSummary = (taskId: string, doc: { get: (field: string) => unknown }): SessionSummary => {
+const toSessionSummary = (
+  taskId: string,
+  doc: { get: (field: string) => unknown },
+): SessionSummary => {
   const summary: SessionSummary = {
     id: doc.get("sessionId") as string,
     taskId,
@@ -55,7 +58,7 @@ export const createSessionStore = (db: Firestore): SessionStore => {
   return {
     async list(taskId) {
       const snapshot = await db.collection("sessions").where("taskId", "==", taskId).get();
-      return snapshot.docs.map((doc) => toSummary(taskId, doc));
+      return snapshot.docs.map((doc) => toSessionSummary(taskId, doc));
     },
     async get(taskId, sessionId) {
       const doc = await find(taskId, sessionId);

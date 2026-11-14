@@ -35,7 +35,7 @@ export const createExtractDocument =
     return res.json() as Promise<{ content: string; mimeType: string }>;
   };
 
-const summary = (id: string, data: FirebaseFirestore.DocumentData): DocumentSummary => ({
+const toDocumentSummary = (id: string, data: FirebaseFirestore.DocumentData): DocumentSummary => ({
   documentId: id,
   filename: data.filename,
   checksum: data.checksum,
@@ -67,13 +67,13 @@ export const createDocumentStore = (db: Firestore, extract: ExtractDocument): Do
       const ids = await linked(taskId);
       if (!ids.length) return [];
       const snaps = await db.getAll(...ids.map((id) => documents.doc(id)));
-      return snaps.filter((s) => s.exists).map((s) => summary(s.id, s.data()!));
+      return snaps.filter((s) => s.exists).map((s) => toDocumentSummary(s.id, s.data()!));
     },
     async get(taskId, documentId) {
       if (!(await linked(taskId)).includes(documentId)) return undefined;
       const snap = await documents.doc(documentId).get();
       return snap.exists
-        ? { ...summary(snap.id, snap.data()!), content: snap.get("content") }
+        ? { ...toDocumentSummary(snap.id, snap.data()!), content: snap.get("content") }
         : undefined;
     },
     async create(taskId, file) {
@@ -82,7 +82,7 @@ export const createDocumentStore = (db: Firestore, extract: ExtractDocument): Do
       const existing = await ref.get();
       let result: DocumentSummary;
       if (existing.exists) {
-        result = summary(checksum, existing.data()!);
+        result = toDocumentSummary(checksum, existing.data()!);
       } else {
         const { content, mimeType } = await extract(file);
         if (Buffer.byteLength(content) > MAX_CONTENT_BYTES) throw new DocumentTooLargeError();
@@ -93,7 +93,7 @@ export const createDocumentStore = (db: Firestore, extract: ExtractDocument): Do
           content,
         };
         await ref.set(data);
-        result = summary(checksum, data);
+        result = toDocumentSummary(checksum, data);
       }
       await tasks
         .doc(taskId)

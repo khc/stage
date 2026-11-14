@@ -11,7 +11,7 @@ import {
 } from "../stores/document-store";
 import type { TaskStore } from "../stores/task-store";
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_SERVICE_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 // Mounted under /tasks: the documents attached to a task.
 export const documentRoute = (tasks: Pick<TaskStore, "get">, documents?: DocumentStore) =>
@@ -27,7 +27,7 @@ export const documentRoute = (tasks: Pick<TaskStore, "get">, documents?: Documen
     .post(
       "/:taskId/documents",
       bodyLimit({
-        maxSize: MAX_UPLOAD_BYTES,
+        maxSize: MAX_SERVICE_UPLOAD_BYTES,
         onError: (c) => c.json({ error: "file_too_large" }, 413),
       }),
       zValidator("param", taskParamSchema),

@@ -728,6 +728,16 @@ test("POST /tasks passes a valid agentName and rejects an invalid one", async ()
   expect(create).toHaveBeenCalledTimes(2);
 });
 
+test("an unexpected error answers 502 internal_error without its message", async () => {
+  const app = buildApp();
+  app.get("/boom", () => {
+    throw new Error("secret detail");
+  });
+  const res = await app.request("/boom");
+  expect(res.status).toBe(502);
+  expect(await res.json()).toEqual({ error: "internal_error" });
+});
+
 describe("agent registry routes", () => {
   const registered = [{ name: "assistant" }, { name: "researcher" }];
   const registryApp = (

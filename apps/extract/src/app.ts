@@ -3,7 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 
 import type { ExtractFile } from "./extract";
 
-export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+export const MAX_EXTRACT_BYTES = 50 * 1024 * 1024;
 
 export const createApp = (extractFile: ExtractFile) =>
   new Hono()
@@ -11,7 +11,7 @@ export const createApp = (extractFile: ExtractFile) =>
     .post(
       "/extract",
       bodyLimit({
-        maxSize: MAX_FILE_BYTES,
+        maxSize: MAX_EXTRACT_BYTES,
         onError: (c) => c.json({ error: "file too large" }, 413),
       }),
       async (c) => {
@@ -22,8 +22,8 @@ export const createApp = (extractFile: ExtractFile) =>
         }
         try {
           return c.json(await extractFile(file));
-        } catch (e) {
-          return c.json({ error: e instanceof Error ? e.message : "extraction failed" }, 422);
+        } catch (err) {
+          return c.json({ error: err instanceof Error ? err.message : "extraction failed" }, 422);
         }
       },
     );
