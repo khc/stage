@@ -11,7 +11,8 @@ Each env is its own Terraform root with its own state, so one can never be appli
 ## Floci
 
     docker compose up -d floci-gcp
-    # task tf:apply reads GEMINI_API_KEY from .env (yq); by hand: export TF_VAR_gemini_api_key=...
+    # task tf:apply reads GEMINI_API_KEY, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI from .env (yq);
+    # by hand: export TF_VAR_gemini_api_key=... (and optionally TF_VAR_agent_model, TF_VAR_use_vertexai)
     # it is a plain env value in local state: use a throwaway key
     task tf:init && task tf:apply   # or: cd envs/local && terraform init && terraform apply
 

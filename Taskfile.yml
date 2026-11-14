@@ -30,10 +30,14 @@ tasks:
       - terraform -chdir=infra/envs/local init
 
   tf:apply:
-    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY from .env with yq
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI from .env with yq
     cmds:
-      - >-
-        TF_VAR_gemini_api_key="$(yq -p props -oy '.GEMINI_API_KEY // ""' .env)"
+      - |
+        env_value() { yq -p props -oy ".$1 // \"\"" .env; }
+        export TF_VAR_gemini_api_key="$(env_value GEMINI_API_KEY)"
+        model="$(env_value AGENT_MODEL)"; vertex="$(env_value GOOGLE_GENAI_USE_VERTEXAI)"
+        [ -z "$model" ] || export TF_VAR_agent_model="$model"
+        [ -z "$vertex" ] || export TF_VAR_use_vertexai="$vertex"
         terraform -chdir=infra/envs/local apply
 
   tf:import:

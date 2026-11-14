@@ -1,26 +1,26 @@
+import type * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen, ChevronRight, LayoutDashboard, Layers3, Server } from "lucide-react";
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-const items = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  { to: "/tasks", label: "Tasks", icon: Layers3 },
-  { to: "/jobs", label: "Jobs", icon: Server },
+const workspace = [
+  { to: "/", label: "Overview" },
+  { to: "/tasks", label: "Tasks" },
+  { to: "/jobs", label: "Jobs" },
 ] as const;
 
 export function useHealthLabel() {
@@ -48,68 +48,67 @@ export function StatusDot({ className }: { className?: string }) {
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tasks = useTasks();
   const { label } = useHealthLabel();
   return (
-    <Sidebar>
+    <Sidebar variant="floating" {...props}>
       <SidebarHeader>
-        <Link
-          to="/"
-          className="flex items-center gap-2 px-2 py-1 font-semibold"
-          aria-label="Stage home"
-        >
-          <img src="/stage.svg" alt="" className="size-8" />
-          Stage
-        </Link>
-        <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
-          <span className="grid size-7 place-items-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-            A
-          </span>
-          <div className="flex flex-1 flex-col leading-tight">
-            Agent workspace
-            <span className="text-xs text-muted-foreground">Task orchestration</span>
-          </div>
-          <ChevronRight className="size-3.5 text-muted-foreground" />
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton
-                    isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
-                    render={<Link to={item.to} />}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                  {item.to === "/tasks" && tasks.data && (
-                    <SidebarMenuBadge>{tasks.data.tasks.length}</SidebarMenuBadge>
-                  )}
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<a href="/docs" target="_blank" rel="noreferrer" />}>
-              <BookOpen />
-              <span>API reference</span>
+            <SidebarMenuButton size="lg" render={<Link to="/" aria-label="Stage home" />}>
+              <img src="/stage.svg" alt="" className="size-8" />
+              <div className="flex flex-col gap-0.5 leading-none">
+                <span className="font-medium">Stage</span>
+                <span>v1.0</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu className="gap-2">
+            <SidebarMenuItem>
+              <span className="block px-2 py-1.5 text-sm font-medium">Workspace</span>
+              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                {workspace.map((item) => (
+                  <SidebarMenuSubItem key={item.to}>
+                    <SidebarMenuSubButton
+                      isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
+                      render={<Link to={item.to} />}
+                    >
+                      {item.label}
+                      {item.to === "/tasks" && tasks.data && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {tasks.data.tasks.length}
+                        </span>
+                      )}
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <span className="block px-2 py-1.5 text-sm font-medium">Reference</span>
+              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    render={<a href="/docs" target="_blank" rel="noreferrer" />}
+                  >
+                    API reference
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </SidebarMenuSub>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter>
         <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
           <StatusDot />
           {label}
-          <span className="ml-auto">v1.0</span>
         </div>
       </SidebarFooter>
     </Sidebar>
