@@ -17,6 +17,6 @@
     "hono": "^4.13.18"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "^1.4.4"
   }
 }
