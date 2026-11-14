@@ -40,83 +40,13 @@ Use `bun check` to type check the project. It reads `tsconfig.json` and reports 
 
 ## Frontend
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
-
-Server:
-
-```ts#index.ts
-import index from "./index.html"
-
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
-```
-
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-// import .css files directly and it works
-import './index.css';
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+`apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
 
 # Repository conventions
 
 ## File naming
 
-- File names are kebab-case: `task-store.ts`, `task-service.ts`. Tests sit next to the file they test and end in `.test.ts`.
+- File names are kebab-case: `task-store.ts`, `task-service.ts`. Tests sit next to the file they test and end in `.test.ts`. App-level tests that go through `createApp` sit in `src` root (`app.test.ts`, `events-route.test.ts`).
 - In a layered folder, a file's role is a suffix on its name, singular noun first. The folder alone is not enough, because editors, quick-open and stack traces show only the file name, and the same feature name appears in several layers.
 
   | Folder      | Pattern                         | Example                                                                      |
@@ -128,7 +58,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - A `*-route.ts` file exports its Hono app as a named export `*Route`, camel-cased from the file name (`task-route.ts` exports `taskRoute`, `session-route.ts` exports `sessionRoute`). It is a factory that takes the dependencies it needs and returns a `new Hono()`, so `app.ts` mounts it with `.route(path, taskRoute(deps))`. No default exports. A route file holds one feature; a second feature gets its own file.
 - `services/` holds the operations on one thing that need more than one store or platform client, as an object like a store: a type `<Thing>Service`, a factory `create<Thing>Service(deps)`, and one method per operation (`TaskService` has `create`, `run` and `delete`). Each method returns a status for every expected outcome and throws a `DependencyError` when a dependency fails. The word is unrelated to the app `apps/service`: that is the whole HTTP service, and these are objects inside it.
-- Apply the rule to the whole folder or not at all. `apps/service` is the only app with layered folders today; a new layered app follows the same patterns.
+- Apply the rule to the whole folder or not at all. The one exception is `services/event-feed.ts`, a helper class (`EventFeed`) shared by the two event streams rather than a service. `apps/service` is the only app with layered folders today; a new layered app follows the same patterns.
 - Files that hold shared plumbing rather than one role keep a plain name: `errors.ts`, `schemas.ts`, `shared.ts`.
 
 ## Stores
@@ -142,7 +72,7 @@ A file `<thing>-store.ts` in `stores/` exports one store with the same shape as 
 
 ## Platform clients
 
-A file in `platform/` that wraps an external system exports the same kind of object as a store: a type named after the system (`CloudRunJobs`), a factory `create<System>(client, config)`, and methods named for what they do (`list`, `run`, `registerAgents`). Do not export one function type and one factory per operation. The agent registry in `packages/agents` follows the same shape (`AgentRegistry`, `createAgentRegistry(db)`, with `list` and `register`).
+A file in `platform/` that wraps an external system exports the same kind of object as a store: a type named after the system (`CloudRunJobs`), a factory `create<System>(client, config)`, and methods named for what they do (`list`, `run`, `registerAgents`). Do not export one function type and one factory per operation. Single-purpose wrappers (`platform-event-publisher.ts`, `session-event-stream.ts`, `topic-subscriber.ts`, `cloud-run-jobs-client.ts`) may export one factory for their one operation. The agent registry in `packages/agents` follows the same shape (`AgentRegistry`, `createAgentRegistry(db)`, with `list` and `register`).
 
 ## Layout of `apps/service`
 
