@@ -38,4 +38,4 @@ The GCP apply also enables the APIs, creates the Firestore database, dedicated s
 
 State files are gitignored. Before sharing GCP state, add a `gcs` backend to `envs/gcp` with restricted IAM.
 
-Floci's Firestore needs no resource (documents only). Images are built by `task rebuild` / `docker compose build extract`.
+Floci's Firestore needs no resource (documents only). Images are built by `task build:agents`, `task build:extract` and `task build:service`.

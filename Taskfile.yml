@@ -7,7 +7,7 @@ vars:
   REGION: us-central1
   # One Cloud Run job per agent app (agents/<name>). The image is
   # stage-<name>:latest and the job is named <name>-agents (generic-agents).
-  # Override to pick some, e.g. `task rebuild JOBS=poet`.
+  # Override to pick some, e.g. `task build:agents JOBS=poet`.
   JOBS: generic poet
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
@@ -18,12 +18,29 @@ env:
   JOB_FLOCI: "{{.FLOCI}}"
 
 tasks:
-  rebuild:
-    desc: Rebuild the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
+  build:agents:
+    desc: Build the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
       - for: { var: JOBS }
         cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
       - docker image prune -f
+
+  build:extract:
+    desc: Build the extract service image (stage-extract:latest)
+    cmds:
+      - docker compose build extract
+      - docker image prune -f
+
+  build:service:
+    desc: Build the HTTP service image (stage-service:latest)
+    cmds:
+      - docker build -f Dockerfile.service -t stage-service:latest .
+      - docker image prune -f
+
+  build:ui:
+    desc: Type check and build the UI (apps/ui/dist)
+    cmds:
+      - bun --filter @stage/ui build
 
   tf:init:
     desc: Initialise Terraform in infra/envs/local (run once, and after provider or module changes)
@@ -85,11 +102,6 @@ tasks:
     prompt: Remove job {{.JOB}} from Floci?
     cmds:
       - curl -fsS -X DELETE {{.JOBS_URL | shellQuote}}/{{.JOB | urlquery}}
-
-  rebuild-extract:
-    desc: Rebuild the extract service image (stage-extract:latest)
-    cmds:
-      - docker compose build extract
 
   tf:create-extract:
     desc: Create or update the extract Cloud Run service in Floci with Terraform; prints its URL
