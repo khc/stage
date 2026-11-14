@@ -14,7 +14,7 @@ export const haikuOutput = z.object({
 });
 
 export const haikuAgent = new LlmAgent({
-  name: "haiku",
+  name: "haiku-poet",
   model: createModel(process.env),
   description: "Writes a haiku about a topic.",
   instruction:
