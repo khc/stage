@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { guard } from "../errors";
 import { sessionParamSchema, taskParamSchema } from "../schemas";
 import type { SessionService } from "../services/session-service";
-import { sessionStats } from "../stats";
+import { sessionStats } from "../utils/session-stats";
 import type { SessionStore } from "../stores/session-store";
 import type { TaskStore } from "../stores/task-store";
 import { KEEPALIVE_MS, sseResponse } from "./shared";

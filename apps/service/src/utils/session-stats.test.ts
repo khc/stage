@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import { createEvent } from "@google/adk";
 
-import { sessionStats } from "./stats";
+import { sessionStats } from "./session-stats";
 
 const usage = (usageMetadata: Record<string, number>) => createEvent({ usageMetadata });
 

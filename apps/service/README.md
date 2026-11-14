@@ -39,10 +39,10 @@ src/
                   the helper both streams use
   stores/         Firestore access, one store per thing: task, session, document
   platform/       Cloud Run, Pub/Sub listeners, platform-event publisher
+  utils/          pure helpers with no dependencies on the layers: session-stats (token usage of a session)
   errors.ts       DependencyError and guard()
   schemas.ts      request validation (zod)
   openapi.ts      the hand-written OpenAPI document
-  stats.ts        token usage of a session
 ```
 
 Dependencies point downwards: `routes` use `services` and `stores`, `services` use `stores` and `platform`, and nothing imports a route. Tests sit next to the file they test. Files in the layered folders carry their role as a suffix: `stores/task-store.ts`, `routes/task-route.ts`, and `platform/cloud-run-jobs.ts` for the one that would otherwise repeat a route name. A service is an object like a store: `services/task-service.ts` exports `TaskService` and `createTaskService(deps)`, with one method per operation.

@@ -1,4 +1,5 @@
 # Stateless document extraction service (apps/extract). Listens on PORT (default 8080).
+# slim, not distroless: the xberg native module needs libstdc++ and libgcc_s.
 ARG BUN_IMAGE=oven/bun:1.4.4-slim
 
 FROM ${BUN_IMAGE} AS deps
@@ -9,7 +10,8 @@ COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --filter "./apps/extract" \
+ && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
 
 FROM ${BUN_IMAGE} AS runtime
 WORKDIR /app

@@ -26,7 +26,7 @@ Sessions, tasks and the agent registry live in Firestore. A task run is a one-sh
 - **Simple agents.** `assistant`, `document_analyser`, `haiku-poet` and `limerick-poet` are single LLM agents, in line with Anthropic's advice to add orchestration only when it pays off ([Anthropic](https://www.anthropic.com/research/building-effective-agents)).
 - **Pub/Sub is best effort and Firestore is the source of truth.** A failed publish never fails a run, and user messages are now published too.
 - **Careful GCP Terraform for what it covers.** `extract` is internal-only with no `allUsers` invoker, the jobs and extract run as dedicated service accounts, the Gemini secret is created without a value so the key stays out of state, and GCP images must be pinned (no `latest`).
-- **Hardened images.** All three Dockerfiles are multi-stage, run as `USER bun` and bake in no secrets; `.dockerignore` excludes `.env*`.
+- **Hardened images.** All three Dockerfiles are multi-stage, the service and agent images use the distroless Bun base and run as a non-root UID (the extract image stays on slim because of a native module) and bake in no secrets; `.dockerignore` excludes `.env*`.
 - **Consistent conventions.** `createX` factories, `toX` converters, snake_case error codes and kebab-case files are used throughout.
 
 ## Findings from the first review

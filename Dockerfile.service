@@ -2,9 +2,10 @@
 # Runtime configuration is supplied via environment variables, nothing is baked
 # in: GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000),
 # AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional) and the Gemini credentials.
-ARG BUN_IMAGE=oven/bun:1.4.4-slim
+ARG BUN_BUILD_IMAGE=oven/bun:1.4.4-slim
+ARG BUN_IMAGE=oven/bun:1.4.4-distroless
 
-FROM ${BUN_IMAGE} AS deps
+FROM ${BUN_BUILD_IMAGE} AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
@@ -12,7 +13,8 @@ COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --filter "./apps/service" \
+ && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
 
 FROM ${BUN_IMAGE} AS runtime
 WORKDIR /app
@@ -25,6 +27,6 @@ COPY apps/service ./apps/service
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
 COPY --from=deps /app/apps/service/node_modules ./apps/service/node_modules
 
-USER bun
+USER 1000:1000
 EXPOSE 3000
-CMD ["bun", "apps/service/src/index.ts"]
+CMD ["apps/service/src/index.ts"]

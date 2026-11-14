@@ -23,6 +23,7 @@ tasks:
     cmds:
       - for: { var: JOBS }
         cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
+      - docker image prune -f
 
   tf:init:
     desc: Initialise Terraform in infra/envs/local (run once, and after provider or module changes)

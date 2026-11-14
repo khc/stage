@@ -6,9 +6,11 @@
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
 # and the Gemini credentials. With the argument `register` the container records
 # its agents for the job named by JOB_NAME instead of running a task.
-ARG BUN_IMAGE=oven/bun:1.4.4-slim
+ARG BUN_BUILD_IMAGE=oven/bun:1.4.4-slim
+ARG BUN_IMAGE=oven/bun:1.4.4-distroless
 
-FROM ${BUN_IMAGE} AS deps
+FROM ${BUN_BUILD_IMAGE} AS deps
+ARG APP
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
@@ -16,7 +18,8 @@ COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --filter "./agents/${APP}" \
+ && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
 
 FROM ${BUN_IMAGE} AS runtime
 ARG APP
@@ -27,12 +30,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY packages/agents ./packages/agents
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
-COPY agents/${APP} ./agents/${APP}
-COPY --from=deps /app/agents/${APP}/node_modules ./agents/${APP}/node_modules
+# A fixed path: exec-form ENTRYPOINT cannot expand ARG, and the distroless image
+# has no shell to create a symlink. It sits two levels below /app, like
+# agents/<APP>, so the relative workspace symlinks in node_modules still resolve.
+# Extra arguments (such as `register`) must still reach the program.
+COPY agents/${APP} ./agents/current
+COPY --from=deps /app/agents/${APP}/node_modules ./agents/current/node_modules
 
-# A fixed entrypoint path: exec-form ENTRYPOINT cannot expand ARG, and extra
-# arguments (such as `register`) must still reach the program.
-RUN ln -s /app/agents/${APP}/src/main.ts /app/main.ts
-
-USER bun
-ENTRYPOINT ["bun", "--preload", "/app/packages/agents/src/telemetry-init.ts", "/app/main.ts"]
+USER 1000:1000
+ENTRYPOINT ["bun", "--preload", "/app/packages/agents/src/telemetry-init.ts", "/app/agents/current/src/main.ts"]

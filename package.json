@@ -26,9 +26,12 @@
     "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
     "tailwindcss": "^4.3.5",
+    "typescript": "^7",
     "zod": "^4.6.7"
   },
-  "peerDependencies": {
-    "typescript": "^7"
+  "overrides": {
+    "@google/genai": "2.32.0",
+    "google-gax": "6.17.0",
+    "@opentelemetry/semantic-conventions": "1.45.0"
   }
 }
