@@ -17,6 +17,8 @@ Each env is its own Terraform root with its own state, so one can never be appli
 
 If the topics or jobs already exist in Floci (created by the old scripts), `task tf:import` adopts them into the state first; `apply` fails with 409 otherwise.
 
+Floci's Cloud Run emulation rejects secret references (`valueSource`), so the jobs get the key as a plain env value; see [docs/floci-gcp.md](../docs/floci-gcp.md).
+
 `envs/local/terraform.tfvars` is committed and must never hold secrets.
 
 ## GCP
