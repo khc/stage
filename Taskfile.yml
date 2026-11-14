@@ -38,9 +38,10 @@ tasks:
       - docker image prune -f
 
   build:ui:
-    desc: Type check and build the UI (apps/ui/dist)
+    desc: Build the dashboard image (stage-ui:latest)
     cmds:
-      - bun --filter @stage/ui build
+      - docker build -f Dockerfile.ui -t stage-ui:latest .
+      - docker image prune -f
 
   tf:init:
     desc: Initialise Terraform in infra/envs/local (run once, and after provider or module changes)

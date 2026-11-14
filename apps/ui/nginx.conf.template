@@ -1,0 +1,32 @@
+# Rendered by the nginx image at start: only SERVICE_URL and the container's DNS
+# resolvers are substituted (NGINX_ENVSUBST_FILTER in Dockerfile.ui). It mirrors the
+# Vite dev proxy in vite.config.ts. SERVICE_URL is a bare scheme://host:port, no path.
+server {
+  listen 8080;
+  root /usr/share/nginx/html;
+
+  # The upstream is resolved per request, so the container starts before the service does.
+  resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+  set $upstream ${SERVICE_URL};
+
+  location / {
+    try_files $uri /index.html;
+  }
+
+  # /tasks and /jobs are also SPA routes: browser navigations get the app, API calls the service.
+  location ~ ^/(tasks|jobs)(/[^/]+)?$ {
+    default_type text/html;
+    error_page 418 = @spa;
+    if ($http_accept ~* text/html) { return 418; }
+    include /etc/nginx/api-proxy.conf;
+  }
+
+  location @spa {
+    rewrite ^ /index.html break;
+  }
+
+  location ~ ^/(tasks|jobs|health|events|docs|openapi\.json)(/|$) {
+    include /etc/nginx/api-proxy.conf;
+    proxy_buffering off; # the /events streams
+  }
+}

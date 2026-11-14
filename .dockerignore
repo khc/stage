@@ -1,8 +1,9 @@
-node_modules
+**/node_modules
 .git
-.env*
-.plans
-.sidecar
+**/.env*
+**/.plans
+**/.sidecar
 **/*.test.ts
 Dockerfile*
 .dockerignore
+**/dist
