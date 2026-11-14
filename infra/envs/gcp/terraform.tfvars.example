@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+project          = "your-gcp-project"
+region           = "us-central1"
+image_prefix     = "us-central1-docker.pkg.dev/your-gcp-project/stage/"
+image_tag        = "1.0.0" # pin a version or sha256 digest, not latest
+extract_invokers = ["serviceAccount:service@your-gcp-project.iam.gserviceaccount.com"]

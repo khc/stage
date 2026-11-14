@@ -24,17 +24,41 @@ tasks:
       - for: { var: JOBS }
         cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
 
-  create-job:
-    desc: Create the agent Cloud Run jobs in Floci (one per job in JOBS)
+  tf:init:
+    desc: Initialise Terraform in infra/envs/local (run once, and after provider or module changes)
     cmds:
-      - for: { var: JOBS }
-        cmd: JOB_APP={{.ITEM}} bun scripts/cloud-run-job.ts create
+      - terraform -chdir=infra/envs/local init
 
-  update-job:
-    desc: Update the agent jobs' image and environment in Floci from .env (one per job in JOBS)
+  tf:apply:
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY from .env with yq
     cmds:
-      - for: { var: JOBS }
-        cmd: JOB_APP={{.ITEM}} bun scripts/cloud-run-job.ts update
+      - >-
+        TF_VAR_gemini_api_key="$(yq -p props -oy '.GEMINI_API_KEY // ""' .env)"
+        terraform -chdir=infra/envs/local apply
+
+  tf:import:
+    desc: Import Floci topics and jobs created outside Terraform into the local state; skips what is already in state
+    dir: infra/envs/local
+    cmds:
+      - |
+        export TF_VAR_gemini_api_key="$(yq -p props -oy '.GEMINI_API_KEY // ""' ../../../.env)"
+        import() { terraform state show "$1" >/dev/null 2>&1 || terraform import "$1" "$2"; }
+        for topic in agent-events platform-events; do
+          import "module.stage.google_pubsub_topic.events[\"$topic\"]" "projects/{{.PROJECT}}/topics/$topic"
+        done
+        for app in {{.JOBS}}; do
+          import "module.stage.google_cloud_run_v2_job.agents[\"$app\"]" "projects/{{.PROJECT}}/locations/{{.REGION}}/jobs/$app-agents"
+        done
+
+  tf:create-job:
+    desc: Create the agent Cloud Run jobs in Floci (alias of tf:apply; Terraform owns them, JOBS is ignored)
+    cmds:
+      - task: tf:apply
+
+  tf:update-job:
+    desc: Update the agent jobs' image and environment in Floci (alias of tf:apply; JOBS is ignored)
+    cmds:
+      - task: tf:apply
 
   register-agents:
     desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT)
@@ -61,16 +85,14 @@ tasks:
     cmds:
       - docker compose build extract
 
-  create-extract:
-    desc: Create the extract Cloud Run service in Floci; prints its URL (fails if it already exists)
+  tf:create-extract:
+    desc: Create or update the extract Cloud Run service in Floci with Terraform; prints its URL
     cmds:
-      - >-
-        curl -fsS -X POST {{printf "%s?serviceId=extract" .SERVICES_URL | shellQuote}}
-        -H 'content-type: application/json'
-        -d '{"template":{"containers":[{"image":"stage-extract:latest","ports":[{"containerPort":8080}]}]}}'
-        | jq -r '.metadata.uri // .metadata.urls[0]'
+      - task: tf:apply
+      - terraform -chdir=infra/envs/local output -raw extract_url
 
-  remove-extract:
-    desc: Delete the extract Cloud Run service from Floci
+  tf:remove-extract:
+    desc: Delete the extract Cloud Run service from Floci with Terraform
+    prompt: Remove the extract service from Floci?
     cmds:
-      - curl -fsS -X DELETE {{printf "%s/extract" .SERVICES_URL | shellQuote}}
+      - terraform -chdir=infra/envs/local destroy -target=module.stage.google_cloud_run_v2_service.extract

@@ -41,3 +41,12 @@ A file in `platform/` that wraps an external system exports the same kind of obj
 - Factories that build a function or client from dependencies are `createX` (`createGetTask(db)`). Converters between shapes are `toX` (`toContract`, `toSummary`, `toAgentCard`).
 - Domain errors end in `Error` (`RunInProgressError`, `DependencyError`). HTTP error codes are snake_case strings (`task_not_found`, `run_in_progress`).
 - Do not name a type after a global the platform already has: `EventListener` would shadow the DOM type (the stream callback type is `StreamListener`).
+
+## Infrastructure
+
+- Every new cloud resource (Cloud Run job or service, Pub/Sub topic, secret, service account, and so on) is added through Terraform in [infra/](infra/README.md): shared resources in `infra/modules/stage`, and target-specific ones in `infra/envs/local` (Floci) or `infra/envs/gcp`.
+- Do not create or change infrastructure with direct Floci or GCP calls: no `curl` against Floci's REST API, no `gcloud` resource commands, no scripts that call the Cloud Run or Pub/Sub APIs to create resources. Direct calls leave resources outside the state and cause 409 `alreadyExists` errors on the next apply.
+- Run Terraform through the `tf:*` tasks (`task tf:init`, `task tf:apply`) or `terraform -chdir=infra/envs/<env>`.
+- A resource that already exists outside Terraform is adopted with `task tf:import`, not recreated.
+- The runtime may still create things on demand (the agent's first publish creates a missing topic, for example). That does not replace declaring the resource in Terraform.
+- Direct calls are fine for reading (`task list-jobs`) and for removing a resource from the emulator. Say so and re-run `task tf:apply` afterwards.
