@@ -13,6 +13,10 @@ COPY apps/extract/package.json ./apps/extract/package.json
 COPY apps/service/package.json ./apps/service/package.json
 COPY apps/ui/package.json ./apps/ui/package.json
 RUN bun install --frozen-lockfile
+# The UI's API types come from the service (`import type { App } from "@stage/service/app"`), so
+# the type check in the build needs the service sources and what they import.
+COPY packages/agents ./packages/agents
+COPY apps/service ./apps/service
 COPY apps/ui ./apps/ui
 RUN cd apps/ui && bun run build
 

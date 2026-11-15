@@ -1,16 +1,6 @@
-export type Task = {
-  taskId: string;
-  prompt: string;
-  jobName?: string;
-  agentName?: string;
-  documents?: { documentId: string }[];
-};
-export type DocumentSummary = {
-  documentId: string;
-  filename: string;
-  checksum: string;
-  contentType: string;
-};
+import { treaty } from "@elysiajs/eden";
+import type { App } from "@stage/service/app";
+
 // Cloud Run timestamps and durations arrive as { seconds, nanos }.
 export type Timestamp = {
   seconds?: string | number | null;
@@ -40,20 +30,6 @@ export type Job = {
       executionEnvironment?: string;
     };
   };
-};
-export type RunState = {
-  status: "running" | "succeeded" | "failed";
-  startedAt: number;
-  endedAt?: number;
-  error?: string;
-};
-export type SessionSummary = {
-  id: string;
-  taskId: string;
-  appName: string;
-  userId: string;
-  lastUpdateTime: number;
-  run?: RunState;
 };
 export type SessionEvent = {
   id?: string;
@@ -87,18 +63,6 @@ export type AgentInfo = {
   inputSchema?: JsonSchema;
   outputSchema?: JsonSchema;
 };
-export type SessionStats = {
-  events: number;
-  llmCalls: number;
-  tokens: {
-    prompt: number;
-    candidates: number;
-    thoughts: number;
-    toolUsePrompt: number;
-    cached: number;
-    total: number;
-  };
-};
 export type Session = SessionSummary & {
   state: Record<string, unknown>;
   events: SessionEvent[];
@@ -129,67 +93,84 @@ const messages: Record<string, string> = {
   extraction_failed: "The content of this file could not be extracted.",
   not_supported: "Document upload is not configured on the server.",
 };
-export async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: unknown;
-    } | null;
-    const code = typeof body?.error === "string" ? body.error : "";
-    throw new ApiError(
-      response.status,
-      messages[code] ??
-        (response.status === 400
-          ? "Check the entered values and try again."
-          : `Request failed (${response.status}). Please try again.`),
-    );
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
-const json = (body: unknown) => ({
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify(body),
-});
-const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
-export const api = {
-  health: () => request<{ status: string }>("/health"),
-  tasks: () => request<{ tasks: Task[] }>("/tasks"),
-  jobs: () => request<{ jobs: Job[] }>("/jobs"),
-  task: (id: string) => request<Task>(taskPath(id)),
-  create: (input: { prompt: string; jobName: string; agentName?: string }) =>
-    request<Task>("/tasks", json(input)),
-  run: (id: string) => request<{ operation: string }>(`${taskPath(id)}/run`, { method: "POST" }),
-  resume: (taskId: string, sessionId: string, message: string) =>
-    request<{ operation: string }>(`${taskPath(taskId)}/run`, json({ sessionId, message })),
-  registerAgents: (jobName: string) =>
-    request<{ operation: string }>(`/jobs/${encodeURIComponent(jobName)}/register`, {
-      method: "POST",
-    }),
-  agents: (jobName: string) =>
-    request<{ agents: AgentInfo[] }>(`/jobs/${encodeURIComponent(jobName)}/agents`),
-  stats: (taskId: string, sessionId: string) =>
-    request<SessionStats>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/stats`),
-  deleteTask: (id: string) => request<void>(taskPath(id), { method: "DELETE" }),
-  deleteSession: (taskId: string, sessionId: string) =>
-    request<void>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`, {
-      method: "DELETE",
-    }),
-  documents: (id: string) => request<{ documents: DocumentSummary[] }>(`${taskPath(id)}/documents`),
-  uploadDocument: (id: string, file: File) => {
-    const body = new FormData();
-    body.set("file", file);
-    return request<DocumentSummary>(`${taskPath(id)}/documents`, { method: "POST", body });
-  },
-  deleteDocument: (id: string, documentId: string) =>
-    request<void>(`${taskPath(id)}/documents/${encodeURIComponent(documentId)}`, {
-      method: "DELETE",
-    }),
-  sessions: (id: string) => request<{ sessions: SessionSummary[] }>(`${taskPath(id)}/sessions`),
-  session: (taskId: string, sessionId: string) =>
-    request<Session>(`${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}`),
+// Throws an ApiError with a readable message for a failed call; returns its data otherwise.
+type Reply = { data: unknown; error: { status: unknown; value: unknown } | null; status: number };
+const fail = (reply: Reply): never => {
+  const body = reply.error?.value as { error?: unknown } | null;
+  const code = typeof body?.error === "string" ? body.error : "";
+  throw new ApiError(
+    reply.status,
+    messages[code] ??
+      (reply.status === 400
+        ? "Check the entered values and try again."
+        : `Request failed (${reply.status}). Please try again.`),
+  );
 };
+async function unwrap<R extends Reply>(call: Promise<R>): Promise<NonNullable<R["data"]>> {
+  const reply = await call;
+  if (reply.error) fail(reply);
+  return reply.data as NonNullable<R["data"]>;
+}
+const unwrapVoid = async (call: Promise<Reply>): Promise<void> => {
+  const reply = await call;
+  if (reply.error) fail(reply);
+};
+
+// Eden does not encode path parameters, and a session id may hold any character.
+const enc = encodeURIComponent;
+
+// The service's API, typed from the service itself (`App`): paths, bodies and replies come from
+// its routes, so a change there is a type error here. `fetcher` is for tests.
+export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
+  const client = treaty<App>(baseUrl, fetcher ? { fetcher } : undefined);
+  const task = (id: string) => client.tasks({ taskId: enc(id) });
+  const session = (taskId: string, sessionId: string) =>
+    task(taskId).sessions({ sessionId: enc(sessionId) });
+  const job = (jobName: string) => client.jobs({ jobName: enc(jobName) });
+  return {
+    health: () => unwrap(client.health.get()),
+    tasks: () => unwrap(client.tasks.get()),
+    // The next four are UI-shaped views of server data (a Cloud Run job with optional fields, an
+    // ADK session whose events the UI reads loosely, an agent's JSON schemas), so they are cast.
+    jobs: async () => (await unwrap(client.jobs.get())) as unknown as { jobs: Job[] },
+    task: (id: string) => unwrap(task(id).get()),
+    create: (input: { prompt: string; jobName: string; agentName?: string }) =>
+      unwrap(client.tasks.post(input)),
+    run: (id: string) => unwrap(task(id).run.post()),
+    resume: (taskId: string, sessionId: string, message: string) =>
+      unwrap(task(taskId).run.post({ sessionId, message })),
+    registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),
+    agents: async (jobName: string) =>
+      (await unwrap(job(jobName).agents.get())) as unknown as { agents: AgentInfo[] },
+    stats: (taskId: string, sessionId: string) => unwrap(session(taskId, sessionId).stats.get()),
+    deleteTask: (id: string) => unwrapVoid(task(id).delete()),
+    deleteSession: (taskId: string, sessionId: string) =>
+      unwrapVoid(session(taskId, sessionId).delete()),
+    documents: (id: string) => unwrap(task(id).documents.get()),
+    uploadDocument: (id: string, file: File) => unwrap(task(id).documents.post({ file })),
+    deleteDocument: (id: string, documentId: string) =>
+      unwrapVoid(
+        task(id)
+          .documents({ documentId: enc(documentId) })
+          .delete(),
+      ),
+    sessions: (id: string) => unwrap(task(id).sessions.get()),
+    session: async (taskId: string, sessionId: string) =>
+      (await unwrap(session(taskId, sessionId).get())) as unknown as Session,
+  };
+};
+export type Api = ReturnType<typeof createApi>;
+export const api = createApi(
+  typeof window === "undefined" ? "http://localhost" : window.location.origin,
+);
+
+// What the service returns, for the types the UI shares with it.
+export type Task = Awaited<ReturnType<Api["task"]>>;
+export type DocumentSummary = Awaited<ReturnType<Api["documents"]>>["documents"][number];
+export type SessionSummary = Awaited<ReturnType<Api["sessions"]>>["sessions"][number];
+export type RunState = NonNullable<SessionSummary["run"]>;
+export type SessionStats = Awaited<ReturnType<Api["stats"]>>;
+
 // Opens the session message stream (SSE); the server replays stored events
 // first, so callers must tolerate duplicates. Returns a function that closes it.
 export const streamMessages = (
@@ -198,7 +179,7 @@ export const streamMessages = (
   onEvent: (event: SessionEvent) => void,
 ) => {
   const source = new EventSource(
-    `${taskPath(taskId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
+    `/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
   );
   source.addEventListener("message", (message) => {
     try {
