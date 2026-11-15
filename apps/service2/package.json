@@ -1,0 +1,21 @@
+{
+  "name": "@stage/service2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "start": "bun --env-file=../../.env src/index.ts",
+    "dev": "bun --env-file=../../.env --hot src/index.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "elysia": "^1.4.32"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  }
+}
