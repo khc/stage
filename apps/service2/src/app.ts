@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { errorHandler } from "./http/errors";
 import { healthController } from "./modules/health/health-controller";
 import type { HealthService } from "./modules/health/health-service";
+import type { SessionsService } from "./modules/tasks/sessions/sessions-service";
 import { tasksController } from "./modules/tasks/tasks-controller";
 import type { TasksService } from "./modules/tasks/tasks-service";
 
@@ -10,6 +11,7 @@ import type { TasksService } from "./modules/tasks/tasks-service";
 export type AppDeps = {
   healthService: HealthService;
   tasksService: TasksService;
+  sessionsService: SessionsService;
 };
 
 // One controller per module, mounted here. Keep this one unbroken chain: Eden reads its type.
@@ -18,6 +20,6 @@ export const createApp = (deps: AppDeps) =>
   new Elysia()
     .use(errorHandler())
     .use(healthController(deps.healthService))
-    .use(tasksController(deps.tasksService));
+    .use(tasksController(deps));
 
 export type App = ReturnType<typeof createApp>;

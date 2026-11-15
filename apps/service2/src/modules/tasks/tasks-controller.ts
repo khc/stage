@@ -1,10 +1,18 @@
 import { Elysia } from "elysia";
 
+import { sessionsController } from "./sessions/sessions-controller";
+import type { SessionsService } from "./sessions/sessions-service";
 import { TasksModel } from "./tasks-model";
 import type { TasksService } from "./tasks-service";
 
-// Mounted at /tasks. Task ids are matched case-insensitively and stored lowercase.
-export const tasksController = (tasksService: TasksService) =>
+export type TasksControllerDeps = {
+  tasksService: TasksService;
+  sessionsService: SessionsService;
+};
+
+// Mounted at /tasks, with the sessions of a task under it. Task ids are matched
+// case-insensitively and stored lowercase.
+export const tasksController = ({ tasksService, sessionsService }: TasksControllerDeps) =>
   new Elysia({ prefix: "/tasks" })
     .post(
       "/",
@@ -22,4 +30,5 @@ export const tasksController = (tasksService: TasksService) =>
         (await tasksService.get(params.taskId.toLowerCase())) ??
         status(404, { error: "task_not_found" }),
       { params: TasksModel.params },
-    );
+    )
+    .use(sessionsController({ tasksService, sessionsService }));
