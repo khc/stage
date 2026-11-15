@@ -47,13 +47,15 @@ export const createDocumentsStore = ({
     );
 
   const release: DocumentsStore["release"] = async (documentIds) => {
-    for (const documentId of documentIds) {
-      const stillUsed = await tasks
-        .where("documents", "array-contains", { documentId })
-        .limit(1)
-        .get();
-      if (stillUsed.empty) await documents.doc(documentId).delete();
-    }
+    // The check and the delete are one transaction, so a task that links the document in
+    // between (see `create`) makes this one retry and keep it.
+    for (const documentId of documentIds)
+      await firestore.runTransaction(async (tx) => {
+        const stillUsed = await tx.get(
+          tasks.where("documents", "array-contains", { documentId }).limit(1),
+        );
+        if (stillUsed.empty) tx.delete(documents.doc(documentId));
+      });
   };
 
   return {
@@ -73,26 +75,22 @@ export const createDocumentsStore = ({
     async create(taskId, file) {
       const checksum = sha256(new Uint8Array(await file.arrayBuffer()));
       const ref = documents.doc(checksum);
-      const existing = await ref.get();
-      let result: DocumentSummary;
-      if (existing.exists) {
-        result = toDocumentSummary(checksum, existing.data()!);
-      } else {
+      let data = (await ref.get()).data();
+      if (!data) {
         const { content, mimeType } = await extractClient.extract(file);
         if (Buffer.byteLength(content) > MAX_CONTENT_BYTES) throw new DocumentTooLargeError();
-        const data = {
-          filename: file.name,
-          checksum,
-          contentType: mimeType || file.type,
-          content,
-        };
-        await ref.set(data);
-        result = toDocumentSummary(checksum, data);
+        data = { filename: file.name, checksum, contentType: mimeType || file.type, content };
       }
-      await tasks
-        .doc(taskId)
-        .update({ documents: FieldValue.arrayUnion({ documentId: checksum }) });
-      return result;
+      // Storing and linking are one transaction: a release that deleted the document since
+      // it was read cannot leave the task pointing at nothing.
+      const stored = data;
+      await firestore.runTransaction(async (tx) => {
+        if (!(await tx.get(ref)).exists) tx.set(ref, stored);
+        tx.update(tasks.doc(taskId), {
+          documents: FieldValue.arrayUnion({ documentId: checksum }),
+        });
+      });
+      return toDocumentSummary(checksum, stored);
     },
     async delete(taskId, documentId) {
       if (!(await linked(taskId)).includes(documentId)) return false;

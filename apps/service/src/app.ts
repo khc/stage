@@ -2,6 +2,7 @@ import { requestId } from "@stage/http/request-id";
 import { inRequestSpan, requestTelemetry } from "@stage/http/telemetry";
 import { Elysia } from "elysia";
 
+import { rejectCrossSite } from "./http/cross-site";
 import { errorHandler } from "./http/errors";
 import { openapiDocs } from "./http/openapi";
 import { agentsController } from "./modules/agents/agents-controller";
@@ -36,6 +37,7 @@ export const createApp = (deps: AppDeps) =>
     .use(requestTelemetry())
     .wrap(inRequestSpan)
     .use(errorHandler())
+    .use(rejectCrossSite())
     .use(openapiDocs())
     .use(healthController(deps.healthService))
     .use(agentsController(deps.agentsService))

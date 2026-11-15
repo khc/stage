@@ -51,4 +51,53 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("documents store", () => {
       await firestore.terminate();
     }
   });
+
+  test("create stores the document again when the last holder released it after it was read", async () => {
+    const firestore = new Firestore();
+    const extractClient = {
+      extract: async () => ({ content: "text:hello", mimeType: "text/plain" }),
+    };
+    const docs = createDocumentsStore({ firestore, extractClient });
+    const [t1, t2] = [crypto.randomUUID(), crypto.randomUUID()];
+    try {
+      for (const id of [t1, t2]) await firestore.collection("tasks").doc(id).set({ documents: [] });
+      await docs.create(t1, file("hello"));
+      // The second upload reads the stored document; the first task detaches it before the link.
+      const original = firestore.collection.bind(firestore);
+      let released = false;
+      firestore.collection = ((name: string) => {
+        const collection = original(name);
+        if (name !== "documents") return collection;
+        const doc = collection.doc.bind(collection);
+        collection.doc = ((id: string) => {
+          const ref = doc(id);
+          const get = ref.get.bind(ref);
+          ref.get = (async () => {
+            const snapshot = await get();
+            if (!released) {
+              released = true;
+              await docs.delete(t1, HELLO);
+            }
+            return snapshot;
+          }) as typeof ref.get;
+          return ref;
+        }) as typeof collection.doc;
+        return collection;
+      }) as typeof firestore.collection;
+      const raced = createDocumentsStore({
+        firestore,
+        extractClient: {
+          extract: async () => {
+            throw new Error("must not extract: the document existed when read");
+          },
+        },
+      });
+      await raced.create(t2, file("hello"));
+      firestore.collection = original;
+      expect((await docs.get(t2, HELLO))?.content).toBe("text:hello");
+    } finally {
+      for (const id of [t1, t2]) await firestore.collection("tasks").doc(id).delete();
+      await firestore.collection("documents").doc(HELLO).delete();
+    }
+  });
 });

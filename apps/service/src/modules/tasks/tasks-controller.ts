@@ -30,14 +30,14 @@ export const tasksController = ({
       "",
       async ({ body, status }) => {
         const result = await tasksService.create({ ...body, prompt: body.prompt.trim() });
-        if (result.status === "unknown_agent") return status(400, { error: "unknown_agent" });
+        if (result.status !== "created") return status(400, { error: result.status });
         return status(201, result.task);
       },
       {
         body: TasksModel.createBody,
         ...doc(tag, "Create a task", {
           201: { description: "The created task.", schema: TasksModel.task },
-          400: "Invalid input, or the job has registered agents and this one is not among them (`unknown_agent`).",
+          400: "Invalid input, a job that is not allowed (`unknown_job`), or the job has registered agents and this one is not among them (`unknown_agent`).",
           502: errors.dependency,
         }),
       },
@@ -66,9 +66,14 @@ export const tasksController = ({
     .post(
       "/:taskId/run",
       async ({ params, request, status }) => {
-        const raw = (await request.json().catch(() => undefined)) as
-          | Record<string, unknown>
-          | undefined;
+        // No body is a plain run; a body that is not JSON is refused, not taken for a plain run.
+        const text = await request.text();
+        let raw: Record<string, unknown> | undefined;
+        try {
+          raw = text.trim() ? JSON.parse(text) : undefined;
+        } catch {
+          return status(400, { error: "invalid_request" });
+        }
         let resume: Resume | undefined;
         if (raw?.sessionId !== undefined) {
           if (!isResume.Check(raw)) return status(400, { success: false, error: "invalid_resume" });
@@ -87,15 +92,15 @@ export const tasksController = ({
       },
       {
         params: TasksModel.params,
-        // Elysia would answer 400 to a body that is not JSON; here it is a plain run, as in
-        // the Hono service, so the handler reads the body itself.
+        // An empty body is a plain run, which Elysia would not accept with a body schema, so the
+        // handler reads the body itself; a body that is not JSON is answered 400 there.
         parse: "none",
         ...doc(tag, "Run a task, or resume one of its sessions", {
           202: {
             description: "The Cloud Run execution was started.",
             schema: TasksModel.operation,
           },
-          400: "A body with `sessionId` must also have a non-blank `message` (`invalid_resume`).",
+          400: "A body that is not JSON (`invalid_request`), or one with `sessionId` and no non-blank `message` (`invalid_resume`).",
           404: "No such task or session (`task_not_found`, `session_not_found`).",
           409: "The task cannot run now (`task_not_executable`, `run_in_progress`, `message_pending`).",
           502: errors.dependency,

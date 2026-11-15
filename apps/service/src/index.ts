@@ -2,7 +2,7 @@ import { createAgentRegistry } from "@stage/agents/agent-registry";
 import { Elysia } from "elysia";
 
 import { createApp, type AppDeps } from "./app";
-import { loadConfig } from "./config";
+import { loadConfig, parseAllowedJobs } from "./config";
 import { createAgentsService } from "./modules/agents/agents-service";
 import { createEventsService } from "./modules/events/events-service";
 import { createHealthService } from "./modules/health/health-service";
@@ -61,6 +61,15 @@ const cloudRunJobs = published(
   }),
 );
 
+const allowedJobs = parseAllowedJobs(config.AGENT_JOBS);
+if (!allowedJobs) console.warn("AGENT_JOBS is *: any Cloud Run job in the project can be run");
+const sessionEventStream =
+  pubsub && config.PUBSUB_TOPIC ? createSessionEventStream(pubsub, config.PUBSUB_TOPIC) : undefined;
+const platformEventStream =
+  pubsub && config.PLATFORM_EVENTS_TOPIC
+    ? createPlatformEventStream(pubsub, config.PLATFORM_EVENTS_TOPIC)
+    : undefined;
+
 const appDeps: AppDeps = {
   healthService: createHealthService(),
   tasksService: createTasksService({
@@ -69,22 +78,15 @@ const appDeps: AppDeps = {
     cloudRunJobs,
     sessionsStore,
     documentsStore,
+    allowedJobs,
   }),
   sessionsService: createSessionsService({
     sessionsStore,
-    sessionEventStream:
-      pubsub && config.PUBSUB_TOPIC
-        ? createSessionEventStream(pubsub, config.PUBSUB_TOPIC)
-        : undefined,
+    sessionEventStream,
   }),
   documentsService: documentsStore && createDocumentsService({ documentsStore }),
-  agentsService: createAgentsService({ cloudRunJobs, agentRegistry }),
-  eventsService:
-    pubsub && config.PLATFORM_EVENTS_TOPIC
-      ? createEventsService({
-          platformEventStream: createPlatformEventStream(pubsub, config.PLATFORM_EVENTS_TOPIC),
-        })
-      : undefined,
+  agentsService: createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs }),
+  eventsService: platformEventStream && createEventsService({ platformEventStream }),
 };
 
 // Server options go in the constructor, as the Elysia docs show. Bun refuses a body over the
@@ -96,3 +98,9 @@ const app = new Elysia({
   .listen(config.PORT);
 
 console.log(`Started server: http://${app.server?.hostname}:${app.server?.port}`);
+
+// Delete this process's Pub/Sub subscriptions instead of leaving them to expire.
+process.once("SIGTERM", async () => {
+  await Promise.allSettled([sessionEventStream?.stop?.(), platformEventStream?.stop?.()]);
+  process.exit(0);
+});

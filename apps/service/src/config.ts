@@ -12,6 +12,9 @@ export const loadConfig = createConfigLoader(
     // Set on GCP, where extract is internal-only and needs a Google ID token for this audience
     // (its URL). Leave it unset for Floci and local runs, which send no credentials.
     EXTRACT_AUDIENCE: t.Optional(t.String({ minLength: 1 })),
+    // Comma-separated Cloud Run job names that tasks may use and that may be registered, or `*`
+    // for every job in the project (local runs). Required, so the open state is a choice.
+    AGENT_JOBS: t.String({ minLength: 1 }),
     // The Pub/Sub topic the agents publish session events to. Without it, messages serve only stored events.
     PUBSUB_TOPIC: t.Optional(t.String({ minLength: 1 })),
     // The topic the service publishes its own events to and /events streams from. Without it, /events answers 501.
@@ -19,3 +22,14 @@ export const loadConfig = createConfigLoader(
   },
   serverDefaults(3000),
 );
+
+// The jobs a task may use; undefined for `*`, which allows any job in the project.
+export const parseAllowedJobs = (value: string): ReadonlySet<string> | undefined =>
+  value.trim() === "*"
+    ? undefined
+    : new Set(
+        value
+          .split(",")
+          .map((job) => job.trim())
+          .filter(Boolean),
+      );

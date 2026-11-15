@@ -28,6 +28,47 @@ describe("agents service", () => {
     expect(await serviceWith().register("poet-agents")).toBe("op");
   });
 
+  test("lists jobs with the env names but never the env values", async () => {
+    const service = serviceWith({
+      list: async () => [
+        {
+          name: "projects/p/locations/l/jobs/poet-agents",
+          template: {
+            template: {
+              containers: [
+                {
+                  image: "img:1",
+                  env: [{ name: "GEMINI_API_KEY", value: "s3cret" }],
+                },
+              ],
+            },
+          },
+        },
+      ],
+    });
+    const jobs = await service.listJobs();
+    expect(jobs).toMatchObject([
+      {
+        name: "projects/p/locations/l/jobs/poet-agents",
+        images: ["img:1"],
+        envNames: ["GEMINI_API_KEY"],
+      },
+    ]);
+    expect(JSON.stringify(jobs)).not.toContain("s3cret");
+  });
+
+  test("does not register a job outside the allowed jobs", async () => {
+    let called = false;
+    const service = createAgentsService({
+      cloudRunJobs: { registerAgents: async () => ((called = true), "op") },
+      agentRegistry: { list: async () => [] },
+      allowedJobs: new Set(["poet-agents"]),
+    } as never);
+    expect(await service.register("other-job")).toBeUndefined();
+    expect(called).toBe(false);
+    expect(await service.register("poet-agents")).toBe("op");
+  });
+
   test.each([
     ["listJobs", "job_error", (s: ReturnType<typeof serviceWith>) => s.listJobs(), "list"],
     [
@@ -44,7 +85,11 @@ describe("agents service", () => {
     ],
   ] as const)("%s failing is a %s dependency error", async (_name, code, call, failing) => {
     const err = await rejection(
-      call(serviceWith({ [failing]: async () => Promise.reject(new Error("down")) })),
+      call(
+        serviceWith({
+          [failing]: async () => Promise.reject(new Error("down")),
+        }),
+      ),
     );
     expect(err).toBeInstanceOf(DependencyError);
     expect((err as DependencyError).code).toBe(code);

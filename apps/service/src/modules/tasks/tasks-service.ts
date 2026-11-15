@@ -14,11 +14,13 @@ export type TasksServiceDeps = {
   cloudRunJobs: Pick<CloudRunJobs, "run">;
   sessionsStore: SessionsStore;
   documentsStore?: Pick<DocumentsStore, "release">;
+  // The jobs a task may use; undefined allows any valid job name.
+  allowedJobs?: ReadonlySet<string>;
 };
 
 export type CreateTaskResult =
   | { status: "created"; task: Awaited<ReturnType<TasksStore["create"]>> }
-  | { status: "unknown_agent" };
+  | { status: "unknown_agent" | "unknown_job" };
 
 export type RunTaskResult =
   | { status: "started"; operation: string }
@@ -35,7 +37,7 @@ export type Resume = { sessionId: string; message: string };
 
 // Every expected outcome is a status; a failing dependency throws a DependencyError.
 export type TasksService = {
-  // A job with registered agents only accepts those; a job without a
+  // A job outside `allowedJobs` is refused. A job with registered agents only accepts those; a job without a
   // registration cannot be verified and keeps accepting any valid name.
   create: (input: NewTask) => Promise<CreateTaskResult>;
   list: () => Promise<TaskContract[]>;
@@ -53,9 +55,11 @@ export const createTasksService = ({
   cloudRunJobs,
   sessionsStore,
   documentsStore,
+  allowedJobs,
 }: TasksServiceDeps): TasksService => ({
   create: (input) =>
     guard("task_error", async (): Promise<CreateTaskResult> => {
+      if (allowedJobs && !allowedJobs.has(input.jobName)) return { status: "unknown_job" };
       if (input.agentName !== undefined) {
         const known = await agentRegistry.list(input.jobName);
         if (known.length && !known.some((agent) => agent.name === input.agentName))
@@ -68,7 +72,8 @@ export const createTasksService = ({
   async run(taskId, resume) {
     const task = await guard("task_error", () => tasksStore.get(taskId));
     if (!task) return { status: "task_not_found" };
-    if (!isJobName(task.jobName ?? "")) return { status: "task_not_executable" };
+    if (!isJobName(task.jobName ?? "") || (allowedJobs && !allowedJobs.has(task.jobName!)))
+      return { status: "task_not_executable" };
 
     if (resume) {
       try {

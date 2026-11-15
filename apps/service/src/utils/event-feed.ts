@@ -9,6 +9,9 @@ export type EventFeedOptions = {
   idleMs: number;
   // Remember only the latest N ids, for streams that never end.
   seenLimit?: number;
+  // End the sequence when this many events wait for a consumer that does not keep up; the
+  // client reconnects and replays from storage.
+  maxQueued?: number;
 };
 
 // Turns events that are pushed one by one into an async sequence. An id is
@@ -20,6 +23,9 @@ export class EventFeed {
   private readonly waiting: FeedItem[] = [];
   private readonly seen = new Set<string>();
   private wake = noop;
+  private overflowed = false;
+  // Replayed history is not live backlog, so it is not counted against maxQueued.
+  private prepended = 0;
   private readonly options: EventFeedOptions;
 
   constructor(options: EventFeedOptions) {
@@ -30,11 +36,14 @@ export class EventFeed {
 
   // Arrow properties: `push` is handed to stream subscribers as a bare callback.
   push = (id: string, data: string) => {
-    this.waiting.push({ id, data });
+    const { maxQueued } = this.options;
+    if (maxQueued && this.waiting.length >= maxQueued + this.prepended) this.overflowed = true;
+    else this.waiting.push({ id, data });
     this.wake();
   };
 
   prepend = (items: FeedItem[]) => {
+    this.prepended += items.length;
     this.waiting.unshift(...items);
   };
 
@@ -48,6 +57,7 @@ export class EventFeed {
         if (seenLimit && seen.size > seenLimit) seen.delete(seen.values().next().value!);
         yield item;
       }
+      if (this.overflowed) return;
       if (waiting.length) continue;
       const arrived = await new Promise<boolean>((resolve) => {
         // The signal may have aborted while the consumer was busy with the last entry.

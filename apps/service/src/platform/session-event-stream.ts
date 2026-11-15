@@ -3,11 +3,14 @@ import type { PubSub } from "@google-cloud/pubsub";
 import { createTopicSubscriber } from "./topic-subscriber";
 
 export type StreamListener = (eventId: string, json: string) => void;
-export type SessionEventStream = (
+export type SessionEventStream = ((
   taskId: string,
   sessionId: string,
   listener: StreamListener,
-) => Promise<() => void>;
+) => Promise<() => void>) & {
+  // Deletes the subscription; undefined in a test fake.
+  stop?: () => Promise<void>;
+};
 
 const key = (taskId: string, sessionId: string) => JSON.stringify([taskId, sessionId]);
 
@@ -27,7 +30,7 @@ export const createSessionEventStream = (
       listener(eventId, message.data.toString());
   });
 
-  return async (taskId, sessionId, listener) => {
+  const stream = async (taskId: string, sessionId: string, listener: StreamListener) => {
     await start();
     const k = key(taskId, sessionId);
     const set = listeners.get(k) ?? new Set();
@@ -38,4 +41,5 @@ export const createSessionEventStream = (
       if (!set.size) listeners.delete(k);
     };
   };
+  return Object.assign(stream, { stop: start.stop });
 };

@@ -3,7 +3,10 @@ import type { PubSub } from "@google-cloud/pubsub";
 import type { StreamListener } from "./session-event-stream";
 import { createTopicSubscriber } from "./topic-subscriber";
 
-export type PlatformEventStream = (listener: StreamListener) => Promise<() => void>;
+export type PlatformEventStream = ((listener: StreamListener) => Promise<() => void>) & {
+  // Deletes the subscription; undefined in a test fake.
+  stop?: () => Promise<void>;
+};
 
 // One ephemeral subscription per service process, fanned out in memory to
 // every connected /events client. Started on the first listener.
@@ -19,11 +22,12 @@ export const createPlatformEventStream = (
     for (const listener of listeners) listener(eventId, message.data.toString());
   });
 
-  return async (listener) => {
+  const stream = async (listener: StreamListener) => {
     await start();
     listeners.add(listener);
     return () => {
       listeners.delete(listener);
     };
   };
+  return Object.assign(stream, { stop: start.stop });
 };

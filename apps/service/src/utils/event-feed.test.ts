@@ -87,3 +87,35 @@ test("ends when the signal aborts while the consumer is busy with an entry", asy
   controller.abort();
   expect((await iterator.next()).done).toBe(true);
 });
+
+test("ends when more events wait than maxQueued, after delivering the ones it kept", async () => {
+  const feed = createEventFeed({
+    signal: new AbortController().signal,
+    idleMs: 1_000,
+    maxQueued: 2,
+  });
+  for (const id of ["a", "b", "c", "d"]) feed.push(id, id);
+  const out: FeedEntry[] = [];
+  for await (const entry of feed.entries) out.push(entry);
+  expect(out).toEqual([
+    { id: "a", data: "a" },
+    { id: "b", data: "b" },
+  ]);
+});
+
+test("replayed history does not count against maxQueued", async () => {
+  const feed = createEventFeed({
+    signal: new AbortController().signal,
+    idleMs: 1_000,
+    maxQueued: 2,
+  });
+  feed.prepend(["h1", "h2", "h3", "h4"].map((id) => ({ id, data: id })));
+  feed.push("live", "live");
+  expect((await take(feed.entries, 5)).map((entry) => (entry as { id: string }).id)).toEqual([
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "live",
+  ]);
+});

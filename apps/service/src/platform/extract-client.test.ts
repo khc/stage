@@ -54,3 +54,24 @@ test("a 422 is an ExtractionError and any other failure is a plain error", async
   respond(new Response("down", { status: 503 }));
   await expect(createExtractClient("http://e").extract(file)).rejects.toThrow("HTTP 503");
 });
+
+test("abandons an extraction that does not answer within the timeout", async () => {
+  spy = spyOn(globalThis, "fetch").mockImplementation(
+    ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+      )) as unknown as typeof globalThis.fetch,
+  );
+  await expect(
+    createExtractClient("http://extract:8080", { timeoutMs: 20 }).extract(file),
+  ).rejects.toThrow();
+});
+
+test("abandons an ID token that is not ready within the timeout", async () => {
+  const fetch = respond(Response.json({}));
+  const authorization = () => new Promise<string>(() => {});
+  await expect(
+    createExtractClient("https://extract.run.app", { authorization, timeoutMs: 20 }).extract(file),
+  ).rejects.toThrow();
+  expect(fetch).not.toHaveBeenCalled();
+});

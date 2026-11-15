@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { loadConfig } from "./config";
+import { loadConfig, parseAllowedJobs } from "./config";
 
-const gcp = { GCP_PROJECT: "floci-local", GCP_REGION: "us-central1" };
+const gcp = { GCP_PROJECT: "floci-local", GCP_REGION: "us-central1", AGENT_JOBS: "poet-agents" };
 
 describe("loadConfig", () => {
-  test("listens on loopback on port 3000, and every other setting is optional", () => {
+  test("listens on loopback on port 3000, and the other settings are optional", () => {
     expect(loadConfig(gcp)).toEqual({ ...gcp, PORT: 3000, HOST: "127.0.0.1" });
   });
 
@@ -24,7 +24,7 @@ describe("loadConfig", () => {
     });
   });
 
-  test.each(["GCP_PROJECT", "GCP_REGION"])("requires %s", (name) => {
+  test.each(["GCP_PROJECT", "GCP_REGION", "AGENT_JOBS"])("requires %s", (name) => {
     expect(() => loadConfig({ ...gcp, [name]: undefined })).toThrow();
   });
 
@@ -34,4 +34,16 @@ describe("loadConfig", () => {
       expect(() => loadConfig({ ...gcp, [name]: "" })).toThrow();
     },
   );
+});
+
+describe("parseAllowedJobs", () => {
+  test("lists the trimmed job names", () => {
+    expect(parseAllowedJobs(" poet-agents, generic-agents ,")).toEqual(
+      new Set(["poet-agents", "generic-agents"]),
+    );
+  });
+
+  test("`*` allows every job", () => {
+    expect(parseAllowedJobs("*")).toBeUndefined();
+  });
 });

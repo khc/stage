@@ -84,11 +84,16 @@ describe("tasks service delete", () => {
 
 describe("tasks service create", () => {
   const input = { prompt: "p", jobName: "my-job", agentName: "haiku" };
-  const createWith = (registered: string[]) => {
-    const create = mock(async (i: typeof input) => ({ ...i, taskId, documents: [] }));
+  const createWith = (registered: string[], allowedJobs?: ReadonlySet<string>) => {
+    const create = mock(async (i: typeof input) => ({
+      ...i,
+      taskId,
+      documents: [],
+    }));
     const service = createTasksService({
       tasksStore: { create },
       agentRegistry: { list: async () => registered.map((name) => ({ name })) },
+      allowedJobs,
     } as unknown as TasksServiceDeps);
     return { service, create };
   };
@@ -103,6 +108,15 @@ describe("tasks service create", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  test("refuses a job outside the allowed jobs", async () => {
+    const { service, create } = createWith([], new Set(["other-job"]));
+    expect(await service.create(input)).toEqual({ status: "unknown_job" });
+    expect(create).not.toHaveBeenCalled();
+    expect((await createWith([], new Set(["my-job"])).service.create(input)).status).toBe(
+      "created",
+    );
+  });
+
   test("a job without a registration accepts any valid agent name", async () => {
     expect((await createWith([]).service.create(input)).status).toBe("created");
   });
@@ -111,7 +125,12 @@ describe("tasks service create", () => {
 describe("tasks service run", () => {
   const task = { taskId, prompt: "p", jobName: "my-job" };
   const setupRun = (
-    overrides: { task?: unknown; session?: unknown; queue?: () => Promise<boolean> } = {},
+    overrides: {
+      task?: unknown;
+      session?: unknown;
+      queue?: () => Promise<boolean>;
+      allowedJobs?: ReadonlySet<string>;
+    } = {},
   ) => {
     const runJob = mock(async (..._args: unknown[]) => "op-1");
     const getTask = mock(async (_id: string) => ("task" in overrides ? overrides.task : task));
@@ -127,6 +146,7 @@ describe("tasks service run", () => {
       agentRegistry: { list: async () => [] },
       cloudRunJobs: { run: runJob },
       sessionsStore: { get, queueMessage, clearMessage },
+      allowedJobs: overrides.allowedJobs,
     } as unknown as TasksServiceDeps);
     return { service, getTask, runJob, queueMessage, clearMessage };
   };
@@ -153,6 +173,16 @@ describe("tasks service run", () => {
       expect(await service.run(taskId)).toEqual({ status: "task_not_executable" });
       expect(runJob).not.toHaveBeenCalled();
     }
+  });
+
+  test("a task whose job is not an allowed one is not executable", async () => {
+    const { service, runJob } = setupRun({
+      allowedJobs: new Set(["other-job"]),
+    });
+    expect(await service.run(taskId)).toEqual({
+      status: "task_not_executable",
+    });
+    expect(runJob).not.toHaveBeenCalled();
   });
 
   test("a failing task lookup is a task_error dependency failure", async () => {

@@ -4,6 +4,7 @@ import { createEventFeed, type FeedEntry } from "../../utils/event-feed";
 
 // Only the latest ids are remembered, because this stream never ends.
 const SEEN_LIMIT = 1_000;
+const MAX_QUEUED = 10_000;
 
 export type EventsServiceDeps = { platformEventStream: PlatformEventStream };
 
@@ -15,7 +16,12 @@ export type EventsService = {
 
 export const createEventsService = ({ platformEventStream }: EventsServiceDeps): EventsService => ({
   async stream({ signal, idleMs }) {
-    const feed = createEventFeed({ signal, idleMs, seenLimit: SEEN_LIMIT });
+    const feed = createEventFeed({
+      signal,
+      idleMs,
+      seenLimit: SEEN_LIMIT,
+      maxQueued: MAX_QUEUED,
+    });
     let unsubscribe: () => void;
     try {
       unsubscribe = await platformEventStream(feed.push);

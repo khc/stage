@@ -5,6 +5,8 @@ import { sessionStats, type SessionStats } from "./sessions-stats";
 import type { SessionSummary, SessionsStore } from "./sessions-store";
 
 const noop = () => {};
+// A client that stalls must not grow the queue without bound.
+const MAX_QUEUED = 10_000;
 
 export type SessionsServiceDeps = {
   sessionsStore: SessionsStore;
@@ -49,7 +51,11 @@ export const createSessionsService = ({
   delete: (taskId, sessionId) =>
     guard("session_error", () => sessionsStore.delete(taskId, sessionId)),
   async messages(taskId, sessionId, { signal, idleMs }) {
-    const feed = createEventFeed({ signal, idleMs });
+    const feed = createEventFeed({
+      signal,
+      idleMs,
+      maxQueued: MAX_QUEUED,
+    });
     let unsubscribe = noop;
     try {
       // Subscribe before reading history so no event falls in the gap.

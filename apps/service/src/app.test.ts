@@ -72,7 +72,13 @@ const documentsService = (overrides: Partial<DocumentsService> = {}): DocumentsS
   ...overrides,
 });
 const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService => ({
-  listJobs: async () => [{ name: "projects/p/locations/l/jobs/poet-agents" }],
+  listJobs: async () => [
+    {
+      name: "projects/p/locations/l/jobs/poet-agents",
+      images: [],
+      envNames: [],
+    } as never,
+  ],
   listAgents: async (jobName) => (jobName === "poet-agents" ? [{ name: "haiku" }] : []),
   agentCard: async (jobName, agentName) =>
     jobName === "poet-agents" && agentName === "haiku"
@@ -198,6 +204,10 @@ describe("tasks", () => {
       list: async () =>
         Promise.reject(new DependencyError("task_error", new Error("secret detail"))),
     });
+    expect(await call(app, "/tasks")).toEqual({
+      status: 502,
+      body: { error: "task_error" },
+    });
     expect(await call(app, "/tasks")).toEqual({ status: 502, body: { error: "task_error" } });
   });
 
@@ -268,7 +278,9 @@ describe("sessions of a task", () => {
   test("a failing sessions dependency answers 502 with the short code", async () => {
     const app = appWith(
       {},
-      { list: async () => Promise.reject(new DependencyError("session_error", new Error("x"))) },
+      {
+        list: async () => Promise.reject(new DependencyError("session_error", new Error("x"))),
+      },
     );
     expect(await call(app, base)).toEqual({ status: 502, body: { error: "session_error" } });
   });
@@ -302,7 +314,10 @@ describe("documents of a task", () => {
   const txt = new File(["hi"], "a.txt", { type: "text/plain" });
 
   test("lists, gets and deletes a document of the task", async () => {
-    expect(await call(appWith(), base)).toEqual({ status: 200, body: { documents: [doc] } });
+    expect(await call(appWith(), base)).toEqual({
+      status: 200,
+      body: { documents: [doc] },
+    });
     expect((await call(appWith(), `${base}/${doc.documentId}`)).body).toMatchObject({
       content: "hi",
     });
@@ -369,7 +384,9 @@ describe("documents of a task", () => {
     const app = appWith(
       {},
       {},
-      { list: async () => Promise.reject(new DependencyError("document_error", new Error("x"))) },
+      {
+        list: async () => Promise.reject(new DependencyError("document_error", new Error("x"))),
+      },
     );
     expect(await call(app, base)).toEqual({ status: 502, body: { error: "document_error" } });
   });
@@ -387,8 +404,15 @@ describe("POST /tasks/:taskId/run", () => {
     expect(await run(task.taskId)).toEqual({ status: 202, body: { operation: "op-1" } });
   });
 
-  test("a body that is not JSON is a plain run", async () => {
-    expect((await run(task.taskId, "not json {")).status).toBe(202);
+  test("a body that is not JSON is 400 invalid_request and starts nothing", async () => {
+    expect(await run(task.taskId, "not json {")).toEqual({
+      status: 400,
+      body: { error: "invalid_request" },
+    });
+  });
+
+  test("an empty body is a plain run", async () => {
+    expect((await run(task.taskId, "")).status).toBe(202);
   });
 
   test("a resume passes the session id and the trimmed message to the service", async () => {
@@ -415,7 +439,10 @@ describe("POST /tasks/:taskId/run", () => {
       run: async () => ((started = true), { status: "started", operation: "x" }),
     });
     const res = await call(app, `/tasks/${task.taskId}/run`, json(body));
-    expect(res).toEqual({ status: 400, body: { success: false, error: "invalid_resume" } });
+    expect(res).toEqual({
+      status: 400,
+      body: { success: false, error: "invalid_resume" },
+    });
     expect(started).toBe(false);
   });
 
@@ -502,7 +529,15 @@ describe("jobs and agents", () => {
   test("GET /jobs lists the jobs", async () => {
     expect(await call(appWith(), "/jobs")).toEqual({
       status: 200,
-      body: { jobs: [{ name: "projects/p/locations/l/jobs/poet-agents" }] },
+      body: {
+        jobs: [
+          {
+            name: "projects/p/locations/l/jobs/poet-agents",
+            images: [],
+            envNames: [],
+          },
+        ],
+      },
     });
   });
 
@@ -527,6 +562,24 @@ describe("jobs and agents", () => {
     expect(await call(appWith(), "/jobs/poet-agents/register", { method: "POST" })).toEqual({
       status: 202,
       body: { operation: "operations/op-1" },
+    });
+  });
+
+  test("a cross-site POST is refused before the handler runs", async () => {
+    const res = await appWith().handle(
+      new Request("http://localhost/jobs/poet-agents/register", {
+        method: "POST",
+        headers: { "sec-fetch-site": "cross-site" },
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  test("POST register answers 400 unknown_job for a job that is not allowed", async () => {
+    const app = appWith({}, {}, {}, { agents: { register: async () => undefined } });
+    expect(await call(app, "/jobs/other-job/register", { method: "POST" })).toEqual({
+      status: 400,
+      body: { error: "unknown_job" },
     });
   });
 

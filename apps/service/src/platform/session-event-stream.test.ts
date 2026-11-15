@@ -71,3 +71,62 @@ test("retries startup after a failure", async () => {
 
   expect(get).toHaveBeenCalledTimes(2);
 });
+
+test("a subscription that reports an error is replaced by a new one for the next listener", async () => {
+  const handlers: Record<string, (arg: unknown) => void> = {};
+  const remove = mock(async () => {});
+  const subscription = {
+    on: (name: string, fn: (arg: unknown) => void) => {
+      handlers[name] = fn;
+    },
+    delete: remove,
+  };
+  const createSubscription = mock(async (_name: string, _opts: unknown) => [subscription]);
+  const topic = () => ({ get: async () => [{ createSubscription }] });
+  const live = createSessionEventStream({ topic } as never, "events", "sub-1");
+
+  await live("t1", "s1", () => {});
+  handlers.error?.(new Error("subscription not found"));
+  await live("t1", "s1", () => {});
+
+  expect(remove).toHaveBeenCalledTimes(1);
+  expect(createSubscription.mock.calls.map(([name]) => name)).toEqual(["sub-1", "sub-1-1"]);
+});
+
+test("an error from a subscription that was already replaced does not drop the new one", async () => {
+  const subscriptions: Record<string, (arg: unknown) => void>[] = [];
+  const createSubscription = mock(async (_name: string, _opts: unknown) => {
+    const handlers: Record<string, (arg: unknown) => void> = {};
+    subscriptions.push(handlers);
+    return [
+      {
+        on: (name: string, fn: (arg: unknown) => void) => {
+          handlers[name] = fn;
+        },
+        delete: async () => {},
+      },
+    ];
+  });
+  const topic = () => ({ get: async () => [{ createSubscription }] });
+  const live = createSessionEventStream({ topic } as never, "events", "sub-1");
+
+  await live("t1", "s1", () => {});
+  subscriptions[0]!.error!(new Error("gone"));
+  await live("t1", "s1", () => {});
+  subscriptions[0]!.error!(new Error("late error from the old one"));
+  await live("t1", "s1", () => {});
+
+  expect(createSubscription).toHaveBeenCalledTimes(2);
+});
+
+test("stop deletes the subscription", async () => {
+  const remove = mock(async () => {});
+  const subscription = { on: () => {}, delete: remove };
+  const topic = () => ({ get: async () => [{ createSubscription: async () => [subscription] }] });
+  const live = createSessionEventStream({ topic } as never, "events", "sub-1");
+
+  await live("t1", "s1", () => {});
+  await live.stop?.();
+
+  expect(remove).toHaveBeenCalledTimes(1);
+});
