@@ -1,8 +1,21 @@
+import { createAgentRegistry } from "@stage/agents/agent-registry";
+
 import { createApp } from "./app";
 import { loadConfig } from "./config";
-import { createHealthService } from "./modules/health/service";
+import { createHealthService } from "./modules/health/health-service";
+import { createTasksService } from "./modules/tasks/tasks-service";
+import { createTasksStore } from "./modules/tasks/tasks-store";
+import { createFirestoreClient } from "./platform/firestore-client";
 
 const config = loadConfig(process.env);
-const app = createApp({ healthService: createHealthService() }).listen(config.PORT);
+const firestore = createFirestoreClient();
+
+const app = createApp({
+  healthService: createHealthService(),
+  tasksService: createTasksService({
+    tasksStore: createTasksStore(firestore),
+    agentRegistry: createAgentRegistry(firestore),
+  }),
+}).listen({ hostname: config.HOST, port: config.PORT });
 
 console.log(`Started server: http://${app.server?.hostname}:${app.server?.port}`);

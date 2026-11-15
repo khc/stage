@@ -13,6 +13,8 @@
     "typecheck": "bun check"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.4.1",
+    "@stage/agents": "workspace:*",
     "elysia": "^1.4.32"
   },
   "devDependencies": {

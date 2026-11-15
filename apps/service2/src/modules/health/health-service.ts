@@ -1,4 +1,4 @@
-import type { HealthModel } from "./model";
+import type { HealthModel } from "./health-model";
 
 export type HealthService = {
   check: () => HealthModel["ok"];
