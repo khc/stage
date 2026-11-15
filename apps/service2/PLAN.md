@@ -92,7 +92,11 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 - `agents` (`/jobs`): list jobs, a job's registered agents, an agent's card, and register. The register route was not run (it executes the job image).
 - `events` (`/events`): platform events as SSE, published when tasks, documents and jobs change; 501 without `PLATFORM_EVENTS_TOPIC`. Ran against Floci: a created and a deleted task showed up in the stream.
 
-Still to do: `/docs` and `/openapi.json` (Phase 3, with the contracts decision D2), then Phases 4 and 5.
+- `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as `apps/service`; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
+
+Still to do: the D2 decision (below), Eden in `apps/ui` (Phase 3), then Phases 4 and 5.
+
+Documentation size: about 250 lines in `service2` (the `doc(...)` blocks, `http/openapi.ts` and the response shapes in the models) against the 540 of the hand-written `apps/service/src/openapi.ts`. The request side (params and bodies) comes from the models for free.
 
 Known differences from `apps/service`, to settle in the parity run (Phase 5):
 

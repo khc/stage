@@ -1,10 +1,13 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 
+import { doc, errors } from "../../../http/openapi";
 import { KEEPALIVE_MS, toSse } from "../../../utils/sse";
 import { tasksGuard } from "../tasks-guard";
 import type { TasksService } from "../tasks-service";
 import { SessionsModel } from "./sessions-model";
 import type { SessionsService } from "./sessions-service";
+
+const tag = "Sessions";
 
 export type SessionsControllerDeps = {
   tasksService: Pick<TasksService, "get">;
@@ -15,22 +18,50 @@ export type SessionsControllerDeps = {
 export const sessionsController = ({ tasksService, sessionsService }: SessionsControllerDeps) =>
   new Elysia({ prefix: "/:taskId/sessions" })
     .use(tasksGuard(tasksService))
-    .get("/", async ({ task }) => ({ sessions: await sessionsService.list(task.taskId) }), {
+    .get("", async ({ task }) => ({ sessions: await sessionsService.list(task.taskId) }), {
       params: SessionsModel.taskParams,
+      ...doc(tag, "List the sessions of a task", {
+        200: {
+          description: "The sessions.",
+          schema: t.Object({ sessions: t.Array(SessionsModel.summary) }),
+        },
+        400: errors.invalid,
+        404: errors.taskNotFound,
+        502: errors.dependency,
+      }),
     })
     .get(
       "/:sessionId",
       async ({ task, params, status }) =>
         (await sessionsService.get(task.taskId, params.sessionId)) ??
         status(404, { error: "session_not_found" }),
-      { params: SessionsModel.params },
+      {
+        params: SessionsModel.params,
+        ...doc(tag, "Get a session with its state and events", {
+          200: {
+            description: "The session: its summary plus `state` and the ordered `events`.",
+            schema: t.Object({}, { additionalProperties: true }),
+          },
+          400: errors.invalid,
+          404: "No such task or session (`task_not_found`, `session_not_found`).",
+          502: errors.dependency,
+        }),
+      },
     )
     .get(
       "/:sessionId/stats",
       async ({ task, params, status }) =>
         (await sessionsService.stats(task.taskId, params.sessionId)) ??
         status(404, { error: "session_not_found" }),
-      { params: SessionsModel.params },
+      {
+        params: SessionsModel.params,
+        ...doc(tag, "Get the model usage of a session", {
+          200: { description: "Event, model call and token totals.", schema: SessionsModel.stats },
+          400: errors.invalid,
+          404: "No such task or session (`task_not_found`, `session_not_found`).",
+          502: errors.dependency,
+        }),
+      },
     )
     .get(
       "/:sessionId/messages",
@@ -49,7 +80,20 @@ export const sessionsController = ({ tasksService, sessionsService }: SessionsCo
           controller.abort();
         }
       },
-      { params: SessionsModel.params },
+      {
+        params: SessionsModel.params,
+        ...doc(tag, "Stream the events of a session", {
+          200: {
+            description:
+              "Server-Sent Events: the stored events first, then live ones, each with its id; a `keepalive` event every 5 seconds when idle.",
+            schema: t.String(),
+            contentType: "text/event-stream",
+          },
+          400: errors.invalid,
+          404: "No such task or session (`task_not_found`, `session_not_found`).",
+          502: errors.dependency,
+        }),
+      },
     )
     .delete(
       "/:sessionId",
@@ -57,5 +101,13 @@ export const sessionsController = ({ tasksService, sessionsService }: SessionsCo
         (await sessionsService.delete(task.taskId, params.sessionId))
           ? status(204, undefined)
           : status(404, { error: "session_not_found" }),
-      { params: SessionsModel.params },
+      {
+        params: SessionsModel.params,
+        ...doc(tag, "Delete a session", {
+          204: "Deleted.",
+          400: errors.invalid,
+          404: "No such task or session (`task_not_found`, `session_not_found`).",
+          502: errors.dependency,
+        }),
+      },
     );

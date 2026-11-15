@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import { createApp, type AppDeps } from "./app";
 import { DependencyError } from "./errors";
@@ -112,14 +112,16 @@ describe("GET /health", () => {
     expect(await call(appWith(), "/health")).toEqual({ status: 200, body: { status: "ok" } });
   });
 
-  test("rejects a response that breaks the schema", async () => {
+  test("a response that breaks its schema is a service bug: 502 internal_error", async () => {
+    const spy = spyOn(console, "error").mockImplementation(() => {});
     const app = createApp({
       healthService: { check: () => ({ status: "down" }) as never },
       tasksService: tasksService(),
       sessionsService: sessionsService(),
       agentsService: agentsService(),
     });
-    expect((await call(app, "/health")).status).not.toBe(200);
+    expect(await call(app, "/health")).toEqual({ status: 502, body: { error: "internal_error" } });
+    spy.mockRestore();
   });
 });
 

@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 
 import { errorHandler } from "./http/errors";
+import { openapiDocs } from "./http/openapi";
 import { agentsController } from "./modules/agents/agents-controller";
 import type { AgentsService } from "./modules/agents/agents-service";
 import { eventsController } from "./modules/events/events-controller";
@@ -29,6 +30,7 @@ export type AppDeps = {
 export const createApp = (deps: AppDeps) =>
   new Elysia()
     .use(errorHandler())
+    .use(openapiDocs())
     .use(healthController(deps.healthService))
     .use(agentsController(deps.agentsService))
     .use(eventsController(deps.eventsService))

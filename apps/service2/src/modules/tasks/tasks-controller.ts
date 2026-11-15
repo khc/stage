@@ -1,6 +1,7 @@
 import { TypeCompiler } from "@sinclair/typebox/compiler";
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 
+import { doc, errors } from "../../http/openapi";
 import { documentsController } from "./documents/documents-controller";
 import type { DocumentsService } from "./documents/documents-service";
 import { sessionsController } from "./sessions/sessions-controller";
@@ -9,6 +10,7 @@ import { TasksModel } from "./tasks-model";
 import type { Resume, TasksService } from "./tasks-service";
 
 const isResume = TypeCompiler.Compile(TasksModel.resume);
+const tag = "Tasks";
 
 export type TasksControllerDeps = {
   tasksService: TasksService;
@@ -16,7 +18,7 @@ export type TasksControllerDeps = {
   documentsService?: DocumentsService;
 };
 
-// Mounted at /tasks, with the sessions of a task under it. Task ids are matched
+// Mounted at /tasks, with the sessions and documents of a task under it. Task ids are matched
 // case-insensitively and stored lowercase.
 export const tasksController = ({
   tasksService,
@@ -25,21 +27,41 @@ export const tasksController = ({
 }: TasksControllerDeps) =>
   new Elysia({ prefix: "/tasks" })
     .post(
-      "/",
+      "",
       async ({ body, status }) => {
         const result = await tasksService.create({ ...body, prompt: body.prompt.trim() });
         if (result.status === "unknown_agent") return status(400, { error: "unknown_agent" });
         return status(201, result.task);
       },
-      { body: TasksModel.createBody },
+      {
+        body: TasksModel.createBody,
+        ...doc(tag, "Create a task", {
+          201: { description: "The created task.", schema: TasksModel.task },
+          400: "Invalid input, or the job has registered agents and this one is not among them (`unknown_agent`).",
+          502: errors.dependency,
+        }),
+      },
     )
-    .get("/", async () => ({ tasks: await tasksService.list() }))
+    .get("", async () => ({ tasks: await tasksService.list() }), {
+      ...doc(tag, "List the tasks", {
+        200: { description: "The tasks.", schema: t.Object({ tasks: t.Array(TasksModel.task) }) },
+        502: errors.dependency,
+      }),
+    })
     .get(
       "/:taskId",
       async ({ params, status }) =>
         (await tasksService.get(params.taskId.toLowerCase())) ??
         status(404, { error: "task_not_found" }),
-      { params: TasksModel.params },
+      {
+        params: TasksModel.params,
+        ...doc(tag, "Get a task", {
+          200: { description: "The task.", schema: TasksModel.task },
+          400: errors.invalid,
+          404: errors.taskNotFound,
+          502: errors.dependency,
+        }),
+      },
     )
     .post(
       "/:taskId/run",
@@ -68,6 +90,16 @@ export const tasksController = ({
         // Elysia would answer 400 to a body that is not JSON; here it is a plain run, as in
         // apps/service, so the handler reads the body itself.
         parse: "none",
+        ...doc(tag, "Run a task, or resume one of its sessions", {
+          202: {
+            description: "The Cloud Run execution was started.",
+            schema: TasksModel.operation,
+          },
+          400: "A body with `sessionId` must also have a non-blank `message` (`invalid_resume`).",
+          404: "No such task or session (`task_not_found`, `session_not_found`).",
+          409: "The task cannot run now (`task_not_executable`, `run_in_progress`, `message_pending`).",
+          502: errors.dependency,
+        }),
       },
     )
     .delete(
@@ -76,7 +108,14 @@ export const tasksController = ({
         (await tasksService.delete(params.taskId.toLowerCase())) === "deleted"
           ? status(204, undefined)
           : status(404, { error: "task_not_found" }),
-      { params: TasksModel.params },
+      {
+        params: TasksModel.params,
+        ...doc(tag, "Delete a task with its sessions", {
+          204: "Deleted; its unused documents are released.",
+          404: errors.taskNotFound,
+          502: errors.dependency,
+        }),
+      },
     )
     .use(sessionsController({ tasksService, sessionsService }))
     .use(documentsController({ tasksService, documentsService }));

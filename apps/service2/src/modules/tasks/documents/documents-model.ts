@@ -6,6 +6,13 @@ const documentId = t.String({ pattern: "^[0-9a-f]{64}$" });
 export const DocumentsModel = {
   taskParams: t.Object({ taskId }),
   params: t.Object({ taskId, documentId }),
+  // Response shapes, used only to document the API.
+  summary: t.Object({
+    documentId: t.String(),
+    filename: t.String(),
+    checksum: t.String(),
+    contentType: t.String(),
+  }),
 } as const;
 
 export type DocumentsModel = {
