@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./config": "./src/config.ts",
+    "./errors": "./src/errors.ts",
     "./otel": "./src/otel.ts",
     "./request-id": "./src/request-id.ts",
     "./telemetry": "./src/telemetry.ts"

@@ -1,6 +1,6 @@
+import { errorHandler } from "@stage/http/errors";
 import { Elysia } from "elysia";
 
-import { errorHandler } from "./http/errors";
 import { extractionsController } from "./modules/extractions/extractions-controller";
 import type { ExtractionsService } from "./modules/extractions/extractions-service";
 import { healthController } from "./modules/health/health-controller";
