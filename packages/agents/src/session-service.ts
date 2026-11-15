@@ -98,11 +98,13 @@ export class FirestoreSessionService extends BaseSessionService {
   // Sessions this instance runs: a timer renews each lease between events.
   private readonly leased = new Map<string, HeldRun>();
 
-  constructor(
-    private readonly db: Firestore,
-    private readonly heartbeatMs = RUN_LEASE_MS / 3,
-  ) {
+  private readonly db: Firestore;
+  private readonly heartbeatMs: number;
+
+  constructor(db: Firestore, heartbeatMs = RUN_LEASE_MS / 3) {
     super();
+    this.db = db;
+    this.heartbeatMs = heartbeatMs;
   }
 
   private ref({ appName, userId, sessionId }: CompositeSessionKey) {
