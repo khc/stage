@@ -37,12 +37,6 @@ tasks:
       - docker build -f Dockerfile.service -t stage-service:latest .
       - docker image prune -f
 
-  build:service-deprecated:
-    desc: Build the old Hono HTTP service image (stage-service-deprecated:latest)
-    cmds:
-      - docker build -f Dockerfile.service-deprecated -t stage-service-deprecated:latest .
-      - docker image prune -f
-
   build:ui:
     desc: Build the dashboard image (stage-ui:latest)
     cmds:
@@ -115,6 +109,18 @@ tasks:
     cmds:
       - task: tf:apply
       - terraform -chdir=infra/envs/local output -raw extract_url
+
+  tf:create-service:
+    desc: Create or update the Elysia HTTP service (apps/service) as a Cloud Run service in Floci with Terraform; prints its URL (run build:service first)
+    cmds:
+      - task: tf:apply
+      - terraform -chdir=infra/envs/local output -raw service_url
+
+  tf:remove-service:
+    desc: Delete the Elysia HTTP service from Floci with Terraform
+    prompt: Remove the service from Floci?
+    cmds:
+      - terraform -chdir=infra/envs/local destroy -target='module.stage.google_cloud_run_v2_service.service[0]'
 
   tf:remove-extract:
     desc: Delete the extract Cloud Run service from Floci with Terraform

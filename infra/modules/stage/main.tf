@@ -20,6 +20,7 @@ locals {
       PUBSUB_TOPIC          = var.agent_events_topic
       PLATFORM_EVENTS_TOPIC = var.platform_events_topic
     },
+    var.service_extract_auth ? { EXTRACT_AUDIENCE = google_cloud_run_v2_service.extract.uri } : {},
     var.service_extra_env,
   )
 }
