@@ -8,8 +8,8 @@
     "./app": "./src/app.ts"
   },
   "scripts": {
-    "start": "bun --env-file=../../.env src/index.ts",
-    "dev": "bun --env-file=../../.env --hot src/index.ts",
+    "start": "bun --env-file=../../.env --preload ./src/telemetry-init.ts src/index.ts",
+    "dev": "bun --env-file=../../.env --preload ./src/telemetry-init.ts --hot src/index.ts",
     "typecheck": "bun check"
   },
   "dependencies": {
@@ -18,11 +18,15 @@
     "@google-cloud/pubsub": "^6.4.1",
     "@google-cloud/run": "^4.2.0",
     "@google/adk": "^2.5.0",
+    "@opentelemetry/api": "^1.10.0",
     "@sinclair/typebox": "^0.34.52",
     "@stage/agents": "workspace:*",
-    "elysia": "^1.4.32"
+    "elysia": "^1.4.32",
+    "google-auth-library": "^11.3.4"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-trace-base": "^2.12.1",
+    "@opentelemetry/sdk-trace-node": "^2.12.1",
     "@types/bun": "^1.4.4"
   }
 }

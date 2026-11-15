@@ -12,7 +12,8 @@
     "./session-service": "./src/session-service.ts",
     "./spec": "./src/spec.ts",
     "./task-contract": "./src/task-contract.ts",
-    "./task-documents": "./src/task-documents.ts"
+    "./task-documents": "./src/task-documents.ts",
+    "./telemetry": "./src/telemetry.ts"
   },
   "scripts": {
     "typecheck": "bun check"

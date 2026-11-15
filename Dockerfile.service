@@ -1,4 +1,4 @@
-# HTTP service image (apps/service, the Elysia service; apps/service-deprecated is the old Hono one). The agent job images
+# HTTP service image (apps/service, the Elysia service). The agent job images
 # are built from ./Dockerfile.agents.
 # Runtime configuration is supplied via environment variables, nothing is baked in:
 # GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000 here), EXTRACT_URL,
@@ -14,7 +14,6 @@ COPY packages/agents/package.json ./packages/agents/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract/package.json ./apps/extract/package.json
-COPY apps/service-deprecated/package.json ./apps/service-deprecated/package.json
 COPY apps/service/package.json ./apps/service/package.json
 RUN bun install --frozen-lockfile --production --filter "./apps/service" \
  && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
@@ -33,4 +32,7 @@ COPY --from=deps /app/apps/service/node_modules ./apps/service/node_modules
 
 USER 1000:1000
 EXPOSE 3000
+# The distroless image's entrypoint is `bun`; the preload registers the tracer provider (see
+# apps/service/src/telemetry-init.ts).
+ENTRYPOINT ["bun", "--preload", "/app/apps/service/src/telemetry-init.ts"]
 CMD ["apps/service/src/index.ts"]
