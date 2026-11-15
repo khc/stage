@@ -1,8 +1,8 @@
-import type { PubSub, Topic } from "@google-cloud/pubsub";
+import { PubSub, type Topic } from "@google-cloud/pubsub";
 
-import type { DocumentsStore } from "../modules/tasks/documents/documents-store";
-import type { TasksStore } from "../modules/tasks/tasks-store";
-import type { CloudRunJobs } from "./cloud-run-jobs-client";
+import type { DocumentStore } from "../stores/document-store";
+import type { TaskStore } from "../stores/task-store";
+import type { CloudRunJobs } from "./cloud-run-jobs";
 
 export type PlatformEventType =
   | "task.created"
@@ -47,7 +47,7 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
     publish(type, data).catch((err) => console.error(`Platform event ${type} failed`, err));
 
   return {
-    tasksStore: (store: TasksStore): TasksStore => ({
+    tasks: (store: TaskStore): TaskStore => ({
       ...store,
       async create(input) {
         const task = await store.create(input);
@@ -64,7 +64,7 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
         return deleted;
       },
     }),
-    cloudRunJobs: (jobs: CloudRunJobs): CloudRunJobs => ({
+    jobs: (jobs: CloudRunJobs): CloudRunJobs => ({
       ...jobs,
       async run(jobName, taskId, sessionId) {
         const operation = await jobs.run(jobName, taskId, sessionId);
@@ -77,7 +77,7 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
         return operation;
       },
     }),
-    documentsStore: (docs: DocumentsStore): DocumentsStore => ({
+    documents: (docs: DocumentStore): DocumentStore => ({
       ...docs,
       async create(taskId, file) {
         const document = await docs.create(taskId, file);
@@ -93,10 +93,13 @@ export const withPlatformEvents = (publish: PublishPlatformEvent) => {
   };
 };
 
-// Publishes to the platform events topic, creating it on first use.
-export const createPlatformEvents = (pubsub: Pick<PubSub, "topic">, topicName: string) =>
-  withPlatformEvents(
-    createPlatformPublisher(
-      async () => (await pubsub.topic(topicName).get({ autoCreate: true }))[0],
-    ),
+export const platformEventsFromEnv = (
+  env: Record<string, string | undefined>,
+  pubsub: Pick<PubSub, "topic"> = new PubSub(),
+) => {
+  const name = env.PLATFORM_EVENTS_TOPIC;
+  if (!name) return undefined;
+  return withPlatformEvents(
+    createPlatformPublisher(async () => (await pubsub.topic(name).get({ autoCreate: true }))[0]),
   );
+};

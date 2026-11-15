@@ -13,7 +13,7 @@
           <mxGeometry x="40" y="300" width="220" height="110" as="geometry" />
         </mxCell>
 
-        <mxCell id="service" value="&lt;b&gt;apps/service&lt;/b&gt;&lt;br&gt;Hono API :3000&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;REST: /tasks, /jobs, /sessions, /run&lt;br&gt;SSE: /events, .../messages&lt;br&gt;queues resume message, checks run state&lt;br&gt;agent cards: /jobs/:job/agents/:a/card&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+        <mxCell id="service" value="&lt;b&gt;apps/service&lt;/b&gt;&lt;br&gt;Elysia API :3000&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;REST: /tasks, /jobs, /sessions, /run&lt;br&gt;SSE: /events, .../messages&lt;br&gt;queues resume message, checks run state&lt;br&gt;agent cards: /jobs/:job/agents/:a/card&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
           <mxGeometry x="340" y="250" width="260" height="210" as="geometry" />
         </mxCell>
 

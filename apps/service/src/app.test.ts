@@ -1,1019 +1,592 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
-import { createApp, type Deps } from "./app";
-import type { openApiDocument } from "./openapi";
-import type { CloudRunJobs } from "./platform/cloud-run-jobs";
-import {
-  DocumentTooLargeError,
-  ExtractionError,
-  type DocumentStore,
-} from "./stores/document-store";
-import type { SessionStore } from "./stores/session-store";
-import type { NewTask, TaskContract, TaskStore } from "./stores/task-store";
+import { createApp, type AppDeps } from "./app";
+import { DependencyError } from "./errors";
+import type { AgentsService } from "./modules/agents/agents-service";
+import type { EventsService } from "./modules/events/events-service";
+import type { DocumentsService } from "./modules/tasks/documents/documents-service";
+import type { SessionsService } from "./modules/tasks/sessions/sessions-service";
+import type { TasksService } from "./modules/tasks/tasks-service";
 
-const baseJobs: CloudRunJobs = {
-  list: async () => [],
-  run: async () => "",
-  registerAgents: async () => "",
+const task = {
+  taskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+  prompt: "hi",
+  jobName: "my-job",
+  documents: [],
 };
-// The Cloud Run jobs with only some operations replaced.
-const jobsWith = (overrides: Partial<CloudRunJobs>): CloudRunJobs => ({
-  ...baseJobs,
+const tasksService = (overrides: Partial<TasksService> = {}): TasksService => ({
+  create: async (input) => ({ status: "created", task: { ...task, ...input } }),
+  list: async () => [task],
+  get: async (id) => (id === task.taskId ? task : undefined),
+  delete: async (id) => (id === task.taskId ? "deleted" : "not_found"),
+  run: async (id) =>
+    id === task.taskId ? { status: "started", operation: "op-1" } : { status: "task_not_found" },
   ...overrides,
 });
-const noCreate: TaskStore["create"] = async (input: NewTask) => ({
-  taskId: crypto.randomUUID(),
-  ...input,
+const session = {
+  id: "s1",
+  appName: "app",
+  userId: "user",
+  lastUpdateTime: 1,
+  taskId: task.taskId,
+};
+const sessionsService = (overrides: Partial<SessionsService> = {}): SessionsService => ({
+  list: async (taskId) => (taskId === task.taskId ? [session] : []),
+  get: async (taskId, id) =>
+    taskId === task.taskId && id === "s1"
+      ? ({ ...session, state: {}, events: [] } as never)
+      : undefined,
+  stats: async (taskId, id) =>
+    taskId === task.taskId && id === "s1"
+      ? {
+          events: 0,
+          llmCalls: 0,
+          tokens: { prompt: 0, candidates: 0, thoughts: 0, toolUsePrompt: 0, cached: 0, total: 0 },
+        }
+      : undefined,
+  delete: async (taskId, id) => taskId === task.taskId && id === "s1",
+  messages: async (taskId, id) =>
+    taskId === task.taskId && id === "s1"
+      ? {
+          status: "ok",
+          entries: (async function* () {
+            yield { id: "e1", data: '{"id":"e1"}' };
+            yield "idle" as const;
+          })(),
+        }
+      : { status: "session_not_found" },
+  ...overrides,
 });
-const noTasks = async () => [];
-const noTask = async (_taskId: string) => undefined;
-const noSessions: SessionStore = {
-  list: async () => [],
-  get: async () => undefined,
-  delete: async () => false,
-  queueMessage: async () => true,
-  clearMessage: async () => {},
+const doc = {
+  documentId: "a".repeat(64),
+  filename: "a.txt",
+  checksum: "a".repeat(64),
+  contentType: "text/plain",
 };
-const baseTasks: TaskStore = {
-  create: noCreate,
-  list: noTasks,
-  get: noTask,
-  delete: async () => true,
+const documentsService = (overrides: Partial<DocumentsService> = {}): DocumentsService => ({
+  list: async (taskId) => (taskId === task.taskId ? [doc] : []),
+  get: async (taskId, id) =>
+    taskId === task.taskId && id === doc.documentId ? { ...doc, content: "hi" } : undefined,
+  create: async () => ({ status: "created", document: doc }),
+  delete: async (taskId, id) => taskId === task.taskId && id === doc.documentId,
+  ...overrides,
+});
+const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService => ({
+  listJobs: async () => [{ name: "projects/p/locations/l/jobs/poet-agents" }],
+  listAgents: async (jobName) => (jobName === "poet-agents" ? [{ name: "haiku" }] : []),
+  agentCard: async (jobName, agentName) =>
+    jobName === "poet-agents" && agentName === "haiku"
+      ? ({ name: "haiku", url: "x" } as never)
+      : undefined,
+  register: async () => "operations/op-1",
+  ...overrides,
+});
+const appWith = (
+  overrides: Partial<TasksService> = {},
+  sessionOverrides: Partial<SessionsService> = {},
+  documents: Partial<DocumentsService> | null = {},
+  extras: { agents?: Partial<AgentsService>; events?: EventsService } = {},
+) => {
+  const deps: AppDeps = {
+    healthService: { check: () => ({ status: "ok" }) },
+    tasksService: tasksService(overrides),
+    sessionsService: sessionsService(sessionOverrides),
+    ...(documents && { documentsService: documentsService(documents) }),
+    agentsService: agentsService(extras.agents),
+    ...(extras.events && { eventsService: extras.events }),
+  };
+  return createApp(deps);
 };
-// The task store with only some operations replaced.
-const tasksWith = (overrides: Partial<TaskStore>): TaskStore => ({ ...baseTasks, ...overrides });
-const baseDeps: Deps = {
-  jobs: baseJobs,
-  tasks: baseTasks,
-  sessions: noSessions,
-  registry: { list: async () => [] },
+const call = async (app: ReturnType<typeof createApp>, path: string, init?: RequestInit) => {
+  const res = await app.handle(new Request(`http://localhost${path}`, init));
+  return { status: res.status, body: await res.json().catch(() => null) };
 };
-// The app with every dependency stubbed out, except what a test overrides.
-const buildApp = (overrides: Partial<Deps> = {}) => createApp({ ...baseDeps, ...overrides });
-const makeApp = () => buildApp();
-
-const post = (body: unknown) => ({
+const json = (body: unknown): RequestInit => ({
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
 });
 
-test("GET /health returns ok", async () => {
-  const res = await makeApp().request("/health");
-
-  expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ status: "ok" });
-});
-
-test("GET /jobs returns all listed job resources", async () => {
-  const jobs = [
-    { name: "projects/p/locations/l/jobs/first", labels: { team: "agent" } },
-    { name: "projects/p/locations/l/jobs/second" },
-  ];
-  const list = mock(async () => jobs);
-  const res = await buildApp({ jobs: jobsWith({ list }) }).request("/jobs");
-
-  expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ jobs });
-  expect(list).toHaveBeenCalledTimes(1);
-});
-
-test("GET /jobs returns an empty jobs array", async () => {
-  const res = await buildApp().request("/jobs");
-
-  expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ jobs: [] });
-});
-
-test("GET /jobs returns 502 job_error without upstream details", async () => {
-  const list = mock(async (): ReturnType<CloudRunJobs["list"]> => {
-    throw new Error("secret listing detail");
+describe("GET /health", () => {
+  test("answers ok from the health service", async () => {
+    expect(await call(appWith(), "/health")).toEqual({ status: 200, body: { status: "ok" } });
   });
-  const res = await buildApp({ jobs: jobsWith({ list }) }).request("/jobs");
 
-  expect(res.status).toBe(502);
-  expect(await res.json()).toEqual({ error: "job_error" });
-});
-
-const savedTask = {
-  taskId: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
-  prompt: "hello",
-  jobName: "my-job",
-};
-const taskApp = () => {
-  const job = mock(async (_jobName: string, _taskId: string) => "op-1");
-  const create = mock(async (input: { prompt: string; jobName: string }) => ({
-    ...savedTask,
-    ...input,
-  }));
-  const list = mock(async () => [savedTask]);
-  const get = mock(async (_id: string) => savedTask as TaskContract | undefined);
-  return {
-    app: buildApp({ jobs: jobsWith({ run: job }), tasks: tasksWith({ create, list, get }) }),
-    job,
-    create,
-    list,
-    get,
-  };
-};
-
-test("POST /tasks saves a trimmed prompt and returns 201 without executing", async () => {
-  const { app, create, job } = taskApp();
-  const response = await app.request(
-    "/tasks",
-    post({
-      jobName: "my-job",
-      prompt: "  hello  ",
-      taskId: "client-id",
-      extra: true,
-    }),
-  );
-  expect(response.status).toBe(201);
-  expect(await response.json()).toEqual(savedTask);
-  expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName: "my-job" });
-  expect(create).toHaveBeenCalledTimes(1);
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("POST /tasks accepts the maximum prompt length", async () => {
-  const { app, create } = taskApp();
-  expect(
-    (await app.request("/tasks", post({ jobName: "my-job", prompt: "x".repeat(10_000) }))).status,
-  ).toBe(201);
-  expect(create).toHaveBeenCalledWith({
-    prompt: "x".repeat(10_000),
-    jobName: "my-job",
-  });
-});
-
-test("POST /tasks rejects invalid bodies without saving", async () => {
-  const { app, create } = taskApp();
-  for (const body of [
-    {},
-    { prompt: "" },
-    { prompt: "   " },
-    { prompt: 42 },
-    { prompt: null },
-    { prompt: "x".repeat(10_001) },
-  ]) {
-    expect((await app.request("/tasks", post({ jobName: "my-job", ...body }))).status).toBe(400);
-  }
-  expect(
-    (
-      await app.request("/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{broken",
-      })
-    ).status,
-  ).toBe(400);
-  expect((await app.request("/tasks", { method: "POST" })).status).toBe(400);
-  expect(create).not.toHaveBeenCalled();
-});
-
-test("GET /tasks returns a collection without executing or creating", async () => {
-  const { app, list, get, create, job } = taskApp();
-  const response = await app.request("/tasks");
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ tasks: [savedTask] });
-  expect(list).toHaveBeenCalledTimes(1);
-  expect(get).not.toHaveBeenCalled();
-  expect(create).not.toHaveBeenCalled();
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("GET /tasks returns an empty collection", async () => {
-  const response = await buildApp().request("/tasks");
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ tasks: [] });
-});
-
-test("GET /tasks/:taskId returns a contract and normalizes uppercase UUIDs", async () => {
-  const { app, get, create, job, list } = taskApp();
-  for (const id of [savedTask.taskId, savedTask.taskId.toUpperCase()]) {
-    const response = await app.request(`/tasks/${id}`);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(savedTask);
-    expect(get).toHaveBeenLastCalledWith(savedTask.taskId);
-  }
-  expect(create).not.toHaveBeenCalled();
-  expect(job).not.toHaveBeenCalled();
-  expect(list).not.toHaveBeenCalled();
-});
-
-test("GET /tasks/:taskId returns 404 for an absent UUID", async () => {
-  const { app, get } = taskApp();
-  get.mockResolvedValue(undefined);
-  const response = await app.request(`/tasks/${savedTask.taskId}`);
-  expect(response.status).toBe(404);
-  expect(await response.json()).toEqual({ error: "task_not_found" });
-});
-
-test("GET /tasks/:taskId rejects an invalid UUID before storage", async () => {
-  const { app, get } = taskApp();
-  expect((await app.request("/tasks/not-a-uuid")).status).toBe(400);
-  expect(get).not.toHaveBeenCalled();
-});
-
-for (const operation of ["create", "list", "get"] as const) {
-  test(`${operation} run failures return 502 without private storage details`, async () => {
-    const fixtures = taskApp();
-    fixtures[operation].mockRejectedValue(new Error("private storage detail"));
-    const response = await fixtures.app.request(
-      operation === "get" ? `/tasks/${savedTask.taskId}` : "/tasks",
-      operation === "create" ? post({ jobName: "my-job", prompt: "hello" }) : undefined,
-    );
-    expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: "task_error" });
-  });
-}
-
-for (const jobName of [
-  undefined,
-  42,
-  "",
-  "My_Job",
-  "-bad",
-  "bad-",
-  "a".repeat(64),
-  "projects/p/locations/l/jobs/job",
-  " my-job ",
-]) {
-  test(`creation rejects invalid jobName ${String(jobName)}`, async () => {
-    const { app, create } = taskApp();
-    expect((await app.request("/tasks", post({ prompt: "hello", jobName }))).status).toBe(400);
-    expect(create).not.toHaveBeenCalled();
-  });
-}
-
-test("creation accepts a 63-character job name", async () => {
-  const { app, create } = taskApp();
-  const jobName = "a".repeat(63);
-  expect((await app.request("/tasks", post({ prompt: "hello", jobName }))).status).toBe(201);
-  expect(create).toHaveBeenCalledWith({ prompt: "hello", jobName });
-});
-
-const runPath = `/tasks/${savedTask.taskId}/run`;
-test("run reads the contract before submitting only stored jobName and normalized UUID", async () => {
-  const { app, get, job, create } = taskApp();
-  const deferred = Promise.withResolvers<TaskContract>();
-  get.mockImplementation(() => deferred.promise);
-  const pending = app.request(`/tasks/${savedTask.taskId.toUpperCase()}/run`, {
-    method: "POST",
-  });
-  await Promise.resolve();
-  expect(job).not.toHaveBeenCalled();
-  deferred.resolve(savedTask);
-  const response = await pending;
-  expect(response.status).toBe(202);
-  expect(await response.json()).toEqual({ operation: "op-1" });
-  expect(get).toHaveBeenCalledWith(savedTask.taskId);
-  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId);
-  expect(create).not.toHaveBeenCalled();
-});
-
-test("run ignores conflicting prompt/message/jobName supplied in its body", async () => {
-  const { app, job } = taskApp();
-  const response = await app.request(
-    runPath,
-    post({ jobName: "different-job", prompt: "override", message: "override" }),
-  );
-  expect(response.status).toBe(202);
-  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId);
-});
-
-test("run rejects invalid UUIDs without reading or submitting", async () => {
-  const { app, get, job } = taskApp();
-  expect((await app.request("/tasks/invalid/run", { method: "POST" })).status).toBe(400);
-  expect(get).not.toHaveBeenCalled();
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run returns 404 for an absent contract without submission", async () => {
-  const { app, get, job } = taskApp();
-  get.mockResolvedValue(undefined);
-  const response = await app.request(runPath, { method: "POST" });
-  expect(response.status).toBe(404);
-  expect(await response.json()).toEqual({ error: "task_not_found" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-for (const jobName of [undefined, "", "Invalid_Name", "a".repeat(64), "../bad", 42]) {
-  test(`run rejects missing or invalid stored jobName ${String(jobName)}`, async () => {
-    const { app, get, job } = taskApp();
-    get.mockResolvedValue({ ...savedTask, jobName } as TaskContract);
-    const response = await app.request(runPath, { method: "POST" });
-    expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "task_not_executable" });
-    expect(job).not.toHaveBeenCalled();
-  });
-}
-
-test("run lookup failure returns task_error without submission", async () => {
-  const { app, get, job } = taskApp();
-  get.mockRejectedValue(new Error("private lookup failure"));
-  const response = await app.request(runPath, { method: "POST" });
-  expect(response.status).toBe(502);
-  expect(await response.json()).toEqual({ error: "task_error" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run submission failure returns job_error", async () => {
-  const { app, job } = taskApp();
-  job.mockRejectedValue(new Error("private submission failure"));
-  const response = await app.request(runPath, { method: "POST" });
-  expect(response.status).toBe(502);
-  expect(await response.json()).toEqual({ error: "job_error" });
-});
-
-test("old execution URL is removed", async () => {
-  const { app, job, get } = taskApp();
-  expect((await app.request("/jobs/my-job/run", { method: "POST" })).status).toBe(404);
-  expect(job).not.toHaveBeenCalled();
-  expect(get).not.toHaveBeenCalled();
-});
-
-test("former run-contract URLs are removed", async () => {
-  const { app, get, list, job } = taskApp();
-  expect((await app.request("/jobs/runs")).status).toBe(404);
-  expect(
-    (await app.request("/jobs/runs", post({ prompt: "hello", jobName: "my-job" }))).status,
-  ).toBe(404);
-  expect((await app.request(`/jobs/runs/${savedTask.taskId}`)).status).toBe(404);
-  expect(
-    (
-      await app.request(`/jobs/runs/${savedTask.taskId}/exec`, {
-        method: "POST",
-      })
-    ).status,
-  ).toBe(404);
-  expect(get).not.toHaveBeenCalled();
-  expect(list).not.toHaveBeenCalled();
-  expect(job).not.toHaveBeenCalled();
-});
-
-const sessionId = crypto.randomUUID();
-const session = {
-  id: sessionId,
-  taskId: savedTask.taskId,
-  appName: "stage",
-  userId: "user",
-  lastUpdateTime: 123,
-  state: { count: 1 },
-  events: [],
-};
-const sessionsApp = () => {
-  const getTask = mock(async (_id: string): Promise<TaskContract | undefined> => savedTask);
-  const list = mock(async (_id: string) => [
-    {
-      id: session.id,
-      taskId: session.taskId,
-      appName: session.appName,
-      userId: session.userId,
-      lastUpdateTime: session.lastUpdateTime,
-    },
-  ]);
-  const get = mock(
-    async (_taskId: string, _sessionId: string): Promise<typeof session | undefined> => session,
-  );
-  return {
-    app: buildApp({
-      tasks: tasksWith({ get: getTask }),
-      sessions: {
-        list,
-        get,
-        delete: async () => false,
-        queueMessage: async () => true,
-        clearMessage: async () => {},
-      },
-    }),
-    getTask,
-    list,
-    get,
-  };
-};
-
-test("GET task sessions returns summaries for the normalized task UUID", async () => {
-  const { app, list } = sessionsApp();
-  const response = await app.request(`/tasks/${savedTask.taskId.toUpperCase()}/sessions`);
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({
-    sessions: [
-      {
-        id: session.id,
-        taskId: session.taskId,
-        appName: session.appName,
-        userId: session.userId,
-        lastUpdateTime: session.lastUpdateTime,
-      },
-    ],
-  });
-  expect(list).toHaveBeenCalledWith(savedTask.taskId);
-});
-
-test("GET task sessions returns an empty list", async () => {
-  const { app, list } = sessionsApp();
-  list.mockResolvedValue([]);
-  const response = await app.request(`/tasks/${savedTask.taskId}/sessions`);
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ sessions: [] });
-});
-
-test("GET task session returns full state and events", async () => {
-  const { app, get } = sessionsApp();
-  const response = await app.request(`/tasks/${savedTask.taskId}/sessions/${sessionId}`);
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual(session);
-  expect(get).toHaveBeenCalledWith(savedTask.taskId, sessionId);
-});
-
-for (const detail of [false, true]) {
-  const path = `/tasks/${savedTask.taskId}/sessions${detail ? `/${sessionId}` : ""}`;
-  test(`session ${detail ? "detail" : "list"} rejects missing tasks before reading sessions`, async () => {
-    const { app, getTask, list, get } = sessionsApp();
-    getTask.mockResolvedValue(undefined);
-    const response = await app.request(path);
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "task_not_found" });
-    expect(list).not.toHaveBeenCalled();
-    expect(get).not.toHaveBeenCalled();
-  });
-  test(`session ${detail ? "detail" : "list"} rejects invalid task UUIDs`, async () => {
-    const { app, getTask, list, get } = sessionsApp();
-    expect(
-      (await app.request(`/tasks/invalid/sessions${detail ? `/${sessionId}` : ""}`)).status,
-    ).toBe(400);
-    expect(getTask).not.toHaveBeenCalled();
-    expect(list).not.toHaveBeenCalled();
-    expect(get).not.toHaveBeenCalled();
-  });
-  test(`session ${detail ? "detail" : "list"} storage errors return 502 without private detail`, async () => {
-    const { app, list, get } = sessionsApp();
-    if (detail) get.mockRejectedValue(new Error("private session error"));
-    else list.mockRejectedValue(new Error("private session error"));
-    const response = await app.request(path);
-    expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: "session_error" });
-  });
-}
-
-test("GET task session returns 404 for absent or non-owned sessions", async () => {
-  const { app, get } = sessionsApp();
-  get.mockResolvedValue(undefined);
-  const response = await app.request(`/tasks/${savedTask.taskId}/sessions/${sessionId}`);
-  expect(response.status).toBe(404);
-  expect(await response.json()).toEqual({ error: "session_not_found" });
-});
-
-test("GET /docs serves Scalar configured for the local OpenAPI document", async () => {
-  const response = await makeApp().request("/docs");
-  expect(response.status).toBe(200);
-  expect(response.headers.get("content-type")).toContain("text/html");
-  const html = await response.text();
-  expect(html).toContain("scalar");
-  expect(html).toContain("/openapi.json");
-});
-
-test("GET /openapi.json describes every API operation and its task input", async () => {
-  const app = makeApp();
-  const response = await app.request("/openapi.json");
-  expect(response.status).toBe(200);
-  const document = (await response.json()) as typeof openApiDocument;
-  expect(document.openapi).toBe("3.1.0");
-  const actual = [
-    ...new Set(
-      app.routes
-        .filter((r) => !["/docs", "/openapi.json"].includes(r.path))
-        .map((r) => `${r.method.toLowerCase()} ${r.path.replace(/:([^/]+)/g, "{$1}")}`),
-    ),
-  ].toSorted();
-  const described = Object.entries(document.paths)
-    .flatMap(([path, operations]) =>
-      Object.keys(operations as object)
-        .filter((method) => ["get", "post", "delete"].includes(method))
-        .map((method) => `${method} ${path}`),
-    )
-    .toSorted();
-  expect(described).toEqual(actual);
-  const input = document.paths["/tasks"].post.requestBody.content["application/json"].schema;
-  expect(input.required).toEqual(["prompt", "jobName"]);
-  expect(input.properties?.prompt).toMatchObject({ maxLength: 10_000 });
-  expect(input.properties?.jobName).toMatchObject({ maxLength: 63 });
-  const resume =
-    document.paths["/tasks/{taskId}/run"].post.requestBody.content["application/json"].schema;
-  expect(resume.required).toEqual(["sessionId", "message"]);
-  expect(document.paths["/tasks/{taskId}/sessions/{sessionId}"].get.responses["404"]).toBeDefined();
-});
-
-const resumeApp = (
-  found: boolean,
-  run?: unknown,
-  queue: () => Promise<boolean> = async () => true,
-) => {
-  const job = mock(async (_name: string, _taskId: string, _sessionId?: string) => "op-1");
-  const queueMessage = mock(async (_t: string, _s: string, _m: string) => queue());
-  const clearMessage = mock(async (_t: string, _s: string) => {});
-  const get = mock(async (_taskId: string, _sessionId: string) =>
-    found ? ({ id: "s1", run } as never) : undefined,
-  );
-  const app = buildApp({
-    jobs: jobsWith({ run: job }),
-    tasks: tasksWith({ get: async () => savedTask as TaskContract }),
-    sessions: { list: async () => [], get, delete: async () => false, queueMessage, clearMessage },
-  });
-  return { app, job, get, queueMessage, clearMessage };
-};
-
-test("run with sessionId and message resumes an owned session", async () => {
-  const { app, job, get, queueMessage } = resumeApp(true);
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "  answer  " }));
-  expect(response.status).toBe(202);
-  expect(get).toHaveBeenCalledWith(savedTask.taskId, "s1");
-  expect(queueMessage).toHaveBeenCalledWith(savedTask.taskId, "s1", "answer");
-  expect(job).toHaveBeenCalledWith("my-job", savedTask.taskId, "s1");
-});
-
-test("run returns 409 when the message cannot be queued because a run or message is pending", async () => {
-  const { RunInProgressError } = await import("@stage/agents/session-service");
-  const { app, job } = resumeApp(true, undefined, async () => {
-    throw new RunInProgressError();
-  });
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
-  expect(response.status).toBe(409);
-  expect(await response.json()).toEqual({ error: "run_in_progress" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run returns 409 message_pending when an earlier message still waits for its job", async () => {
-  const { MessageQueuedError } = await import("@stage/agents/session-service");
-  const { app, job } = resumeApp(true, undefined, async () => {
-    throw new MessageQueuedError();
-  });
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
-  expect(response.status).toBe(409);
-  expect(await response.json()).toEqual({ error: "message_pending" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run clears the queued message when the job cannot be started", async () => {
-  const { app, job, clearMessage } = resumeApp(true);
-  job.mockRejectedValue(new Error("cloud run down"));
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
-  expect(response.status).toBe(502);
-  expect(clearMessage).toHaveBeenCalledWith(savedTask.taskId, "s1");
-});
-
-test("run returns 409 run_in_progress while the session is running", async () => {
-  const { app, job } = resumeApp(true, { status: "running", startedAt: 1 });
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
-  expect(response.status).toBe(409);
-  expect(await response.json()).toEqual({ error: "run_in_progress" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run returns 404 session_not_found for a missing or foreign session", async () => {
-  const { app, job } = resumeApp(false);
-  const response = await app.request(runPath, post({ sessionId: "s1", message: "answer" }));
-  expect(response.status).toBe(404);
-  expect(await response.json()).toEqual({ error: "session_not_found" });
-  expect(job).not.toHaveBeenCalled();
-});
-
-test("run rejects sessionId without a valid message", async () => {
-  const { app, get, job } = resumeApp(true);
-  for (const body of [{ sessionId: "s1" }, { sessionId: "s1", message: " " }])
-    expect((await app.request(runPath, post(body))).status).toBe(400);
-  expect(get).not.toHaveBeenCalled();
-  expect(job).not.toHaveBeenCalled();
-});
-
-describe("DELETE /tasks/:taskId/sessions/:sessionId", () => {
-  const path = `/tasks/${savedTask.taskId}/sessions/s1`;
-  const deleteApp = (remove: (t: string, s: string) => Promise<boolean>) => {
-    const del = mock(remove);
-    const app = buildApp({
-      tasks: tasksWith({
-        get: async (id: string) =>
-          id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
-      }),
-      sessions: {
-        list: async () => [],
-        get: async () => undefined,
-        delete: del,
-        queueMessage: async () => true,
-        clearMessage: async () => {},
-      },
+  test("a response that breaks its schema is a service bug: 502 internal_error", async () => {
+    const spy = spyOn(console, "error").mockImplementation(() => {});
+    const app = createApp({
+      healthService: { check: () => ({ status: "down" }) as never },
+      tasksService: tasksService(),
+      sessionsService: sessionsService(),
+      agentsService: agentsService(),
     });
-    return { app, del };
-  };
-
-  test("deletes an owned session and returns 204", async () => {
-    const { app, del } = deleteApp(async () => true);
-    const res = await app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(204);
-    expect(await res.text()).toBe("");
-    expect(del).toHaveBeenCalledWith(savedTask.taskId, "s1");
-  });
-
-  test("returns 404 for a missing session or task without deleting", async () => {
-    const missing = deleteApp(async () => false);
-    const res = await missing.app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "session_not_found" });
-
-    const noTask = deleteApp(async () => true);
-    const other = await noTask.app.request(`/tasks/${crypto.randomUUID()}/sessions/s1`, {
-      method: "DELETE",
-    });
-    expect(other.status).toBe(404);
-    expect(await other.json()).toEqual({ error: "task_not_found" });
-    expect(noTask.del).not.toHaveBeenCalled();
-  });
-
-  test("rejects an invalid task id and hides storage failures", async () => {
-    const { app, del } = deleteApp(async () => {
-      throw new Error("private storage detail");
-    });
-    expect((await app.request("/tasks/invalid/sessions/s1", { method: "DELETE" })).status).toBe(
-      400,
-    );
-    const res = await app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "session_error" });
-    expect(del).toHaveBeenCalledTimes(1);
+    expect(await call(app, "/health")).toEqual({ status: 502, body: { error: "internal_error" } });
+    spy.mockRestore();
   });
 });
 
-describe("GET /tasks/:taskId/sessions/:sessionId/stats", () => {
-  const path = `/tasks/${savedTask.taskId}/sessions/s1/stats`;
-  const statsApp = (found: boolean) =>
-    buildApp({
-      tasks: tasksWith({
-        get: async (id: string) =>
-          id === savedTask.taskId ? (savedTask as TaskContract) : undefined,
-      }),
-      sessions: {
-        list: async () => [],
-        get: async () =>
-          found
-            ? ({
-                events: [
-                  {
-                    usageMetadata: { promptTokenCount: 7, totalTokenCount: 9 },
-                  },
-                  {},
-                ],
-              } as never)
-            : undefined,
-        delete: async () => false,
-        queueMessage: async () => true,
-        clearMessage: async () => {},
-      },
-    });
-
-  test("returns event count and summed token usage", async () => {
-    const res = await statsApp(true).request(path);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      events: 2,
-      llmCalls: 1,
-      tokens: {
-        prompt: 7,
-        candidates: 0,
-        thoughts: 0,
-        toolUsePrompt: 0,
-        cached: 0,
-        total: 9,
-      },
-    });
-  });
-
-  test("returns 404 for a missing session or task", async () => {
-    const res = await statsApp(false).request(path);
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "session_not_found" });
-    const noTask = await statsApp(true).request(`/tasks/${crypto.randomUUID()}/sessions/s1/stats`);
-    expect(await noTask.json()).toEqual({ error: "task_not_found" });
-  });
-});
-
-test("POST /tasks passes a valid agentName and rejects an invalid one", async () => {
-  const { app, create } = taskApp();
-  expect(
-    (
-      await app.request(
-        "/tasks",
-        post({ jobName: "my-job", prompt: "hi", agentName: "researcher_2" }),
-      )
-    ).status,
-  ).toBe(201);
-  expect(create).toHaveBeenCalledWith({
-    prompt: "hi",
-    jobName: "my-job",
-    agentName: "researcher_2",
-  });
-  // ADK allows hyphens in agent names (haiku-poet, limerick-poet).
-  expect(
-    (
-      await app.request(
-        "/tasks",
-        post({ jobName: "poet-agents", prompt: "hi", agentName: "limerick-poet" }),
-      )
-    ).status,
-  ).toBe(201);
-  for (const agentName of ["", "has space", "1abc", "-abc", "x".repeat(65), 7])
-    expect(
-      (await app.request("/tasks", post({ jobName: "my-job", prompt: "hi", agentName }))).status,
-    ).toBe(400);
-  expect(create).toHaveBeenCalledTimes(2);
-});
-
-test("an unexpected error answers 502 internal_error without its message", async () => {
-  const app = buildApp();
-  app.get("/boom", () => {
-    throw new Error("secret detail");
-  });
-  const res = await app.request("/boom");
-  expect(res.status).toBe(502);
-  expect(await res.json()).toEqual({ error: "internal_error" });
-});
-
-describe("agent registry routes", () => {
-  const registered = [{ name: "assistant" }, { name: "researcher" }];
-  const registryApp = (
-    registry: Deps["registry"] = baseDeps.registry,
-    create = mock(async (i: { prompt: string; jobName: string; agentName?: string }) => ({
-      taskId: savedTask.taskId,
-      ...i,
-    })),
-  ) => ({
-    create,
-    app: buildApp({ tasks: tasksWith({ create }), registry }),
-  });
-
-  test("GET /jobs/:jobName/agents lists the registered agents", async () => {
-    const list = mock(async (_job: string) => registered);
-    const { app } = registryApp({ list });
-    const res = await app.request("/jobs/my-job/agents");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ agents: registered });
-    expect(list).toHaveBeenCalledWith("my-job");
-    expect(await (await registryApp().app.request("/jobs/my-job/agents")).json()).toEqual({
-      agents: [],
-    });
-    expect((await app.request("/jobs/Bad_Name/agents")).status).toBe(400);
-  });
-
-  test("GET /jobs/:jobName/agents/:agentName/card returns the agent as a card", async () => {
-    const list = mock(async (_job: string) => [
-      { name: "haiku", description: "Writes a haiku.", inputSchema: { type: "object" } },
-    ]);
-    const { app } = registryApp({ list });
-    const res = await app.request("/jobs/my-job/agents/haiku/card");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      name: "haiku",
-      skills: [{ id: "haiku", tags: ["my-job"] }],
-      defaultInputModes: ["application/json"],
-    });
-    expect(list).toHaveBeenCalledWith("my-job");
-  });
-
-  test("GET agent card returns 404 for an unregistered agent and 400 for bad names", async () => {
-    const { app } = registryApp({ list: async () => registered });
-    const missing = await app.request("/jobs/my-job/agents/nope/card");
-    expect(missing.status).toBe(404);
-    expect(await missing.json()).toEqual({ error: "agent_not_found" });
-    expect((await app.request("/jobs/my-job/agents/1bad/card")).status).toBe(400);
-    expect((await registryApp().app.request("/jobs/my-job/agents/x/card")).status).toBe(404);
-  });
-
-  test("POST /jobs/:jobName/register submits the register run", async () => {
-    const register = mock(async (_job: string) => "op-7");
-    const app = buildApp({ jobs: jobsWith({ registerAgents: register }) });
-    const res = await app.request("/jobs/my-job/register", { method: "POST" });
-    expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ operation: "op-7" });
-    expect(register).toHaveBeenCalledWith("my-job");
-
-    register.mockRejectedValueOnce(new Error("private"));
-    const failed = await app.request("/jobs/my-job/register", {
-      method: "POST",
-    });
-    expect(failed.status).toBe(502);
-    expect(await failed.json()).toEqual({ error: "job_error" });
-  });
-
-  test("POST /tasks rejects an agent the job has not registered", async () => {
-    const { app, create } = registryApp({ list: async () => registered });
-    const bad = await app.request(
-      "/tasks",
-      post({ prompt: "p", jobName: "my-job", agentName: "ghost" }),
-    );
-    expect(bad.status).toBe(400);
-    expect(await bad.json()).toEqual({ error: "unknown_agent" });
-    expect(create).not.toHaveBeenCalled();
-    const ok = await app.request(
-      "/tasks",
-      post({ prompt: "p", jobName: "my-job", agentName: "researcher" }),
-    );
-    expect(ok.status).toBe(201);
-  });
-
-  test("POST /tasks accepts any valid agent for a job with no registration", async () => {
-    const { app } = registryApp({ list: async () => [] });
-    const res = await app.request(
-      "/tasks",
-      post({ prompt: "p", jobName: "my-job", agentName: "anything" }),
-    );
+describe("tasks", () => {
+  test("POST /tasks creates a task and trims the prompt", async () => {
+    const res = await call(appWith(), "/tasks", json({ prompt: "  hello  ", jobName: "my-job" }));
     expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ prompt: "hello", jobName: "my-job" });
+  });
+
+  test("POST /tasks answers 400 unknown_agent", async () => {
+    const app = appWith({ create: async () => ({ status: "unknown_agent" }) });
+    expect(await call(app, "/tasks", json({ prompt: "p", jobName: "j", agentName: "x" }))).toEqual({
+      status: 400,
+      body: { error: "unknown_agent" },
+    });
+  });
+
+  test.each([
+    ["a blank prompt", { prompt: "   ", jobName: "my-job" }],
+    ["a missing jobName", { prompt: "p" }],
+    ["an invalid jobName", { prompt: "p", jobName: "Bad_Name" }],
+    ["an invalid agentName", { prompt: "p", jobName: "j", agentName: "1bad" }],
+  ])("POST /tasks rejects %s with 400", async (_name, body) => {
+    const res = await call(appWith(), "/tasks", json(body));
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "invalid_request" });
+  });
+
+  test("GET /tasks lists tasks", async () => {
+    expect(await call(appWith(), "/tasks")).toEqual({ status: 200, body: { tasks: [task] } });
+  });
+
+  test("GET /tasks/:taskId returns the task, and matches the id case-insensitively", async () => {
+    expect((await call(appWith(), `/tasks/${task.taskId}`)).body).toEqual(task);
+    expect((await call(appWith(), `/tasks/${task.taskId.toUpperCase()}`)).status).toBe(200);
+  });
+
+  test("GET /tasks/:taskId answers 404 task_not_found", async () => {
+    expect(await call(appWith(), "/tasks/00000000-0000-4000-8000-000000000000")).toEqual({
+      status: 404,
+      body: { error: "task_not_found" },
+    });
+  });
+
+  test("GET /tasks/:taskId rejects a malformed id with 400", async () => {
+    expect((await call(appWith(), "/tasks/not-a-uuid")).status).toBe(400);
+  });
+
+  test("a failing dependency answers 502 with the short code only", async () => {
+    const app = appWith({
+      list: async () =>
+        Promise.reject(new DependencyError("task_error", new Error("secret detail"))),
+    });
+    expect(await call(app, "/tasks")).toEqual({ status: 502, body: { error: "task_error" } });
+  });
+
+  test("an unknown route answers 404", async () => {
+    expect((await call(appWith(), "/nope")).status).toBe(404);
   });
 });
 
-test("GET /jobs/:jobName/agents passes each agent's schemas through", async () => {
-  const agents = [
-    {
-      name: "haiku",
-      description: "d",
-      inputSchema: { type: "string" },
-      outputSchema: { type: "string" },
+describe("sessions of a task", () => {
+  const base = `/tasks/${task.taskId}/sessions`;
+
+  test("lists the sessions of an existing task", async () => {
+    expect(await call(appWith(), base)).toEqual({ status: 200, body: { sessions: [session] } });
+  });
+
+  test("answers 404 task_not_found before touching sessions, and for any session route", async () => {
+    let touched = false;
+    const app = appWith(
+      {},
+      { list: async () => ((touched = true), []), get: async () => ((touched = true), undefined) },
+    );
+    const missing = "/tasks/00000000-0000-4000-8000-000000000000/sessions";
+    for (const path of [missing, `${missing}/s1`])
+      expect(await call(app, path)).toEqual({ status: 404, body: { error: "task_not_found" } });
+    expect(touched).toBe(false);
+  });
+
+  test("matches the task id case-insensitively and gives the service the canonical id", async () => {
+    const res = await call(appWith(), `/tasks/${task.taskId.toUpperCase()}/sessions`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sessions: [session] });
+  });
+
+  test("returns a session of the task", async () => {
+    const res = await call(appWith(), `${base}/s1`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: "s1", taskId: task.taskId });
+  });
+
+  test("answers 404 session_not_found", async () => {
+    expect(await call(appWith(), `${base}/nope`)).toEqual({
+      status: 404,
+      body: { error: "session_not_found" },
+    });
+  });
+
+  test("DELETE answers 204 without a body, then 404 for a missing session", async () => {
+    const ok = await appWith().handle(
+      new Request(`http://localhost${base}/s1`, { method: "DELETE" }),
+    );
+    expect(ok.status).toBe(204);
+    expect(await ok.text()).toBe("");
+    const missing = await call(appWith(), `${base}/nope`, { method: "DELETE" });
+    expect(missing).toEqual({ status: 404, body: { error: "session_not_found" } });
+  });
+
+  test.each(["/tasks/not-a-uuid/sessions", `/tasks/not-a-uuid/sessions/s1`])(
+    "rejects a malformed task id on %s with 400",
+    async (path) => {
+      expect((await call(appWith(), path)).status).toBe(400);
     },
-  ];
-  const app = buildApp({ registry: { list: async () => agents } });
-  expect(await (await app.request("/jobs/j/agents")).json()).toEqual({
-    agents,
+  );
+
+  test("the guard does not leak to the task routes", async () => {
+    expect((await call(appWith(), "/tasks")).status).toBe(200);
+  });
+
+  test("a failing sessions dependency answers 502 with the short code", async () => {
+    const app = appWith(
+      {},
+      { list: async () => Promise.reject(new DependencyError("session_error", new Error("x"))) },
+    );
+    expect(await call(app, base)).toEqual({ status: 502, body: { error: "session_error" } });
   });
 });
 
 describe("DELETE /tasks/:taskId", () => {
-  const path = `/tasks/${savedTask.taskId}`;
-  const deleteApp = (
-    opts: {
-      exists?: boolean;
-      listFails?: boolean;
-    } = {},
-  ) => {
-    const order: string[] = [];
-    const removeSession = mock(async (_t: string, id: string) => {
-      order.push(`session:${id}`);
-      return true;
+  test("answers 204 without a body, then 404 task_not_found", async () => {
+    const ok = await appWith().handle(
+      new Request(`http://localhost/tasks/${task.taskId}`, { method: "DELETE" }),
+    );
+    expect(ok.status).toBe(204);
+    expect(await ok.text()).toBe("");
+    const missing = await call(appWith(), "/tasks/00000000-0000-4000-8000-000000000000", {
+      method: "DELETE",
     });
-    const removeTask = mock(async (_id: string) => {
-      order.push("task");
-      return true;
-    });
-    const app = buildApp({
-      tasks: tasksWith({
-        get: async () => (opts.exists === false ? undefined : (savedTask as TaskContract)),
-        delete: removeTask,
-      }),
-      sessions: {
-        list: async () => {
-          if (opts.listFails) throw new Error("private storage detail");
-          return [
-            {
-              id: "s1",
-              taskId: savedTask.taskId,
-              appName: "a",
-              userId: "u",
-              lastUpdateTime: 1,
-            },
-            {
-              id: "s2",
-              taskId: savedTask.taskId,
-              appName: "a",
-              userId: "u",
-              lastUpdateTime: 2,
-            },
-          ];
-        },
-        get: async () => undefined,
-        delete: removeSession,
-        queueMessage: async () => true,
-        clearMessage: async () => {},
-      },
-    });
-    return { app, removeSession, removeTask, order };
-  };
-
-  test("deletes the task's sessions first, then the task, and returns 204", async () => {
-    const { app, removeSession, removeTask, order } = deleteApp();
-    const res = await app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(204);
-    expect(await res.text()).toBe("");
-    expect(removeSession).toHaveBeenCalledWith(savedTask.taskId, "s1");
-    expect(removeTask).toHaveBeenCalledWith(savedTask.taskId);
-    expect(order).toEqual(["session:s1", "session:s2", "task"]);
+    expect(missing).toEqual({ status: 404, body: { error: "task_not_found" } });
   });
 
-  test("returns 404 for a missing task without deleting anything", async () => {
-    const { app, removeSession, removeTask } = deleteApp({ exists: false });
-    const res = await app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "task_not_found" });
-    expect(removeSession).not.toHaveBeenCalled();
-    expect(removeTask).not.toHaveBeenCalled();
-  });
-
-  test("rejects an invalid id, hides storage failures and keeps the task", async () => {
-    const { app, removeTask } = deleteApp({ listFails: true });
-    expect((await app.request("/tasks/invalid", { method: "DELETE" })).status).toBe(400);
-    const res = await app.request(path, { method: "DELETE" });
-    expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "task_error" });
-    expect(removeTask).not.toHaveBeenCalled();
+  test("rejects a malformed id with 400", async () => {
+    expect((await call(appWith(), "/tasks/nope", { method: "DELETE" })).status).toBe(400);
   });
 });
 
-describe("task documents", () => {
-  const taskId = crypto.randomUUID();
-  const documentId = "a".repeat(64);
-  const summary = {
-    documentId,
-    filename: "a.txt",
-    checksum: documentId,
-    contentType: "text/plain",
+describe("documents of a task", () => {
+  const base = `/tasks/${task.taskId}/documents`;
+  const upload = (file?: File, headers?: Record<string, string>): RequestInit => {
+    const form = new FormData();
+    if (file) form.set("file", file);
+    return { method: "POST", body: form, headers };
   };
-  const stub = (over: Partial<DocumentStore> = {}): DocumentStore => ({
-    list: async () => [summary],
-    get: async () => ({ ...summary, content: "hi" }),
-    create: async () => summary,
-    delete: async () => true,
-    release: async () => {},
-    ...over,
-  });
-  const found = async (id: string) => (id === taskId ? { taskId, prompt: "p" } : undefined);
-  const appWith = (documents?: DocumentStore) =>
-    buildApp({ tasks: tasksWith({ get: found }), documents });
-  const upload = (form: FormData) => ({ method: "POST", body: form });
-  const form = (f?: File) => {
-    const data = new FormData();
-    if (f) data.set("file", f);
-    return data;
-  };
+  const txt = new File(["hi"], "a.txt", { type: "text/plain" });
 
-  test("uploads a file and returns 201 with the summary", async () => {
-    const add = mock(async (_t: string, _f: File) => summary);
-    const res = await appWith(stub({ create: add })).request(
-      `/tasks/${taskId}/documents`,
-      upload(form(new File(["hi"], "a.txt"))),
+  test("lists, gets and deletes a document of the task", async () => {
+    expect(await call(appWith(), base)).toEqual({ status: 200, body: { documents: [doc] } });
+    expect((await call(appWith(), `${base}/${doc.documentId}`)).body).toMatchObject({
+      content: "hi",
+    });
+    const gone = await appWith().handle(
+      new Request(`http://localhost${base}/${doc.documentId}`, { method: "DELETE" }),
     );
-    expect(res.status).toBe(201);
-    expect(await res.json()).toEqual(summary);
-    expect(add.mock.calls[0]?.[1].name).toBe("a.txt");
+    expect(gone.status).toBe(204);
   });
 
-  test("maps upload failures", async () => {
-    const run = (err: Error) =>
-      appWith(
-        stub({
-          create: async () => {
-            throw err;
-          },
-        }),
-      ).request(`/tasks/${taskId}/documents`, upload(form(new File(["x"], "a.txt"))));
-    const missing = await appWith(stub()).request(`/tasks/${taskId}/documents`, upload(form()));
-    expect(missing.status).toBe(400);
-    expect(await missing.json()).toEqual({ error: "file_required" });
-    expect((await run(new DocumentTooLargeError())).status).toBe(413);
-    expect((await run(new ExtractionError("bad"))).status).toBe(422);
-    const failed = await run(new Error("secret"));
-    expect(failed.status).toBe(502);
-    expect(await failed.json()).toEqual({ error: "document_error" });
+  test("answers 404 document_not_found and 400 for a malformed document id", async () => {
+    const missing = `${base}/${"b".repeat(64)}`;
+    expect(await call(appWith(), missing)).toEqual({
+      status: 404,
+      body: { error: "document_not_found" },
+    });
+    expect((await call(appWith(), `${base}/not-a-hash`)).status).toBe(400);
   });
 
-  test("404 for an unknown task, 501 when unconfigured", async () => {
-    const other = crypto.randomUUID();
-    expect((await appWith(stub()).request(`/tasks/${other}/documents`)).status).toBe(404);
-    expect((await appWith().request(`/tasks/${taskId}/documents`)).status).toBe(501);
+  test("answers 404 task_not_found for an unknown task", async () => {
+    expect(await call(appWith(), "/tasks/00000000-0000-4000-8000-000000000000/documents")).toEqual({
+      status: 404,
+      body: { error: "task_not_found" },
+    });
   });
 
-  test("lists, gets and detaches documents", async () => {
-    const app = appWith(stub());
-    expect(await (await app.request(`/tasks/${taskId}/documents`)).json()).toEqual({
-      documents: [summary],
+  test("answers 501 not_supported on every route when the extract service is not configured, even for an unknown task", async () => {
+    const app = appWith({}, {}, null);
+    const unknown = "/tasks/00000000-0000-4000-8000-000000000000/documents";
+    for (const path of [base, unknown, `${base}/${doc.documentId}`])
+      expect(await call(app, path)).toEqual({ status: 501, body: { error: "not_supported" } });
+    expect((await call(app, base, upload(txt))).status).toBe(501);
+  });
+
+  test("POST creates a document from the multipart file", async () => {
+    const res = await call(appWith(), base, upload(txt));
+    expect(res).toEqual({ status: 201, body: doc });
+  });
+
+  test("POST without a file answers 400 file_required", async () => {
+    expect(await call(appWith(), base, upload())).toEqual({
+      status: 400,
+      body: { error: "file_required" },
+    });
+  });
+
+  test.each([
+    ["document_too_large", 413],
+    ["extraction_failed", 422],
+  ] as const)("POST maps %s to %i", async (status, code) => {
+    const app = appWith({}, {}, { create: async () => ({ status }) });
+    expect(await call(app, base, upload(txt))).toEqual({ status: code, body: { error: status } });
+  });
+
+  test("POST refuses an upload that declares more than 25 MiB with 413 file_too_large", async () => {
+    const res = await call(
+      appWith(),
+      base,
+      upload(txt, { "content-length": String(26 * 1024 * 1024) }),
+    );
+    expect(res).toEqual({ status: 413, body: { error: "file_too_large" } });
+  });
+
+  test("a failing documents dependency answers 502 with the short code", async () => {
+    const app = appWith(
+      {},
+      {},
+      { list: async () => Promise.reject(new DependencyError("document_error", new Error("x"))) },
+    );
+    expect(await call(app, base)).toEqual({ status: 502, body: { error: "document_error" } });
+  });
+});
+
+describe("POST /tasks/:taskId/run", () => {
+  const run = (taskId: string, body?: BodyInit, contentType = "application/json") =>
+    call(appWith(), `/tasks/${taskId}/run`, {
+      method: "POST",
+      headers: body === undefined ? {} : { "content-type": contentType },
+      body,
+    });
+
+  test("starts a run without a body and answers 202 with the operation", async () => {
+    expect(await run(task.taskId)).toEqual({ status: 202, body: { operation: "op-1" } });
+  });
+
+  test("a body that is not JSON is a plain run", async () => {
+    expect((await run(task.taskId, "not json {")).status).toBe(202);
+  });
+
+  test("a resume passes the session id and the trimmed message to the service", async () => {
+    let seen: unknown;
+    const app = appWith({
+      run: async (_id, resume) => ((seen = resume), { status: "started", operation: "op-2" }),
+    });
+    const res = await call(
+      app,
+      `/tasks/${task.taskId.toUpperCase()}/run`,
+      json({ sessionId: "s1", message: "  answer  " }),
+    );
+    expect(res).toEqual({ status: 202, body: { operation: "op-2" } });
+    expect(seen).toEqual({ sessionId: "s1", message: "answer" });
+  });
+
+  test.each([
+    ["a blank message", { sessionId: "s1", message: "  " }],
+    ["a missing message", { sessionId: "s1" }],
+    ["an empty session id", { sessionId: "", message: "m" }],
+  ])("a resume with %s is 400 invalid_resume and starts nothing", async (_name, body) => {
+    let started = false;
+    const app = appWith({
+      run: async () => ((started = true), { status: "started", operation: "x" }),
+    });
+    const res = await call(app, `/tasks/${task.taskId}/run`, json(body));
+    expect(res).toEqual({ status: 400, body: { success: false, error: "invalid_resume" } });
+    expect(started).toBe(false);
+  });
+
+  test.each([
+    ["task_not_found", 404],
+    ["session_not_found", 404],
+    ["task_not_executable", 409],
+    ["run_in_progress", 409],
+    ["message_pending", 409],
+  ] as const)("maps the status %s to %i", async (status, code) => {
+    const app = appWith({ run: async () => ({ status }) });
+    expect(await call(app, `/tasks/${task.taskId}/run`, { method: "POST" })).toEqual({
+      status: code,
+      body: { error: status },
+    });
+  });
+
+  test("rejects a malformed task id with 400", async () => {
+    expect((await run("not-a-uuid")).status).toBe(400);
+  });
+});
+
+describe("session stats and messages", () => {
+  const base = `/tasks/${task.taskId}/sessions`;
+
+  test("GET stats answers with the totals, or 404 session_not_found", async () => {
+    expect((await call(appWith(), `${base}/s1/stats`)).body).toMatchObject({
+      events: 0,
+      llmCalls: 0,
+    });
+    expect(await call(appWith(), `${base}/nope/stats`)).toEqual({
+      status: 404,
+      body: { error: "session_not_found" },
+    });
+  });
+
+  test("GET messages streams the events as Server-Sent Events, with a keepalive event when idle", async () => {
+    const res = await appWith().handle(new Request(`http://localhost${base}/s1/messages`));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toBe('id: e1\ndata: {"id":"e1"}\n\nevent: keepalive\ndata: \n\n');
+  });
+
+  test("GET messages answers 404 session_not_found, and 404 task_not_found for an unknown task", async () => {
+    expect(await call(appWith(), `${base}/nope/messages`)).toEqual({
+      status: 404,
+      body: { error: "session_not_found" },
     });
     expect(
-      (await (await app.request(`/tasks/${taskId}/documents/${documentId}`)).json()).content,
-    ).toBe("hi");
-    const del = await app.request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
-    expect(del.status).toBe(204);
-    const gone = await appWith(
-      stub({ delete: async () => false, get: async () => undefined }),
-    ).request(`/tasks/${taskId}/documents/${documentId}`, { method: "DELETE" });
-    expect(gone.status).toBe(404);
-    expect((await app.request(`/tasks/${taskId}/documents/nope`)).status).toBe(400);
+      await call(appWith(), "/tasks/00000000-0000-4000-8000-000000000000/sessions/s1/messages"),
+    ).toEqual({ status: 404, body: { error: "task_not_found" } });
   });
 
-  test("deleting a task releases its documents", async () => {
-    const release = mock(async (_ids: string[]) => {});
-    const withDocs = async (id: string) =>
-      id === taskId ? { taskId, prompt: "p", documents: [{ documentId }] } : undefined;
-    const app = buildApp({
-      tasks: tasksWith({ get: withDocs }),
-      documents: stub({ release }),
+  test("a client that disconnects aborts the feed", async () => {
+    let aborted = false;
+    const app = appWith(
+      {},
+      {
+        messages: async (_t, _s, { signal }) => {
+          signal.addEventListener("abort", () => (aborted = true), { once: true });
+          return {
+            status: "ok",
+            entries: (async function* () {
+              yield { id: "e1", data: "x" };
+              await new Promise(() => {});
+            })(),
+          };
+        },
+      },
+    );
+    const client = new AbortController();
+    const res = await app.handle(
+      new Request(`http://localhost${base}/s1/messages`, { signal: client.signal }),
+    );
+    await res.body!.getReader().read();
+    client.abort();
+    expect(aborted).toBe(true);
+  });
+});
+
+describe("jobs and agents", () => {
+  test("GET /jobs lists the jobs", async () => {
+    expect(await call(appWith(), "/jobs")).toEqual({
+      status: 200,
+      body: { jobs: [{ name: "projects/p/locations/l/jobs/poet-agents" }] },
     });
-    expect((await app.request(`/tasks/${taskId}`, { method: "DELETE" })).status).toBe(204);
-    expect(release).toHaveBeenCalledWith([documentId]);
+  });
+
+  test("GET /jobs/:jobName/agents lists the registered agents", async () => {
+    expect(await call(appWith(), "/jobs/poet-agents/agents")).toEqual({
+      status: 200,
+      body: { agents: [{ name: "haiku" }] },
+    });
+  });
+
+  test("GET an agent card, or 404 agent_not_found", async () => {
+    expect((await call(appWith(), "/jobs/poet-agents/agents/haiku/card")).body).toMatchObject({
+      name: "haiku",
+    });
+    expect(await call(appWith(), "/jobs/poet-agents/agents/ghost/card")).toEqual({
+      status: 404,
+      body: { error: "agent_not_found" },
+    });
+  });
+
+  test("POST register answers 202 with the operation", async () => {
+    expect(await call(appWith(), "/jobs/poet-agents/register", { method: "POST" })).toEqual({
+      status: 202,
+      body: { operation: "operations/op-1" },
+    });
+  });
+
+  test.each([["/jobs/Bad_Name/agents"], ["/jobs/poet-agents/agents/1bad/card"]])(
+    "rejects an invalid name in %s with 400",
+    async (path) => {
+      expect((await call(appWith(), path)).status).toBe(400);
+    },
+  );
+
+  test("a failing job or registry call answers 502 with the short code", async () => {
+    const jobs = appWith(
+      {},
+      {},
+      {},
+      {
+        agents: {
+          listJobs: async () => Promise.reject(new DependencyError("job_error", new Error("x"))),
+        },
+      },
+    );
+    expect(await call(jobs, "/jobs")).toEqual({ status: 502, body: { error: "job_error" } });
+    const agents = appWith(
+      {},
+      {},
+      {},
+      {
+        agents: {
+          listAgents: async () =>
+            Promise.reject(new DependencyError("agents_error", new Error("x"))),
+        },
+      },
+    );
+    expect(await call(agents, "/jobs/poet-agents/agents")).toEqual({
+      status: 502,
+      body: { error: "agents_error" },
+    });
+  });
+});
+
+describe("GET /events", () => {
+  const eventsService = (): EventsService => ({
+    stream: async () =>
+      (async function* () {
+        yield { id: "e1", data: '{"type":"task.created"}' };
+        yield "idle" as const;
+      })(),
+  });
+
+  test("answers 501 not_supported without a platform event stream", async () => {
+    expect(await call(appWith(), "/events")).toEqual({
+      status: 501,
+      body: { error: "not_supported" },
+    });
+  });
+
+  test("streams the platform events as Server-Sent Events", async () => {
+    const res = await appWith({}, {}, {}, { events: eventsService() }).handle(
+      new Request("http://localhost/events"),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toBe(
+      'id: e1\ndata: {"type":"task.created"}\n\nevent: keepalive\ndata: \n\n',
+    );
+  });
+
+  test("a client that disconnects aborts the feed", async () => {
+    let aborted = false;
+    const events: EventsService = {
+      stream: async ({ signal }) => {
+        signal.addEventListener("abort", () => (aborted = true), { once: true });
+        return (async function* () {
+          yield { id: "e1", data: "x" };
+          await new Promise(() => {});
+        })();
+      },
+    };
+    const client = new AbortController();
+    const res = await appWith({}, {}, {}, { events }).handle(
+      new Request("http://localhost/events", { signal: client.signal }),
+    );
+    await res.body!.getReader().read();
+    client.abort();
+    expect(aborted).toBe(true);
   });
 });

@@ -5,10 +5,10 @@ The HTTP API of Stage: a [Hono](https://hono.dev) app on Bun that stores tasks, 
 ## Run it
 
 ```bash
-bun run dev:service      # from the repository root: http://localhost:3000, reloads on change
+bun run dev:service-deprecated      # from the repository root: http://localhost:3001, reloads on change
 bun run --filter @stage/service start
 bun run typecheck        # the whole repo; or: bun --filter @stage/service typecheck
-bun test apps/service    # the service tests
+bun test apps/service-deprecated    # the service tests
 ```
 
 The scripts load the repository-root `.env`. Point the service at the local emulator (Floci) with `FIRESTORE_EMULATOR_HOST=localhost:4588`, `CLOUD_RUN_EMULATOR_HOST=localhost:4588` and `PUBSUB_EMULATOR_HOST=localhost:4588`. Without them it uses the real Google Cloud APIs and Application Default Credentials.
@@ -18,7 +18,7 @@ The scripts load the repository-root `.env`. Point the service at the local emul
 | Variable                    | Required | Meaning                                                                                          |
 | --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
 | `GCP_PROJECT`, `GCP_REGION` | yes      | The project and region whose Cloud Run Jobs are used. The service fails at startup without them. |
-| `PORT`                      | no       | Listen port, default `3000`.                                                                     |
+| `PORT`                      | no       | Listen port, default `3001` (`apps/service` has `3000`).                                         |
 | `FIRESTORE_EMULATOR_HOST`   | no       | Use the Firestore emulator.                                                                      |
 | `CLOUD_RUN_EMULATOR_HOST`   | no       | Use the Cloud Run emulator (REST, no credentials), as `host:port`.                               |
 | `PUBSUB_TOPIC`              | no       | Topic the agents publish their events to. Makes `/tasks/:id/sessions/:id/messages` live.         |
@@ -69,8 +69,8 @@ Expected outcomes (not found, conflict, too large) are returned where they happe
 ## Tests
 
 ```bash
-bun test apps/service
-FIRESTORE_EMULATOR_HOST=localhost:4588 GOOGLE_CLOUD_PROJECT=floci-local bun test apps/service/src/stores
+bun test apps/service-deprecated
+FIRESTORE_EMULATOR_HOST=localhost:4588 GOOGLE_CLOUD_PROJECT=floci-local bun test apps/service-deprecated/src/stores
 ```
 
 Most tests use fakes. The store tests that talk to Firestore run only when `FIRESTORE_EMULATOR_HOST` is set (start the emulator with `docker compose up -d`) and are skipped otherwise.

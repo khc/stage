@@ -19,7 +19,7 @@ const Env = TypeCompiler.Compile(
 );
 
 // TypeBox does not apply schema defaults on decode, so they are merged in first.
-const defaults = { PORT: "3001", HOST: "127.0.0.1" };
+const defaults = { PORT: "3000", HOST: "127.0.0.1" };
 
 export const loadConfig = (env: Record<string, string | undefined>) =>
   Env.Decode({

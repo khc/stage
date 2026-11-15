@@ -5,8 +5,8 @@ import { loadConfig } from "./config";
 const gcp = { GCP_PROJECT: "floci-local", GCP_REGION: "us-central1" };
 
 describe("loadConfig", () => {
-  test("defaults to loopback on port 3001, and EXTRACT_URL is optional", () => {
-    expect(loadConfig(gcp)).toEqual({ ...gcp, PORT: 3001, HOST: "127.0.0.1" });
+  test("defaults to loopback on port 3000, and EXTRACT_URL is optional", () => {
+    expect(loadConfig(gcp)).toEqual({ ...gcp, PORT: 3000, HOST: "127.0.0.1" });
   });
 
   test("treats undefined values as missing", () => {
@@ -20,7 +20,7 @@ describe("loadConfig", () => {
       }),
     ).toEqual({
       ...gcp,
-      PORT: 3001,
+      PORT: 3000,
       HOST: "127.0.0.1",
     });
   });

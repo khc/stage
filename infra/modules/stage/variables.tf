@@ -71,3 +71,25 @@ variable "deletion_protection" {
   type    = bool
   default = true
 }
+
+variable "deploy_service" {
+  type        = bool
+  default     = false
+  description = "Deploy the Elysia HTTP service (apps/service) as a Cloud Run service."
+}
+
+variable "service_service_account" {
+  type    = string
+  default = null
+}
+
+variable "service_ingress" {
+  type    = string
+  default = null
+}
+
+variable "service_extra_env" {
+  type        = map(string)
+  default     = {}
+  description = "Environment for service beyond what the module derives, e.g. the emulator hosts in envs/local."
+}

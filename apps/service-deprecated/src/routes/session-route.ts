@@ -4,9 +4,9 @@ import { Hono } from "hono";
 import { guard } from "../errors";
 import { sessionParamSchema, taskParamSchema } from "../schemas";
 import type { SessionService } from "../services/session-service";
-import { sessionStats } from "../utils/session-stats";
 import type { SessionStore } from "../stores/session-store";
 import type { TaskStore } from "../stores/task-store";
+import { sessionStats } from "../utils/session-stats";
 import { KEEPALIVE_MS, sseResponse } from "./shared";
 
 // Mounted under /tasks: the sessions of a task, their stats and the live message stream.

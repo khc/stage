@@ -1,50 +1,88 @@
-import { Firestore } from "@google-cloud/firestore";
-import { PubSub } from "@google-cloud/pubsub";
 import { createAgentRegistry } from "@stage/agents/agent-registry";
-import { z } from "zod";
+import { Elysia } from "elysia";
 
-import { createApp } from "./app";
-import { createCloudRunJobs } from "./platform/cloud-run-jobs";
-import { createJobsClient } from "./platform/cloud-run-jobs-client";
-import { platformEventsFromEnv } from "./platform/platform-event-publisher";
+import { createApp, type AppDeps } from "./app";
+import { loadConfig } from "./config";
+import { createAgentsService } from "./modules/agents/agents-service";
+import { createEventsService } from "./modules/events/events-service";
+import { createHealthService } from "./modules/health/health-service";
+import { MAX_UPLOAD_BYTES } from "./modules/tasks/documents/documents-model";
+import { createDocumentsService } from "./modules/tasks/documents/documents-service";
+import { createDocumentsStore } from "./modules/tasks/documents/documents-store";
+import { createSessionsService } from "./modules/tasks/sessions/sessions-service";
+import { createSessionsStore } from "./modules/tasks/sessions/sessions-store";
+import { createTasksService } from "./modules/tasks/tasks-service";
+import { createTasksStore } from "./modules/tasks/tasks-store";
+import { createCloudRunJobs, createJobsClient } from "./platform/cloud-run-jobs-client";
+import { createExtractClient } from "./platform/extract-client";
+import { createFirestoreClient } from "./platform/firestore-client";
+import { createPlatformEvents } from "./platform/platform-event-publisher";
 import { createPlatformEventStream } from "./platform/platform-event-stream";
+import { createPubSubClient } from "./platform/pubsub-client";
 import { createSessionEventStream } from "./platform/session-event-stream";
-import { createExtractDocument, createDocumentStore } from "./stores/document-store";
-import { createSessionStore } from "./stores/session-store";
-import { createTaskStore } from "./stores/task-store";
 
-const env = z
-  .object({ GCP_PROJECT: z.string().min(1), GCP_REGION: z.string().min(1) })
-  .parse(process.env);
+const config = loadConfig(process.env);
+const firestore = createFirestoreClient();
+// Created only when a topic is configured, so a service nobody streams from never touches Pub/Sub.
+const pubsub =
+  config.PUBSUB_TOPIC || config.PLATFORM_EVENTS_TOPIC ? createPubSubClient() : undefined;
+const platformEvents =
+  pubsub && config.PLATFORM_EVENTS_TOPIC
+    ? createPlatformEvents(pubsub, config.PLATFORM_EVENTS_TOPIC)
+    : undefined;
+// Each wrapped operation publishes one platform event after it succeeds.
+const published = <T>(wrap: ((value: T) => T) | undefined, value: T) =>
+  wrap ? wrap(value) : value;
 
-const client = createJobsClient(process.env);
-const config = {
-  project: env.GCP_PROJECT,
-  location: env.GCP_REGION,
-};
-const platform = platformEventsFromEnv(process.env);
-const published = <T>(wrap: ((fn: T) => T) | undefined, fn: T) => (wrap ? wrap(fn) : fn);
-
-const db = new Firestore();
-const taskDocuments = process.env.EXTRACT_URL
-  ? createDocumentStore(db, createExtractDocument(process.env.EXTRACT_URL))
+const tasksStore = published(platformEvents?.tasksStore, createTasksStore(firestore));
+const sessionsStore = createSessionsStore(firestore);
+const documentsStore = config.EXTRACT_URL
+  ? published(
+      platformEvents?.documentsStore,
+      createDocumentsStore({ firestore, extractClient: createExtractClient(config.EXTRACT_URL) }),
+    )
   : undefined;
-const app = createApp({
-  jobs: published(platform?.jobs, createCloudRunJobs(client, config)),
-  tasks: published(platform?.tasks, createTaskStore(db)),
-  sessions: createSessionStore(db),
-  documents: taskDocuments && published(platform?.documents, taskDocuments),
-  registry: createAgentRegistry(db),
-  sessionEventStream: process.env.PUBSUB_TOPIC
-    ? createSessionEventStream(new PubSub(), process.env.PUBSUB_TOPIC)
-    : undefined,
-  platformEventStream: process.env.PLATFORM_EVENTS_TOPIC
-    ? createPlatformEventStream(new PubSub(), process.env.PLATFORM_EVENTS_TOPIC)
-    : undefined,
-});
+const agentRegistry = createAgentRegistry(firestore);
+const cloudRunJobs = published(
+  platformEvents?.cloudRunJobs,
+  createCloudRunJobs(createJobsClient(process.env), {
+    project: config.GCP_PROJECT,
+    location: config.GCP_REGION,
+  }),
+);
 
-export default {
-  port: Number(process.env.PORT ?? 3000),
-  development: process.env.NODE_ENV !== "production",
-  fetch: app.fetch,
+const appDeps: AppDeps = {
+  healthService: createHealthService(),
+  tasksService: createTasksService({
+    tasksStore,
+    agentRegistry,
+    cloudRunJobs,
+    sessionsStore,
+    documentsStore,
+  }),
+  sessionsService: createSessionsService({
+    sessionsStore,
+    sessionEventStream:
+      pubsub && config.PUBSUB_TOPIC
+        ? createSessionEventStream(pubsub, config.PUBSUB_TOPIC)
+        : undefined,
+  }),
+  documentsService: documentsStore && createDocumentsService({ documentsStore }),
+  agentsService: createAgentsService({ cloudRunJobs, agentRegistry }),
+  eventsService:
+    pubsub && config.PLATFORM_EVENTS_TOPIC
+      ? createEventsService({
+          platformEventStream: createPlatformEventStream(pubsub, config.PLATFORM_EVENTS_TOPIC),
+        })
+      : undefined,
 };
+
+// Server options go in the constructor, as the Elysia docs show. Bun refuses a body over the
+// cap before it is read; the documents route answers a declared oversize with a 413 JSON body.
+const app = new Elysia({
+  serve: { hostname: config.HOST, maxRequestBodySize: MAX_UPLOAD_BYTES + 1024 * 1024 },
+})
+  .use(createApp(appDeps))
+  .listen(config.PORT);
+
+console.log(`Started server: http://${app.server?.hostname}:${app.server?.port}`);

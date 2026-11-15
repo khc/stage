@@ -32,9 +32,15 @@ tasks:
       - docker image prune -f
 
   build:service:
-    desc: Build the HTTP service image (stage-service:latest)
+    desc: Build the Elysia HTTP service image (stage-service:latest)
     cmds:
       - docker build -f Dockerfile.service -t stage-service:latest .
+      - docker image prune -f
+
+  build:service-deprecated:
+    desc: Build the old Hono HTTP service image (stage-service-deprecated:latest)
+    cmds:
+      - docker build -f Dockerfile.service-deprecated -t stage-service-deprecated:latest .
       - docker image prune -f
 
   build:ui:

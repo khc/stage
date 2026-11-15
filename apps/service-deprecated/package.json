@@ -1,5 +1,5 @@
 {
-  "name": "@stage/service2",
+  "name": "@stage/service-deprecated",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,14 +13,15 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@elysiajs/openapi": "^1.4.17",
     "@google-cloud/firestore": "^9.4.1",
     "@google-cloud/pubsub": "^6.4.1",
     "@google-cloud/run": "^4.2.0",
     "@google/adk": "^2.5.0",
-    "@sinclair/typebox": "^0.34.52",
+    "@hono/zod-validator": "^0.9.1",
+    "@scalar/hono-api-reference": "^0.12.20",
     "@stage/agents": "workspace:*",
-    "elysia": "^1.4.32"
+    "hono": "^4.13.18",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4"

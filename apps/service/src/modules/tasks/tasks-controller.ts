@@ -88,7 +88,7 @@ export const tasksController = ({
       {
         params: TasksModel.params,
         // Elysia would answer 400 to a body that is not JSON; here it is a plain run, as in
-        // apps/service, so the handler reads the body itself.
+        // apps/service-deprecated, so the handler reads the body itself.
         parse: "none",
         ...doc(tag, "Run a task, or resume one of its sessions", {
           202: {

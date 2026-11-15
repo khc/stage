@@ -1,11 +1,13 @@
-# service2 plan
+# service plan
 
-An Elysia rebuild of the HTTP service (`apps/service`), laid out by feature and driven by the platform's shape, not by the Hono code. `apps/service` stays the reference and keeps running until service2 reaches parity.
+The Elysia HTTP service, a rebuild of the old Hono service (`apps/service-deprecated`), laid out by feature and driven by the platform's shape, not by the Hono code. `apps/service-deprecated` stays the reference and keeps running until this service reaches parity.
+
+Naming: this app was `apps/service2` until the Hono app moved to `apps/service-deprecated`; `infra/` was renamed with it (the Cloud Run service `service`, `deploy_service`, the image `stage-service`). Ports: this service listens on `127.0.0.1:3000` and the deprecated one on `127.0.0.1:3001`.
 
 ## Goal
 
-- Same API as `apps/service`: same routes, status codes and error codes (`task_not_found`, `run_in_progress`, ...), so `apps/ui` and the agent jobs work unchanged.
-- Less code to maintain: schemas written once (`packages/contracts`), OpenAPI generated from the routes, UI types from the routes (Eden) instead of hand-written ones.
+- Same API as `apps/service-deprecated`: same routes, status codes and error codes (`task_not_found`, `run_in_progress`, ...), so `apps/ui` and the agent jobs work unchanged.
+- Less code to maintain: schemas written once, in each module's model; OpenAPI generated from the routes; UI types from the routes (Eden) instead of hand-written ones.
 - Decide with evidence whether Elysia replaces Hono. Phase 0 and the parity phase produce that evidence; this plan does not assume the answer.
 
 ## Platform facts that shape the design
@@ -19,7 +21,7 @@ An Elysia rebuild of the HTTP service (`apps/service`), laid out by feature and 
 ## Layout
 
 ```
-apps/service2/src/
+apps/service/src/
   index.ts  app.ts  config.ts
   http/        errors.ts  request-id.ts  telemetry.ts       # cross-cutting plugins
   platform/    firestore-client.ts  cloud-run-jobs-client.ts  pubsub-client.ts  extract-client.ts
@@ -28,7 +30,6 @@ apps/service2/src/
       sessions/    sessions-controller.ts  sessions-service.ts  sessions-model.ts  sessions-store.ts
       documents/   documents-controller.ts  documents-service.ts  documents-model.ts  documents-store.ts
     agents/  events/  health/        # <module>-controller.ts  <module>-service.ts  <module>-model.ts each
-packages/contracts/src/  task.ts  session.ts  event.ts  agent-spec.ts
 ```
 
 Rules:
@@ -48,13 +49,13 @@ Rules:
 
 ## Open decisions (settle in Phase 0)
 
-| #   | Question                                                                                                                                                                                                                                                                                        | How to settle it                                                                                                                                                                                                           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | **Settled, see Spike results.** Can the tasks controller resolve `:taskId` once for the nested sessions and documents plugins, so children need no task store or 404 check? The Elysia pages read say plugins do not inherit lifecycle hooks by default and `guard` does not support `resolve`. | Spike: a named `task.guard` plugin with `.resolve({ as: "scoped" }, ...)` that each child `.use()`s; test the 404 with `app.handle(new Request(...))`. Fallback: inject an `exists(taskId)` call from the tasks service.   |
-| D2  | How do `packages/contracts` (Zod, shared with the jobs and UI) and each `<module>-model.ts` (Elysia's guide uses TypeBox) split the work?                                                                                                                                                       | Rule to test: contracts own the wire schemas; `model.ts` only composes route params and bodies. Check OpenAPI output and coercion for one route; use namespaced model names (`tasks.sessions.*`) because duplicates throw. |
-| D3  | **Settled: reuse.** Does `tasks/sessions` keep its own store or reuse the session logic in `packages/agents` that the jobs use (leases, `runId` fencing)?                                                                                                                                       | Compare `session-store` in `apps/service` with `packages/agents/src/session-service.ts`; prefer importing the shared code over duplicating lease logic.                                                                    |
-| D4  | **Settled, yes.** Does a dynamic prefix (`/:taskId/sessions`) work in nested plugins?                                                                                                                                                                                                           | Part of the D1 spike.                                                                                                                                                                                                      |
-| D5  | DI container?                                                                                                                                                                                                                                                                                   | No. Revisit only if the wiring in `index.ts` outgrows one screen or request-scoped instances are needed (try `derive`/`resolve` first).                                                                                    |
+| #   | Question                                                                                                                                                                                                                                                                                        | How to settle it                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Settled, see Spike results.** Can the tasks controller resolve `:taskId` once for the nested sessions and documents plugins, so children need no task store or 404 check? The Elysia pages read say plugins do not inherit lifecycle hooks by default and `guard` does not support `resolve`. | Spike: a named `task.guard` plugin with `.resolve({ as: "scoped" }, ...)` that each child `.use()`s; test the 404 with `app.handle(new Request(...))`. Fallback: inject an `exists(taskId)` call from the tasks service.                                                               |
+| D2  | **Settled: no `packages/contracts`.** How do shared schemas and each `<module>-model.ts` split the work?                                                                                                                                                                                        | Each module's `<module>-model.ts` (TypeBox) is the one place for its schemas; OpenAPI is generated from the routes, and the UI gets its types from them through Eden. The jobs' side of the contract (task and session documents) stays in `@stage/agents`, which the service imports. |
+| D3  | **Settled: reuse.** Does `tasks/sessions` keep its own store or reuse the session logic in `packages/agents` that the jobs use (leases, `runId` fencing)?                                                                                                                                       | Compare `session-store` in `apps/service-deprecated` with `packages/agents/src/session-service.ts`; prefer importing the shared code over duplicating lease logic.                                                                                                                     |
+| D4  | **Settled, yes.** Does a dynamic prefix (`/:taskId/sessions`) work in nested plugins?                                                                                                                                                                                                           | Part of the D1 spike.                                                                                                                                                                                                                                                                  |
+| D5  | DI container?                                                                                                                                                                                                                                                                                   | No. Revisit only if the wiring in `index.ts` outgrows one screen or request-scoped instances are needed (try `derive`/`resolve` first).                                                                                                                                                |
 
 ## Spike results
 
@@ -92,31 +93,41 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 - `agents` (`/jobs`): list jobs, a job's registered agents, an agent's card, and register. The register route was not run (it executes the job image).
 - `events` (`/events`): platform events as SSE, published when tasks, documents and jobs change; 501 without `PLATFORM_EVENTS_TOPIC`. Ran against Floci: a created and a deleted task showed up in the stream.
 
-- `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as `apps/service`; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
+- `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as `apps/service-deprecated`; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
 
-Still to do: the D2 decision (below), Eden in `apps/ui` (Phase 3), then Phases 4 and 5.
+Eden spike (`apps/ui`, reverted afterwards, nothing left in the UI): `treaty<App>` with `App` from `@stage/service/app` typed every call, with no hand-written types. For example `tasks.get().data` is `{ tasks: TaskContract[] } | null`, `jobs.get().data` is `{ jobs: IJob[] }`, `run.post().data` is `{ operation: string }`, and the `messages` stream is an `AsyncGenerator` of the `sse` payloads. Findings:
 
-Documentation size: about 250 lines in `service2` (the `doc(...)` blocks, `http/openapi.ts` and the response shapes in the models) against the 540 of the hand-written `apps/service/src/openapi.ts`. The request side (params and bodies) comes from the models for free.
+- The UI type-checks the service sources with its own flags, and `erasableSyntaxOnly` rejects three parameter properties: `service/src/utils/event-feed.ts` and two in `packages/agents/src/session-service.ts` (the `FirestoreSessionService` constructor). Those would have to become plain fields, or the UI would consume emitted `.d.ts` files instead.
+- Eden's types say a validation failure is `422`, while the error handler answers 400 `invalid_request`. The documented types and the runtime disagree until that mapping is declared on the routes.
+- Rough saving in `apps/ui/src/lib/api.ts` (450 lines): the server-shape types (`Task`, `DocumentSummary`, `Job`, `SessionSummary`, `SessionStats`, `AgentInfo`, `Session`, about 80 lines) and the `api` object with `request` (about 60 lines) would shrink to a small error-mapping helper. That is an estimate, not a migration.
 
-Known differences from `apps/service`, to settle in the parity run (Phase 5):
+Packaging (Phase 4): `Dockerfile.service` (distroless Bun base, per-workspace production install, non-root UID, `HOST=0.0.0.0`, 221 MB) and `task build:service`. The container ran against Floci: `/health`, `/docs`, `/openapi.json` (15 paths), the Cloud Run job list, creating, reading and deleting a task in Firestore, and the 501 answers without `EXTRACT_URL` and `PLATFORM_EVENTS_TOPIC`.
+
+Terraform: `infra/modules/stage` has an optional `service` Cloud Run service (`deploy_service`, default off), which `infra/envs/local` turns on with the emulator hosts. `terraform validate` passes and `terraform plan` against Floci shows one resource to add and nothing else changing. It has not been applied. `envs/gcp` leaves it off until the service account and IAM are decided (Firestore, Pub/Sub, running the agent jobs with overrides, invoking extract).
+
+Still to do: apply it to Floci and check the service there, the GCP service account and IAM, then the parity run (Phase 5).
+
+Documentation size: about 250 lines in `service` (the `doc(...)` blocks, `http/openapi.ts` and the response shapes in the models) against the 540 of the hand-written `apps/service-deprecated/src/openapi.ts`. The request side (params and bodies) comes from the models for free.
+
+Known differences from `apps/service-deprecated`, to settle in the parity run (Phase 5):
 
 - Validation errors answer 400 `{ error: "invalid_request", details }` (Elysia's 422 is remapped; `details` exposes schema internals). A bad resume answers 400 `{ success: false, error: "invalid_resume" }` without the Zod error object, and is checked before the task lookup, so an invalid resume for an unknown task answers 400 and not 404.
 - A prompt is trimmed in the controller, so the 10,000-character limit applies before trimming.
 - Unknown routes answer `{ error: "not_found" }`.
-- The `messages` stream keepalive is a named `event: keepalive` event, not the `: keepalive` comment line of `apps/service`, because Elysia's `sse` helper (id, event, retry, data) has no comments. A browser `EventSource` listening for `message` events never sees it.
+- The `messages` stream keepalive is a named `event: keepalive` event, not the `: keepalive` comment line of `apps/service-deprecated`, because Elysia's `sse` helper (id, event, retry, data) has no comments. A browser `EventSource` listening for `message` events never sees it.
 
 ## Phases
 
-**Phase 0: spikes.** Settle D1 to D4 with throwaway code in `service2`. Output: a short note per decision here. Stop and reassess if D1 and D2 both fail.
+**Phase 0: spikes.** Settle D1 to D4 with throwaway code in `service`. Output: a short note per decision here. Stop and reassess if D1 and D2 both fail.
 
 **Phase 1: skeleton.**
 
-- `package.json`, `tsconfig`, workspace entry for `apps/service2` and `packages/contracts`.
-- `config.ts`: one validated environment schema (same variables as `apps/service`).
+- `package.json`, `tsconfig` and the workspace entry for `apps/service`.
+- `config.ts`: one validated environment schema (same variables as `apps/service-deprecated`).
 - `platform/` clients, `http/errors.ts`, `http/request-id.ts`, `http/telemetry.ts`, the `health` module, `index.ts` and `app.ts`.
 - Test: `app.handle` on `/health` and an error-mapping case.
 
-**Phase 2: modules, one at a time, each with tests ported from `apps/service`.**
+**Phase 2: modules, one at a time, each with tests ported from `apps/service-deprecated`.**
 
 1. `tasks` (create, list, get, delete, run) with `tasks-store.ts`.
 2. `tasks/documents` (needs `extract-client`).
@@ -126,26 +137,26 @@ Known differences from `apps/service`, to settle in the parity run (Phase 5):
 
 **Phase 3: contracts and docs.**
 
-- Move shared schemas into `packages/contracts`; generate OpenAPI; serve Scalar and `/openapi.json`.
+- Generate OpenAPI and serve Scalar and `/openapi.json` (done).
 - Export the app type; spike Eden in `apps/ui` on one call, then count the lines removed from `apps/ui/src/lib/api.ts`.
 
 **Phase 4: packaging.**
 
-- `Dockerfile.service2` (distroless Bun base like `Dockerfile.service`), `task build:service2`.
+- `Dockerfile.service` (distroless Bun base like `Dockerfile.service`), `task build:service`.
 - Terraform: Cloud Run service, service account, IAM, `EXTRACT_URL` from the extract output, in `infra/modules/stage`.
 
 **Phase 5: parity and decision.**
 
 - Run the same requests against both services and diff status codes and bodies (including the 501 paths when `EXTRACT_URL` or the topic is unset).
 - Compare line counts: routes, `openapi.ts` against generated OpenAPI, `api.ts` against Eden.
-- Decide: cut over (point `SERVICE_URL` and the UI proxy at service2, retire `apps/service`) or stop and keep Hono.
+- Decide: cut over (point `SERVICE_URL` and the UI proxy at service, retire `apps/service-deprecated`) or stop and keep Hono.
 
 ## Risks
 
 - Elysia's Zod and OpenAPI support is uncertain (Standard Schema is accepted; OpenAPI from Zod needs a converter and coercion differs from TypeBox). D2 covers it.
 - Elysia is Bun-first, so adopting it closes the Deno option.
 - Nested plugin behaviour (D1, D4) is not covered by the docs read; the nested layout depends on it.
-- Two services to keep in sync while both exist; limit changes to `apps/service` during the rebuild.
+- Two services to keep in sync while both exist; limit changes to `apps/service-deprecated` during the rebuild.
 
 ## Not in scope
 

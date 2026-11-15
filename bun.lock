@@ -55,6 +55,23 @@
       "name": "@stage/service",
       "version": "0.1.0",
       "dependencies": {
+        "@elysiajs/openapi": "^1.4.17",
+        "@google-cloud/firestore": "^9.4.1",
+        "@google-cloud/pubsub": "^6.4.1",
+        "@google-cloud/run": "^4.2.0",
+        "@google/adk": "^2.5.0",
+        "@sinclair/typebox": "^0.34.52",
+        "@stage/agents": "workspace:*",
+        "elysia": "^1.4.32",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
+    "apps/service-deprecated": {
+      "name": "@stage/service-deprecated",
+      "version": "0.1.0",
+      "dependencies": {
         "@google-cloud/firestore": "^9.4.1",
         "@google-cloud/pubsub": "^6.4.1",
         "@google-cloud/run": "^4.2.0",
@@ -64,23 +81,6 @@
         "@stage/agents": "workspace:*",
         "hono": "^4.13.18",
         "zod": "^4.6.7",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.4.4",
-      },
-    },
-    "apps/service2": {
-      "name": "@stage/service2",
-      "version": "0.1.0",
-      "dependencies": {
-        "@elysiajs/openapi": "^1.4.17",
-        "@google-cloud/firestore": "^9.4.1",
-        "@google-cloud/pubsub": "^6.4.1",
-        "@google-cloud/run": "^4.2.0",
-        "@google/adk": "^2.5.0",
-        "@sinclair/typebox": "^0.34.52",
-        "@stage/agents": "workspace:*",
-        "elysia": "^1.4.32",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
@@ -495,7 +495,7 @@
 
     "@stage/service": ["@stage/service@workspace:apps/service"],
 
-    "@stage/service2": ["@stage/service2@workspace:apps/service2"],
+    "@stage/service-deprecated": ["@stage/service-deprecated@workspace:apps/service-deprecated"],
 
     "@stage/ui": ["@stage/ui@workspace:apps/ui"],
 

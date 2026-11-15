@@ -10,6 +10,18 @@ locals {
     var.agent_model == null ? {} : { AGENT_MODEL = var.agent_model },
     var.use_vertexai == null ? {} : { GOOGLE_GENAI_USE_VERTEXAI = var.use_vertexai },
   )
+
+  service_env = merge(
+    {
+      GCP_PROJECT           = var.project
+      GCP_REGION            = var.region
+      GOOGLE_CLOUD_PROJECT  = var.project
+      EXTRACT_URL           = google_cloud_run_v2_service.extract.uri
+      PUBSUB_TOPIC          = var.agent_events_topic
+      PLATFORM_EVENTS_TOPIC = var.platform_events_topic
+    },
+    var.service_extra_env,
+  )
 }
 
 resource "google_pubsub_topic" "events" {
@@ -71,6 +83,35 @@ resource "google_cloud_run_v2_service" "extract" {
 
       ports {
         container_port = 8080
+      }
+    }
+  }
+}
+
+# The Elysia HTTP service (apps/service). The image listens on 0.0.0.0:3000.
+resource "google_cloud_run_v2_service" "service" {
+  count               = var.deploy_service ? 1 : 0
+  name                = "service"
+  location            = var.region
+  ingress             = var.service_ingress
+  deletion_protection = var.deletion_protection
+
+  template {
+    service_account = var.service_service_account
+
+    containers {
+      image = "${var.image_prefix}stage-service${local.image_sep}${var.image_tag}"
+
+      ports {
+        container_port = 3000
+      }
+
+      dynamic "env" {
+        for_each = local.service_env
+        content {
+          name  = env.key
+          value = env.value
+        }
       }
     }
   }

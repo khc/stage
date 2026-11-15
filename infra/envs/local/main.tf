@@ -79,6 +79,13 @@ module "stage" {
   agent_model           = var.agent_model
   use_vertexai          = var.use_vertexai
   deletion_protection   = false
+  deploy_service        = true
+
+  service_extra_env = {
+    FIRESTORE_EMULATOR_HOST = var.emulator_host
+    PUBSUB_EMULATOR_HOST    = var.emulator_host
+    CLOUD_RUN_EMULATOR_HOST = var.emulator_host
+  }
 
   extra_env = merge(var.otel_env, {
     FIRESTORE_EMULATOR_HOST = var.emulator_host
@@ -89,4 +96,8 @@ module "stage" {
 
 output "extract_url" {
   value = module.stage.extract_url
+}
+
+output "service_url" {
+  value = module.stage.service_url
 }

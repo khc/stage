@@ -1,7 +1,7 @@
 # Infra
 
 ```
-modules/stage/   Cloud Run jobs, extract service and Pub/Sub topics (shared)
+modules/stage/   Cloud Run jobs, extract service, the Elysia service (service, off by default) and Pub/Sub topics (shared)
 envs/local/      Floci (local GCP emulator): provider endpoints, plain env values
 envs/gcp/        Real GCP: APIs, Firestore, service accounts, IAM, Secret Manager
 ```
@@ -37,5 +37,7 @@ Floci's Cloud Run emulation rejects secret references (`valueSource`), so the jo
 The GCP apply also enables the APIs, creates the Firestore database, dedicated service accounts (Pub/Sub publisher on the agent-events topic, Firestore user) and the `gemini-api-key` secret, which holds no value until you add a version, so the key stays out of state. `extract` is internal-only and callable only by `extract_invokers`. `deletion_protection` is on by default, and images need `image_prefix` and a pinned `image_tag` (not `latest`; a `sha256:` digest is supported).
 
 State files are gitignored. Before sharing GCP state, add a `gcs` backend to `envs/gcp` with restricted IAM.
+
+The Elysia service (`apps/service`) is the module's optional `service` Cloud Run service, switched on with `deploy_service`. `envs/local` turns it on and gives it the emulator hosts (`service_extra_env`); `task build:service` builds its image first, and `task tf:apply` creates it. `envs/gcp` leaves it off: it still needs a service account and IAM (Firestore, Pub/Sub, running the agent jobs, invoking extract) before it can be deployed there.
 
 Floci's Firestore needs no resource (documents only). Images are built by `task build:agents`, `task build:extract` and `task build:service`.

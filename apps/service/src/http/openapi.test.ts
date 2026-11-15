@@ -19,7 +19,7 @@ const spec = async () =>
     paths: Record<string, Record<string, Operation>>;
   };
 
-// The same paths and methods as apps/service documents.
+// The same paths and methods as apps/service-deprecated documents.
 const documented = {
   "/health": ["get"],
   "/jobs": ["get"],

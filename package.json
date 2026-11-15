@@ -11,6 +11,7 @@
     "start": "bun --filter @stage/service start",
     "dev": "bun --filter '@stage/*' dev",
     "dev:service": "bun --filter @stage/service dev",
+    "dev:service-deprecated": "bun --filter @stage/service-deprecated dev",
     "dev:ui": "bun --filter @stage/ui dev",
     "test": "bun test",
     "typecheck": "bun check scripts && bun --filter '*' typecheck",
@@ -31,7 +32,7 @@
   },
   "overrides": {
     "@google/genai": "2.32.0",
-    "google-gax": "6.17.0",
-    "@opentelemetry/semantic-conventions": "1.45.0"
+    "@opentelemetry/semantic-conventions": "1.45.0",
+    "google-gax": "6.17.0"
   }
 }
