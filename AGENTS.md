@@ -40,44 +40,31 @@ Use `bun check` to type check the project. It reads `tsconfig.json` and reports 
 
 ## Frontend
 
-`apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
+`apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. Its API types come from the service: `src/lib/api.ts` builds an Eden client from `import type { App } from "@stage/service/app"`, so a change to a route is a type error in the UI. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
 
 # Repository conventions
 
 ## File naming
 
-- File names are kebab-case: `task-store.ts`, `task-service.ts`. Tests sit next to the file they test and end in `.test.ts`. App-level tests that go through `createApp` sit in `src` root (`app.test.ts`, `events-route.test.ts`).
-- In a layered folder, a file's role is a suffix on its name, singular noun first. The folder alone is not enough, because editors, quick-open and stack traces show only the file name, and the same feature name appears in several layers.
+- File names are kebab-case: `tasks-store.ts`, `tasks-service.ts`. Tests sit next to the file they test and end in `.test.ts`. App-level tests that go through `createApp` sit in `src` root (`app.test.ts`).
+- `apps/service` is an Elysia app laid out by feature, following [Elysia's best practice](https://elysiajs.com/essential/best-practice.html) for the folder structure. Each `modules/<module>/` folder holds `<module>-controller.ts` (the Elysia controller), `<module>-service.ts`, `<module>-model.ts` and, where it owns a collection, `<module>-store.ts`. A module's children live inside it (`tasks/sessions/`, `tasks/documents/`).
+- A file's role is a suffix on its name, because editors, quick-open and stack traces show only the file name, and the same module name appears in several roles. Files and symbols are named after the module, in the plural, like its folder (`tasks-controller.ts`, `sessions-store.ts`, `TasksService`, `createTasksStore`); `health` has no plural.
+- Clients of external systems live in `platform/`, named after the system they wrap (`cloud-run-jobs-client.ts`, `firestore-client.ts`, `session-event-stream.ts`, `topic-subscriber.ts`). Cross-cutting Elysia plugins live in `http/`, small helpers in `utils/`, and the entry is `index.ts` with `app.ts`.
+- Files that hold shared plumbing rather than one role keep a plain name: `errors.ts`, `config.ts`.
 
-  | Folder      | Pattern                         | Example                                                                      |
-  | ----------- | ------------------------------- | ---------------------------------------------------------------------------- |
-  | `stores/`   | `<thing>-store.ts`              | `task-store.ts`, `session-store.ts`                                          |
-  | `routes/`   | `<feature>-route.ts`            | `task-route.ts`, `job-route.ts`                                              |
-  | `services/` | `<thing>-service.ts`            | `task-service.ts`                                                            |
-  | `platform/` | named after the system it wraps | `cloud-run-jobs-client.ts`, `session-event-stream.ts`, `topic-subscriber.ts` |
+## Services, stores and controllers
 
-- A `*-route.ts` file exports its Hono app as a named export `*Route`, camel-cased from the file name (`task-route.ts` exports `taskRoute`, `session-route.ts` exports `sessionRoute`). It is a factory that takes the dependencies it needs and returns a `new Hono()`, so `app.ts` mounts it with `.route(path, taskRoute(deps))`. No default exports. A route file holds one feature; a second feature gets its own file.
-- `services/` holds the operations on one thing that need more than one store or platform client, as an object like a store: a type `<Thing>Service`, a factory `create<Thing>Service(deps)`, and one method per operation (`TaskService` has `create`, `run` and `delete`). Each method returns a status for every expected outcome and throws a `DependencyError` when a dependency fails. The word is unrelated to the app `apps/service-deprecated`: that is the whole HTTP service, and these are objects inside it.
-- Apply the rule to the whole folder or not at all. The one exception is `services/event-feed.ts`, a helper class (`EventFeed`) shared by the two event streams rather than a service. `apps/service-deprecated` is the only app with layered folders today; a new layered app follows the same patterns.
-- `apps/service` is the exception: an Elysia app laid out by feature, following [Elysia's best practice](https://elysiajs.com/essential/best-practice.html) for the folder structure only. Each `modules/<feature>/` folder holds `<module>-controller.ts` (the Elysia controller), `<module>-service.ts`, `<module>-model.ts` and, where it owns a collection, `<module>-store.ts`, named after the module in the plural with the role as a suffix like everywhere else (`tasks-controller.ts`, `sessions-store.ts`; symbols follow: `TasksService`, `createTasksStore`). Clients of external systems stay in `platform/` as `<system>-client.ts`, and the entry is `index.ts` with `app.ts`, as in the other apps.
-- Files that hold shared plumbing rather than one role keep a plain name: `errors.ts`, `schemas.ts`, `shared.ts`.
+- Services, stores and platform clients are factories returning an object of methods, never classes, so a method passed around (`.get("/", service.list)`, destructuring, callbacks) works without `this` binding and a test passes a plain fake object. Each file exports the trio `<Thing>` (the type of the returned object), `<Thing>Deps` (its injected collaborators, exported only when something outside the file needs it) and `create<Thing>(deps)`. A factory with one dependency takes it directly (`createTasksStore(firestore)`); one that also takes plain values uses `(deps, config)`. Named exports only.
+- A dependency is named after its type in camelCase: `tasksStore: TasksStore`, `sessionsStore: SessionsStore`, `cloudRunJobs: CloudRunJobs`, `firestore`. Optional ones keep the name.
+- A service holds the operations on one thing that need more than one store or platform client, as one method per operation (`TasksService` has `create`, `run` and `delete`). Each method returns a status for every expected outcome and throws a `DependencyError` when a dependency fails; the controller maps statuses to HTTP.
+- A store is `<module>-store.ts` in the module that owns the collection. The CRUD verbs are `create`, `list`, `get` and `delete`: `get` returns `undefined` when there is nothing, and `delete` returns a boolean, `false` when there was nothing to delete. Domain operations get their own verb (`queueMessage`, `release`). A store throws only the errors of its own domain (`DocumentTooLargeError`); a failing database call is left to the caller, which wraps it in `guard`.
+- A platform client exports a type named after the system (`CloudRunJobs`), a factory `create<System>(client, config)`, and methods named for what they do (`list`, `run`, `registerAgents`). Do not export one function type and one factory per operation. Single-purpose wrappers (`session-event-stream.ts`, `topic-subscriber.ts`) may export one factory for their one operation. The agent registry in `packages/agents` has the same shape (`AgentRegistry`, `createAgentRegistry(firestore)`, with `list` and `register`).
+- A controller is an Elysia instance (one per file, a factory taking the services it needs), never a class, mounted with `.use()`; handlers destructure what they need and call the service, and a service never receives Elysia's `Context`. Keep `createApp` one unbroken chain so Eden can read its type, and register `errorHandler` before the routes it covers.
+- Schemas live in the module's `<module>-model.ts` (TypeBox, `t` from `elysia`); the OpenAPI document and the UI's types are generated from the routes.
 
-## Stores
+## Layout of `apps/service`
 
-A file `<thing>-store.ts` in `stores/` exports one store with the same shape as every other:
-
-- A type `<Thing>Store`: an object of methods, not a bag of separate functions (`TaskStore`, `SessionStore`, `DocumentStore`).
-- A factory `create<Thing>Store(db)` that returns it, so a test passes a fake object instead of mocking a module.
-- The CRUD verbs are `create`, `list`, `get` and `delete`, with these meanings: `get` returns `undefined` when there is nothing, and `delete` returns a boolean, `false` when there was nothing to delete. Domain operations get their own verb (`queueMessage`, `release`).
-- A store throws only the errors of its own domain (`DocumentTooLargeError`); a failing database call is left to the caller, which wraps it in `guard`.
-
-## Platform clients
-
-A file in `platform/` that wraps an external system exports the same kind of object as a store: a type named after the system (`CloudRunJobs`), a factory `create<System>(client, config)`, and methods named for what they do (`list`, `run`, `registerAgents`). Do not export one function type and one factory per operation. Single-purpose wrappers (`platform-event-publisher.ts`, `session-event-stream.ts`, `topic-subscriber.ts`, `cloud-run-jobs-client.ts`) may export one factory for their one operation. The agent registry in `packages/agents` follows the same shape (`AgentRegistry`, `createAgentRegistry(db)`, with `list` and `register`).
-
-## Layout of `apps/service-deprecated`
-
-`routes` call `services` and `stores`; `services` call `stores` and `platform`; nothing imports a route. See [apps/service-deprecated/README.md](apps/service-deprecated/README.md) for the full layout and how to add an endpoint.
+Controllers call services (and the module's `tasksGuard`); services call stores and platform clients; stores and platform clients call no module; only a module's parent mounts its controller. Decisions, the parity checks against the Hono service this replaced and what is still open are in [apps/service/PLAN.md](apps/service/PLAN.md).
 
 ## Code naming
 

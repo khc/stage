@@ -1,12 +1,12 @@
 # service plan
 
-The Elysia HTTP service, a rebuild of the old Hono service (`apps/service-deprecated`), laid out by feature and driven by the platform's shape, not by the Hono code. `apps/service-deprecated` stays the reference and keeps running until this service reaches parity.
+The Elysia HTTP service, a rebuild of the Hono service it replaced, laid out by feature and driven by the platform's shape, not by the Hono code.
 
-Naming: this app was `apps/service2` until the Hono app moved to `apps/service-deprecated`; `infra/` was renamed with it (the Cloud Run service `service`, `deploy_service`, the image `stage-service`). Ports: this service listens on `127.0.0.1:3000` and the deprecated one on `127.0.0.1:3001`.
+Status: the rebuild is done and the Hono service has been removed (two parity passes found no response that differs in status; see the results below). Its last version is in git history, in `apps/service` of the commit before the rename, if a comparison is ever needed. This app was `apps/service2` while both existed; `infra/` was renamed with it (the Cloud Run service `service`, `deploy_service`, the image `stage-service`). It listens on `127.0.0.1:3000`. What is still open is the GCP deployment (see "Still to do")
 
 ## Goal
 
-- Same API as `apps/service-deprecated`: same routes, status codes and error codes (`task_not_found`, `run_in_progress`, ...), so `apps/ui` and the agent jobs work unchanged.
+- Same API as the Hono service: same routes, status codes and error codes (`task_not_found`, `run_in_progress`, ...), so `apps/ui` and the agent jobs work unchanged.
 - Less code to maintain: schemas written once, in each module's model; OpenAPI generated from the routes; UI types from the routes (Eden) instead of hand-written ones.
 - Decide with evidence whether Elysia replaces Hono. Phase 0 and the parity phase produce that evidence; this plan does not assume the answer.
 
@@ -53,7 +53,7 @@ Rules:
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D1  | **Settled, see Spike results.** Can the tasks controller resolve `:taskId` once for the nested sessions and documents plugins, so children need no task store or 404 check? The Elysia pages read say plugins do not inherit lifecycle hooks by default and `guard` does not support `resolve`. | Spike: a named `task.guard` plugin with `.resolve({ as: "scoped" }, ...)` that each child `.use()`s; test the 404 with `app.handle(new Request(...))`. Fallback: inject an `exists(taskId)` call from the tasks service.                                                               |
 | D2  | **Settled: no `packages/contracts`.** How do shared schemas and each `<module>-model.ts` split the work?                                                                                                                                                                                        | Each module's `<module>-model.ts` (TypeBox) is the one place for its schemas; OpenAPI is generated from the routes, and the UI gets its types from them through Eden. The jobs' side of the contract (task and session documents) stays in `@stage/agents`, which the service imports. |
-| D3  | **Settled: reuse.** Does `tasks/sessions` keep its own store or reuse the session logic in `packages/agents` that the jobs use (leases, `runId` fencing)?                                                                                                                                       | Compare `session-store` in `apps/service-deprecated` with `packages/agents/src/session-service.ts`; prefer importing the shared code over duplicating lease logic.                                                                                                                     |
+| D3  | **Settled: reuse.** Does `tasks/sessions` keep its own store or reuse the session logic in `packages/agents` that the jobs use (leases, `runId` fencing)?                                                                                                                                       | Compare `session-store` in the Hono service with `packages/agents/src/session-service.ts`; prefer importing the shared code over duplicating lease logic.                                                                                                                              |
 | D4  | **Settled, yes.** Does a dynamic prefix (`/:taskId/sessions`) work in nested plugins?                                                                                                                                                                                                           | Part of the D1 spike.                                                                                                                                                                                                                                                                  |
 | D5  | DI container?                                                                                                                                                                                                                                                                                   | No. Revisit only if the wiring in `index.ts` outgrows one screen or request-scoped instances are needed (try `derive`/`resolve` first).                                                                                                                                                |
 
@@ -93,9 +93,10 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 - `agents` (`/jobs`): list jobs, a job's registered agents, an agent's card, and register. The register route was not run (it executes the job image).
 - `events` (`/events`): platform events as SSE, published when tasks, documents and jobs change; 501 without `PLATFORM_EVENTS_TOPIC`. Ran against Floci: a created and a deleted task showed up in the stream.
 
-- `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as `apps/service-deprecated`; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
+- Request ids and telemetry: every response carries `x-request-id` (the caller's id if short and plain, else a UUID; also in the error log and on the span). Each request is one OpenTelemetry server span, continuing a caller's `traceparent`, named after the route, with the status, an error status and the exception on 5xx, and the handler's own Firestore and Cloud Run calls as children (Elysia's `wrap` runs the whole pipeline inside the span). Traces are exported only when an `OTEL_EXPORTER_OTLP_*ENDPOINT` is set, through the same `setupTelemetry` the jobs use, registered by `src/telemetry-init.ts` as a `bun --preload` (`start`, `dev`, and the image entrypoint). Checked with a local OTLP receiver: the exported batch had `service.name` `stage-service`, the span `GET /health` and the request id.
+- `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as the Hono service; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
 
-Eden spike (`apps/ui`, reverted afterwards, nothing left in the UI): `treaty<App>` with `App` from `@stage/service/app` typed every call, with no hand-written types. For example `tasks.get().data` is `{ tasks: TaskContract[] } | null`, `jobs.get().data` is `{ jobs: IJob[] }`, `run.post().data` is `{ operation: string }`, and the `messages` stream is an `AsyncGenerator` of the `sse` payloads. Findings:
+Eden in `apps/ui` (done): `apps/ui/src/lib/api.ts` now builds its `api` object on `treaty<App>` with `App` imported as a type from `@stage/service/app`, so paths, bodies and replies are typed by the service's routes and the UI components did not change (the UI type-checks with no errors). The five server-shape types (`Task`, `DocumentSummary`, `SessionSummary`, `RunState`, `SessionStats`) are derived from the replies; `Job`, `Session`, `SessionEvent`, `AgentInfo` and `JsonSchema` stay UI-shaped (loose views of Cloud Run, ADK and JSON Schema data), and the replies that carry them are cast. Findings: Eden does not encode path parameters, so the facade does (session ids can hold any character); the three `erasableSyntaxOnly` constructs (`event-feed.ts` and the `FirestoreSessionService` constructor) became plain fields; `Dockerfile.ui` copies `packages/agents` and `apps/service` into the build stage for the type check (the image is the same 55 MB, and the bundle grew by 7.9 KB for Eden's runtime); `api.ts` went from 450 to 431 lines, so the gain is type safety, not size. The UI's real `createApi` ran against the live service: health, jobs, agents, create, get, list, upload, detach, delete and the error mapping all passed. Eden types a validation failure as 422 while the service answers 400, and the `run` and `documents` bodies are untyped because those routes read the body themselves.
 
 - The UI type-checks the service sources with its own flags, and `erasableSyntaxOnly` rejects three parameter properties: `service/src/utils/event-feed.ts` and two in `packages/agents/src/session-service.ts` (the `FirestoreSessionService` constructor). Those would have to become plain fields, or the UI would consume emitted `.d.ts` files instead.
 - Eden's types say a validation failure is `422`, while the error handler answers 400 `invalid_request`. The documented types and the runtime disagree until that mapping is declared on the routes.
@@ -105,16 +106,24 @@ Packaging (Phase 4): `Dockerfile.service` (distroless Bun base, per-workspace pr
 
 Terraform: `infra/modules/stage` has an optional `service` Cloud Run service (`deploy_service`, default off), which `infra/envs/local` turns on with the emulator hosts. `terraform validate` passes and `terraform plan` against Floci shows one resource to add and nothing else changing. It has not been applied. `envs/gcp` leaves it off until the service account and IAM are decided (Firestore, Pub/Sub, running the agent jobs with overrides, invoking extract).
 
-Still to do: apply it to Floci and check the service there, the GCP service account and IAM, then the parity run (Phase 5).
+Applied to Floci (`task build:service`, then a saved plan with exactly one resource to add): the service runs there as a Cloud Run service, answers `/health` through Floci's URL, lists the jobs through the Cloud Run emulator and reads and writes tasks in Firestore from inside its container. Document upload does not work there: the service container cannot reach extract at the `*.run.localhost.floci.io` address Floci publishes (it resolves to the container's own loopback), so it answers 502 `document_error`; on the host (`bun run dev:service` with the extract URL) it works. `task tf:create-service` and `task tf:remove-service` manage it. Each stream (`messages`, `/events`) now sends a keepalive event at once, because Elysia holds the response headers until the first chunk. The Firestore and Pub/Sub clients take their project from `GCP_PROJECT`, so `GOOGLE_CLOUD_PROJECT` no longer has to be set: without it, the first `/events` request crashed the process (the Pub/Sub client threw `MissingProjectIdError` outside any handler).
 
-Documentation size: about 250 lines in `service` (the `doc(...)` blocks, `http/openapi.ts` and the response shapes in the models) against the 540 of the hand-written `apps/service-deprecated/src/openapi.ts`. The request side (params and bodies) comes from the models for free.
+GCP (written, validated, not applied): `infra/envs/gcp` can deploy the service with `deploy_service = true`, with a service account and least-privilege IAM listed in `infra/README.md`, and no caller allowed until `service_invokers` names one. The roles came from Google's role documentation through Context7 (`roles/run.jobsExecutorWithOverrides` has `run.jobs.run` and `run.jobs.runWithOverrides`; `roles/run.viewer` lists jobs; creating a subscription needs a project-level permission that only Pub/Sub Editor grants, hence a custom role). Not verified against a project: the exact Pub/Sub permission list, and whether starting an execution needs `iam.serviceAccounts.actAs` on the jobs' runtime account. The service now calls extract with a Google ID token when `EXTRACT_AUDIENCE` is set (`platform/id-token.ts`, tested with a fake auth client; no real token was minted).
 
-Known differences from `apps/service-deprecated`, to settle in the parity run (Phase 5):
+Still to do: apply and check that on a real project.
 
-- Validation errors answer 400 `{ error: "invalid_request", details }` (Elysia's 422 is remapped; `details` exposes schema internals). A bad resume answers 400 `{ success: false, error: "invalid_resume" }` without the Zod error object, and is checked before the task lookup, so an invalid resume for an unknown task answers 400 and not 404.
+Documentation size: about 250 lines in `service` (the `doc(...)` blocks, `http/openapi.ts` and the response shapes in the models) against the 540 of the hand-written `the Hono service/src/openapi.ts`. The request side (params and bodies) comes from the models for free.
+
+Parity run (Phase 5, first pass): the same 50 requests against both services on the local Floci stack (health, jobs and agents, creating tasks with 10 invalid inputs, reading and deleting, run validation, sessions, documents with a real upload through the extract service, events, unknown routes). **No response differs in status**: 32 are identical, and 18 differ only in the body (the validation error shape and the unknown-route body, listed below). The run found one real bug, fixed in `http/errors.ts`: a body that claims to be JSON but is not answered 502 `internal_error` instead of 400. A real job execution (`run`, `register`) and a live `messages` stream with Pub/Sub events were not part of the comparison; they were checked separately against Floci.
+
+Parity run, second pass (data-bearing scenarios on the shared Floci Firestore, both services running, a real session with events written through `@stage/agents`): sessions list, session detail with state and ordered events, and stats gave identical bodies; the stored event frames of `messages` carry the same ids and data. The `run` paths that never start a job (the job does not exist) behave the same, including `job_error` with the queued message rolled back and the message trimmed, `session_not_found`, `run_in_progress` (lease held), `message_pending` and `task_not_executable`. Session delete (then again), documents (upload twice with one checksum, list, get with content, detach, detach again, and the row released when the task is deleted) and the platform event types for create then delete are identical. The one textual difference is the order of lines inside an SSE event: Hono writes `data:` then `id:`, Elysia writes `id:` then `data:`, which is the same event to any SSE client.
+
+Known differences from the Hono service, to settle in the parity run (Phase 5):
+
+- Validation errors answer 400 `{ error: "invalid_request", details: [{ path, message }] }` (Elysia's 422 is remapped; the old service answers 400 `{ success: false, error: <ZodError> }`). Same status, different body. A body that is not JSON answers 400 `{ error: "invalid_request" }` and the old one a plain text 400. A bad resume answers 400 `{ success: false, error: "invalid_resume" }` without the Zod error object, and is checked before the task lookup, so an invalid resume for an unknown task answers 400 and not 404.
 - A prompt is trimmed in the controller, so the 10,000-character limit applies before trimming.
 - Unknown routes answer `{ error: "not_found" }`.
-- The `messages` stream keepalive is a named `event: keepalive` event, not the `: keepalive` comment line of `apps/service-deprecated`, because Elysia's `sse` helper (id, event, retry, data) has no comments. A browser `EventSource` listening for `message` events never sees it.
+- The `messages` stream keepalive is a named `event: keepalive` event, not the `: keepalive` comment line of the Hono service, because Elysia's `sse` helper (id, event, retry, data) has no comments. A browser `EventSource` listening for `message` events never sees it.
 
 ## Phases
 
@@ -123,11 +132,11 @@ Known differences from `apps/service-deprecated`, to settle in the parity run (P
 **Phase 1: skeleton.**
 
 - `package.json`, `tsconfig` and the workspace entry for `apps/service`.
-- `config.ts`: one validated environment schema (same variables as `apps/service-deprecated`).
+- `config.ts`: one validated environment schema (same variables as the Hono service).
 - `platform/` clients, `http/errors.ts`, `http/request-id.ts`, `http/telemetry.ts`, the `health` module, `index.ts` and `app.ts`.
 - Test: `app.handle` on `/health` and an error-mapping case.
 
-**Phase 2: modules, one at a time, each with tests ported from `apps/service-deprecated`.**
+**Phase 2: modules, one at a time, each with tests ported from the Hono service.**
 
 1. `tasks` (create, list, get, delete, run) with `tasks-store.ts`.
 2. `tasks/documents` (needs `extract-client`).
@@ -149,14 +158,14 @@ Known differences from `apps/service-deprecated`, to settle in the parity run (P
 
 - Run the same requests against both services and diff status codes and bodies (including the 501 paths when `EXTRACT_URL` or the topic is unset).
 - Compare line counts: routes, `openapi.ts` against generated OpenAPI, `api.ts` against Eden.
-- Decide: cut over (point `SERVICE_URL` and the UI proxy at service, retire `apps/service-deprecated`) or stop and keep Hono.
+- Decide: cut over (point `SERVICE_URL` and the UI proxy at the new service, retire the Hono service) or stop and keep Hono. Done: the UI proxy default already points at this service on port 3000, and the Hono service is removed.
 
 ## Risks
 
 - Elysia's Zod and OpenAPI support is uncertain (Standard Schema is accepted; OpenAPI from Zod needs a converter and coercion differs from TypeBox). D2 covers it.
 - Elysia is Bun-first, so adopting it closes the Deno option.
 - Nested plugin behaviour (D1, D4) is not covered by the docs read; the nested layout depends on it.
-- Two services to keep in sync while both exist; limit changes to `apps/service-deprecated` during the rebuild.
+- Two services to keep in sync while both existed (no longer a risk).
 
 ## Not in scope
 
