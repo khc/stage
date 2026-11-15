@@ -93,3 +93,9 @@ variable "service_extra_env" {
   default     = {}
   description = "Environment for service beyond what the module derives, e.g. the emulator hosts in envs/local."
 }
+
+variable "service_extract_auth" {
+  type        = bool
+  default     = false
+  description = "Give the service EXTRACT_AUDIENCE, so it calls extract with a Google ID token. Needed where extract requires IAM (envs/gcp), not on Floci."
+}

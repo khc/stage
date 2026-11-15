@@ -13,6 +13,8 @@ for (const workspace of ["service"]) {
         join(root, ".env"),
         "GCP_PROJECT=test-project\nGCP_REGION=test-region\nSERVICE_URL=http://localhost:4321\n",
       );
+      // The service scripts preload this file (the tracer provider); an empty module is enough here.
+      await Bun.write(join(cwd, "src/telemetry-init.ts"), "export {};");
       await Bun.write(
         join(cwd, "src/index.ts"),
         "console.log(JSON.stringify({ project: process.env.GCP_PROJECT, region: process.env.GCP_REGION, service: process.env.SERVICE_URL }));",

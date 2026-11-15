@@ -2,7 +2,7 @@ import { openapi } from "@elysiajs/openapi";
 import { t, type TSchema } from "elysia";
 
 // The OpenAPI document at /openapi.json and the Scalar reference at /docs, generated from the
-// routes' schemas and `detail` (the same paths as apps/service-deprecated).
+// routes' schemas and `detail` (the same paths as the Hono service this replaced).
 export const openapiDocs = () =>
   openapi({
     path: "/docs",

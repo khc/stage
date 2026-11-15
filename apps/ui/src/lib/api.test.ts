@@ -1,8 +1,8 @@
-import { afterEach, expect, mock, spyOn, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 
 import {
-  api,
   ApiError,
+  createApi,
   inputExample,
   jobDetails,
   jobEnvNames,
@@ -19,94 +19,81 @@ import {
   withEvent,
 } from "./api";
 
-let fetchSpy: ReturnType<typeof spyOn> | undefined;
-afterEach(() => fetchSpy?.mockRestore());
+// An API whose fetches go to `respond`; `calls` records what the service would have received.
+type Call = { url: string; method?: string; body?: unknown };
+const serviceReplying = (respond: (call: Call) => Response) => {
+  const calls: Call[] = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const call = {
+      url: String(input instanceof Request ? input.url : input),
+      method: init?.method,
+      body: init?.body,
+    };
+    calls.push(call);
+    return respond(call);
+  }) as typeof fetch;
+  return { api: createApi("http://localhost", fetcher), calls };
+};
+const replying = (body: unknown, status = 200) =>
+  serviceReplying(() => Response.json(body, { status }));
+const replyingEmpty = (status = 204) => serviceReplying(() => new Response(null, { status }));
 
-test("document upload posts multipart form data without a content-type header", async () => {
-  const fetch = mock(async () =>
-    Response.json({ documentId: "d", filename: "a.txt", checksum: "d", contentType: "text/plain" }),
-  );
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
+test("document upload posts multipart form data to the task's documents route", async () => {
+  const { api, calls } = replying(
+    { documentId: "d", filename: "a.txt", checksum: "d", contentType: "text/plain" },
+    201,
   );
   await api.uploadDocument("task-1", new File(["hi"], "a.txt"));
-  const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-  expect(path).toBe("/tasks/task-1/documents");
-  expect(init.method).toBe("POST");
-  expect(init.headers).toBeUndefined();
-  expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({
+    url: "http://localhost/tasks/task-1/documents",
+    method: "POST",
+  });
+  expect(calls[0]!.body).toBeInstanceOf(FormData);
+  expect((calls[0]!.body as FormData).get("file")).toBeInstanceOf(File);
 });
 
 test("task creation sends only the saved contract input", async () => {
   const task = { taskId: "task-1", prompt: "hello", jobName: "worker" };
-  const fetch = mock(async () => Response.json(task, { status: 201 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
-  expect(await api.create({ prompt: "hello", jobName: "worker" })).toEqual(task);
-  expect(fetch).toHaveBeenCalledWith("/tasks", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt: "hello", jobName: "worker" }),
-  });
+  const { api, calls } = replying(task, 201);
+  expect(await api.create({ prompt: "hello", jobName: "worker" })).toEqual(task as never);
+  expect(calls[0]).toMatchObject({ url: "http://localhost/tasks", method: "POST" });
+  expect(JSON.parse(calls[0]!.body as string)).toEqual({ prompt: "hello", jobName: "worker" });
 });
 
 test("running a task submits once with no prompt or job override", async () => {
-  const fetch = mock(async () => Response.json({ operation: "op-1" }, { status: 202 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying({ operation: "op-1" }, 202);
   expect(await api.run("task-1")).toEqual({ operation: "op-1" });
-  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/run", { method: "POST" });
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({ url: "http://localhost/tasks/task-1/run", method: "POST" });
+  expect(calls[0]!.body).toBeUndefined();
 });
 
 test("session IDs are encoded and missing sessions reject rather than becoming empty content", async () => {
-  const fetch = mock(async () => Response.json({ error: "session_not_found" }, { status: 404 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying({ error: "session_not_found" }, 404);
   await expect(api.session("task-1", "custom/id")).rejects.toMatchObject({
     status: 404,
     message: "This session could not be found for this task.",
   });
-  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/custom%2Fid", undefined);
+  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/sessions/custom%2Fid");
 });
 
 test("non-JSON server failures produce a readable error", async () => {
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    (async () =>
-      new Response("unavailable", {
-        status: 503,
-      })) as unknown as typeof globalThis.fetch,
-  );
+  const { api } = serviceReplying(() => new Response("unavailable", { status: 503 }));
   await expect(api.tasks()).rejects.toBeInstanceOf(ApiError);
   await expect(api.tasks()).rejects.toThrow("Request failed (503)");
 });
 
 test("private upstream error details are not displayed", async () => {
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async () =>
-    Response.json(
-      { error: "job_error", detail: "private credential details" },
-      { status: 502 },
-    )) as unknown as typeof globalThis.fetch);
+  const { api } = replying({ error: "job_error", detail: "private credential details" }, 502);
   await expect(api.run("task-1")).rejects.toThrow("Cloud Run could not complete the request");
 });
 
 test("resuming a session posts sessionId and message to the run route", async () => {
-  const fetch = mock(async () => Response.json({ operation: "op-2" }, { status: 202 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
-  expect(await api.resume("task-1", "s1", "answer")).toEqual({
-    operation: "op-2",
-  });
-  const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-  expect(url).toBe("/tasks/task-1/run");
-  expect(JSON.parse(init.body as string)).toEqual({
-    sessionId: "s1",
-    message: "answer",
-  });
+  const { api, calls } = replying({ operation: "op-2" }, 202);
+  expect(await api.resume("task-1", "s1", "answer")).toEqual({ operation: "op-2" });
+  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/run");
+  expect(JSON.parse(calls[0]!.body as string)).toEqual({ sessionId: "s1", message: "answer" });
 });
 
 test("withEvent appends new events once and updates the session time", () => {
@@ -159,39 +146,26 @@ test("streamMessages parses events, ignores bad data and closes the source", () 
 });
 
 test("deleting a session sends DELETE to the encoded path and accepts 204", async () => {
-  const fetch = mock(async () => new Response(null, { status: 204 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replyingEmpty();
   expect(await api.deleteSession("task-1", "s/1")).toBeUndefined();
-  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/s%2F1", {
+  expect(calls[0]).toMatchObject({
+    url: "http://localhost/tasks/task-1/sessions/s%2F1",
     method: "DELETE",
   });
 });
 
 test("session stats are fetched from the encoded stats path", async () => {
   const stats = { events: 2, llmCalls: 1, tokens: { total: 9 } };
-  const fetch = mock(async () => Response.json(stats));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying(stats);
   expect(await api.stats("task-1", "s/1")).toEqual(stats as never);
-  expect(fetch).toHaveBeenCalledWith("/tasks/task-1/sessions/s%2F1/stats", undefined);
+  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/sessions/s%2F1/stats");
 });
 
 test("task creation sends agentName only when provided", async () => {
-  const fetch = mock(async () =>
-    Response.json({ taskId: "t", prompt: "p", jobName: "j" }, { status: 201 }),
-  );
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying({ taskId: "t", prompt: "p", jobName: "j" }, 201);
   await api.create({ prompt: "p", jobName: "j", agentName: "researcher" });
   await api.create({ prompt: "p", jobName: "j", agentName: undefined });
-  const bodies = fetch.mock.calls.map((c) =>
-    JSON.parse((c as unknown as [string, RequestInit])[1].body as string),
-  );
-  expect(bodies).toEqual([
+  expect(calls.map((c) => JSON.parse(c.body as string))).toEqual([
     { prompt: "p", jobName: "j", agentName: "researcher" },
     { prompt: "p", jobName: "j" },
   ]);
@@ -199,23 +173,15 @@ test("task creation sends agentName only when provided", async () => {
 
 test("job agents are fetched from the encoded job path", async () => {
   const body = { agents: [{ name: "assistant" }] };
-  const fetch = mock(async () => Response.json(body));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying(body);
   expect(await api.agents("my-job")).toEqual(body);
-  expect(fetch).toHaveBeenCalledWith("/jobs/my-job/agents", undefined);
+  expect(calls[0]!.url).toBe("http://localhost/jobs/my-job/agents");
 });
 
 test("registering a job's agents posts to the encoded register path", async () => {
-  const fetch = mock(async () => Response.json({ operation: "op-3" }, { status: 202 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replying({ operation: "op-3" }, 202);
   expect(await api.registerAgents("my-job")).toEqual({ operation: "op-3" });
-  expect(fetch).toHaveBeenCalledWith("/jobs/my-job/register", {
-    method: "POST",
-  });
+  expect(calls[0]).toMatchObject({ url: "http://localhost/jobs/my-job/register", method: "POST" });
 });
 
 test("lastOutput returns the newest visible agent text, skipping tools, thoughts and the user", () => {
@@ -389,12 +355,9 @@ test("buildPrompt turns values into JSON and reports the first problem", () => {
 });
 
 test("deleting a task sends DELETE to its path and accepts 204", async () => {
-  const fetch = mock(async () => new Response(null, { status: 204 }));
-  fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-    fetch as unknown as typeof globalThis.fetch,
-  );
+  const { api, calls } = replyingEmpty();
   expect(await api.deleteTask("task-1")).toBeUndefined();
-  expect(fetch).toHaveBeenCalledWith("/tasks/task-1", { method: "DELETE" });
+  expect(calls[0]).toMatchObject({ url: "http://localhost/tasks/task-1", method: "DELETE" });
 });
 
 test("takesNoInput is true only for an object schema without properties", () => {

@@ -75,6 +75,9 @@ export const sessionsController = ({ tasksService, sessionsService }: SessionsCo
         });
         if (result.status !== "ok") return status(404, { error: result.status });
         try {
+          // Elysia sends the response headers with the first chunk, so say something at once: a stream with
+          // nothing to replay would otherwise hold the response (and a browser's `onopen`) until the first idle tick.
+          yield toSse("idle");
           for await (const entry of result.entries) yield toSse(entry);
         } finally {
           controller.abort();

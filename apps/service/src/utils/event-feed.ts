@@ -20,8 +20,10 @@ export class EventFeed {
   private readonly waiting: FeedItem[] = [];
   private readonly seen = new Set<string>();
   private wake = noop;
+  private readonly options: EventFeedOptions;
 
-  constructor(private readonly options: EventFeedOptions) {
+  constructor(options: EventFeedOptions) {
+    this.options = options;
     options.signal.addEventListener("abort", () => this.wake(), { once: true });
     this.entries = this.generate();
   }

@@ -19,7 +19,7 @@ const spec = async () =>
     paths: Record<string, Record<string, Operation>>;
   };
 
-// The same paths and methods as apps/service-deprecated documents.
+// The paths and methods the Hono service documented, which the UI and the jobs rely on.
 const documented = {
   "/health": ["get"],
   "/jobs": ["get"],

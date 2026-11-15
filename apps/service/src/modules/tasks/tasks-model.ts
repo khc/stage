@@ -3,7 +3,7 @@ import { t } from "elysia";
 import { agentName, jobName } from "../agents/agents-model";
 
 export const TasksModel = {
-  // `\S` rejects a blank prompt; the controller trims it, as apps/service-deprecated does.
+  // `\S` rejects a blank prompt; the controller trims it, as the Hono service did.
   createBody: t.Object({
     prompt: t.String({ pattern: "\\S", maxLength: 10_000 }),
     jobName,

@@ -16,16 +16,19 @@ import { createTasksStore } from "./modules/tasks/tasks-store";
 import { createCloudRunJobs, createJobsClient } from "./platform/cloud-run-jobs-client";
 import { createExtractClient } from "./platform/extract-client";
 import { createFirestoreClient } from "./platform/firestore-client";
+import { createIdTokenAuthorization } from "./platform/id-token";
 import { createPlatformEvents } from "./platform/platform-event-publisher";
 import { createPlatformEventStream } from "./platform/platform-event-stream";
 import { createPubSubClient } from "./platform/pubsub-client";
 import { createSessionEventStream } from "./platform/session-event-stream";
 
 const config = loadConfig(process.env);
-const firestore = createFirestoreClient();
+const firestore = createFirestoreClient(config.GCP_PROJECT);
 // Created only when a topic is configured, so a service nobody streams from never touches Pub/Sub.
 const pubsub =
-  config.PUBSUB_TOPIC || config.PLATFORM_EVENTS_TOPIC ? createPubSubClient() : undefined;
+  config.PUBSUB_TOPIC || config.PLATFORM_EVENTS_TOPIC
+    ? createPubSubClient(config.GCP_PROJECT)
+    : undefined;
 const platformEvents =
   pubsub && config.PLATFORM_EVENTS_TOPIC
     ? createPlatformEvents(pubsub, config.PLATFORM_EVENTS_TOPIC)
@@ -39,7 +42,14 @@ const sessionsStore = createSessionsStore(firestore);
 const documentsStore = config.EXTRACT_URL
   ? published(
       platformEvents?.documentsStore,
-      createDocumentsStore({ firestore, extractClient: createExtractClient(config.EXTRACT_URL) }),
+      createDocumentsStore({
+        firestore,
+        extractClient: createExtractClient(config.EXTRACT_URL, {
+          authorization: config.EXTRACT_AUDIENCE
+            ? createIdTokenAuthorization(config.EXTRACT_AUDIENCE)
+            : undefined,
+        }),
+      }),
     )
   : undefined;
 const agentRegistry = createAgentRegistry(firestore);

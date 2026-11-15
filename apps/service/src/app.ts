@@ -2,6 +2,8 @@ import { Elysia } from "elysia";
 
 import { errorHandler } from "./http/errors";
 import { openapiDocs } from "./http/openapi";
+import { requestId } from "./http/request-id";
+import { inRequestSpan, requestTelemetry } from "./http/telemetry";
 import { agentsController } from "./modules/agents/agents-controller";
 import type { AgentsService } from "./modules/agents/agents-service";
 import { eventsController } from "./modules/events/events-controller";
@@ -26,9 +28,13 @@ export type AppDeps = {
 };
 
 // One controller per module, mounted here. Keep this one unbroken chain: Eden reads its type.
-// errorHandler comes first: onError only covers what is added after it.
+// The request id and the telemetry come first, so every request has an id and a span before
+// anything else runs; errorHandler follows, because onError only covers what is added after it.
 export const createApp = (deps: AppDeps) =>
   new Elysia()
+    .use(requestId())
+    .use(requestTelemetry())
+    .wrap(inRequestSpan)
     .use(errorHandler())
     .use(openapiDocs())
     .use(healthController(deps.healthService))
