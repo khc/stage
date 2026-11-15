@@ -3,11 +3,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { requestId } from "@stage/http/request-id";
 import { Elysia, t } from "elysia";
 
 import { DependencyError } from "../errors";
 import { errorHandler } from "./errors";
-import { requestId } from "./request-id";
 import { inRequestSpan, requestTelemetry } from "./telemetry";
 
 const exporter = new InMemorySpanExporter();

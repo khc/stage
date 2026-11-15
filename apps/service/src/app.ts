@@ -1,8 +1,8 @@
+import { requestId } from "@stage/http/request-id";
 import { Elysia } from "elysia";
 
 import { errorHandler } from "./http/errors";
 import { openapiDocs } from "./http/openapi";
-import { requestId } from "./http/request-id";
 import { inRequestSpan, requestTelemetry } from "./http/telemetry";
 import { agentsController } from "./modules/agents/agents-controller";
 import type { AgentsService } from "./modules/agents/agents-service";

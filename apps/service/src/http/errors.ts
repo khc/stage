@@ -1,7 +1,7 @@
+import { requestIdOf } from "@stage/http/request-id";
 import { Elysia } from "elysia";
 
 import { DependencyError } from "../errors";
-import { requestIdOf } from "./request-id";
 import { recordRequestError } from "./telemetry";
 
 // Register this first in createApp: onError only covers what is added after it.

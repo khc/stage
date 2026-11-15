@@ -2,18 +2,23 @@ import { describe, expect, test } from "bun:test";
 
 import { Elysia, t } from "elysia";
 
-import { DependencyError } from "../errors";
-import { errorHandler } from "./errors";
 import { requestId, requestIdOf } from "./request-id";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const app = new Elysia()
   .use(requestId())
-  .use(errorHandler())
+  // Error responses carry the header too, whatever maps them.
+  .onError({ as: "global" }, ({ code, status }) =>
+    code === "VALIDATION"
+      ? status(400, { error: "invalid_request" })
+      : code === "NOT_FOUND"
+        ? status(404, { error: "not_found" })
+        : status(502, { error: "failed" }),
+  )
   .get("/ok", ({ request }) => ({ id: requestIdOf(request) }))
-  .get("/dependency", () => {
-    throw new DependencyError("task_error", new Error("down"));
+  .get("/failure", () => {
+    throw new Error("down");
   })
   .get("/valid/:n", ({ params }) => params, { params: t.Object({ n: t.Numeric() }) });
 
@@ -48,7 +53,7 @@ describe("request id", () => {
 
   test.each([
     ["a validation error", "/valid/abc", 400],
-    ["a dependency failure", "/dependency", 502],
+    ["an unexpected failure", "/failure", 502],
     ["an unknown route", "/nope", 404],
   ])("the header is on %s", async (_name, path, status) => {
     const res = await get(path, "keep-me");

@@ -1,0 +1,18 @@
+{
+  "name": "@stage/http",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./request-id": "./src/request-id.ts"
+  },
+  "scripts": {
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "elysia": "^1.4.32"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  }
+}
