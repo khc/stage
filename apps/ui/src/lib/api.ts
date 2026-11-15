@@ -2,35 +2,11 @@ import { treaty } from "@elysiajs/eden";
 import type { App } from "@stage/service/app";
 
 // Cloud Run timestamps and durations arrive as { seconds, nanos }.
+// On the wire `seconds` is a string or a number; the generated types also allow a Long.
 export type Timestamp = {
-  seconds?: string | number | null;
+  seconds?: string | number | { toString(): string } | null;
   nanos?: number | null;
 } | null;
-export type Job = {
-  name?: string;
-  description?: string;
-  uid?: string;
-  createTime?: Timestamp;
-  updateTime?: Timestamp;
-  executionCount?: number;
-  terminalCondition?: { state?: string; message?: string } | null;
-  latestCreatedExecution?: { name?: string; createTime?: Timestamp } | null;
-  template?: {
-    taskCount?: number;
-    parallelism?: number;
-    template?: {
-      containers?: {
-        image?: string;
-        env?: { name?: string; value?: string }[];
-        resources?: { limits?: Record<string, string> } | null;
-      }[];
-      maxRetries?: number;
-      timeout?: Timestamp;
-      serviceAccount?: string;
-      executionEnvironment?: string;
-    };
-  };
-};
 export type SessionEvent = {
   id?: string;
   author?: string;
@@ -92,6 +68,11 @@ const messages: Record<string, string> = {
   document_too_large: "The text extracted from this file is too large to store.",
   extraction_failed: "The content of this file could not be extracted.",
   not_supported: "Document upload is not configured on the server.",
+  unknown_job: "This job is not allowed. Choose one of the jobs listed.",
+  unknown_agent: "This job has no such registered agent.",
+  invalid_request: "The request could not be read. Check the entered values and try again.",
+  invalid_resume: "A reply needs a session and a message that is not blank.",
+  cross_site_request: "The service refused a request that came from another site.",
 };
 // Throws an ApiError with a readable message for a failed call; returns its data otherwise.
 type Reply = { data: unknown; error: { status: unknown; value: unknown } | null; status: number };
@@ -130,9 +111,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
   return {
     health: () => unwrap(client.health.get()),
     tasks: () => unwrap(client.tasks.get()),
-    // The next four are UI-shaped views of server data (a Cloud Run job with optional fields, an
-    // ADK session whose events the UI reads loosely, an agent's JSON schemas), so they are cast.
-    jobs: async () => (await unwrap(client.jobs.get())) as unknown as { jobs: Job[] },
+    jobs: () => unwrap(client.jobs.get()),
     task: (id: string) => unwrap(task(id).get()),
     create: (input: { prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),
@@ -140,8 +119,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     resume: (taskId: string, sessionId: string, message: string) =>
       unwrap(task(taskId).run.post({ sessionId, message })),
     registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),
-    agents: async (jobName: string) =>
-      (await unwrap(job(jobName).agents.get())) as unknown as { agents: AgentInfo[] },
+    agents: (jobName: string) => unwrap(job(jobName).agents.get()),
     stats: (taskId: string, sessionId: string) => unwrap(session(taskId, sessionId).stats.get()),
     deleteTask: (id: string) => unwrapVoid(task(id).delete()),
     deleteSession: (taskId: string, sessionId: string) =>
@@ -155,8 +133,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
           .delete(),
       ),
     sessions: (id: string) => unwrap(task(id).sessions.get()),
-    session: async (taskId: string, sessionId: string) =>
-      (await unwrap(session(taskId, sessionId).get())) as unknown as Session,
+    session: (taskId: string, sessionId: string) => unwrap(session(taskId, sessionId).get()),
   };
 };
 export type Api = ReturnType<typeof createApi>;
@@ -169,6 +146,7 @@ export type Task = Awaited<ReturnType<Api["task"]>>;
 export type DocumentSummary = Awaited<ReturnType<Api["documents"]>>["documents"][number];
 export type SessionSummary = Awaited<ReturnType<Api["sessions"]>>["sessions"][number];
 export type RunState = NonNullable<SessionSummary["run"]>;
+export type Job = Awaited<ReturnType<Api["jobs"]>>["jobs"][number];
 export type SessionStats = Awaited<ReturnType<Api["stats"]>>;
 
 // Opens the session message stream (SSE); the server replays stored events
@@ -274,9 +252,11 @@ export const promptError = (schema: JsonSchema | undefined, prompt: string) => {
     : undefined;
 };
 const timestampMs = (t?: Timestamp) =>
-  t?.seconds == null ? undefined : Number(t.seconds) * 1000 + Math.floor((t.nanos ?? 0) / 1e6);
+  t?.seconds == null
+    ? undefined
+    : Number(String(t.seconds)) * 1000 + Math.floor((t.nanos ?? 0) / 1e6);
 const formatDuration = (t?: Timestamp) => {
-  const seconds = t?.seconds == null ? undefined : Number(t.seconds);
+  const seconds = t?.seconds == null ? undefined : Number(String(t.seconds));
   if (seconds == null) return undefined;
   if (seconds % 3600 === 0 && seconds) return `${seconds / 3600}h`;
   if (seconds % 60 === 0 && seconds) return `${seconds / 60}m`;
@@ -286,17 +266,14 @@ const when = (t?: Timestamp) => {
   const ms = timestampMs(t);
   return ms === undefined ? undefined : formatTime(ms);
 };
-const conditionLabel = (state?: string) =>
-  state === "CONDITION_SUCCEEDED" ? "Ready" : state?.replace("CONDITION_", "").toLowerCase();
+const conditionLabel = (state?: string | number | null) =>
+  state === "CONDITION_SUCCEEDED"
+    ? "Ready"
+    : state == null
+      ? undefined
+      : String(state).replace("CONDITION_", "").toLowerCase();
 export const jobEnvNames = (job: Job) =>
   (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) => (e.name ? [e.name] : []));
-export type EnvVar = { name: string; value: string };
-export const jobEnvVars = (job: Job): EnvVar[] =>
-  (job.template?.template?.containers?.[0]?.env ?? []).flatMap((e) =>
-    e.name ? [{ name: e.name, value: e.value ?? "" }] : [],
-  );
-// Variables whose name suggests a credential; the pane hides their value until asked.
-export const isSecretEnv = (name: string) => /key|secret|token|password|credential/i.test(name);
 // Label/value rows for a job's detail pane; unknown fields are left out.
 export const jobDetails = (job: Job): [string, string][] => {
   const task = job.template?.template;
@@ -304,7 +281,7 @@ export const jobDetails = (job: Job): [string, string][] => {
   const limits = container?.resources?.limits;
   const rows: [string, string | undefined][] = [
     ["Status", conditionLabel(job.terminalCondition?.state)],
-    ["Image", container?.image],
+    ["Image", container?.image ?? undefined],
     ["Tasks per execution", job.template?.taskCount?.toString()],
     ["Parallelism", job.template?.parallelism ? String(job.template.parallelism) : "Default"],
     ["Max retries", task?.maxRetries?.toString()],
@@ -312,7 +289,7 @@ export const jobDetails = (job: Job): [string, string][] => {
     ["CPU", limits?.cpu],
     ["Memory", limits?.memory],
     ["Service account", task?.serviceAccount || "Default"],
-    ["Environment", task?.executionEnvironment?.replace("EXECUTION_ENVIRONMENT_", "")],
+    ["Environment", String(task?.executionEnvironment ?? "").replace("EXECUTION_ENVIRONMENT_", "")],
     ["Created", when(job.createTime)],
     ["Updated", when(job.updateTime)],
     ["Executions", job.executionCount?.toString()],

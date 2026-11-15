@@ -247,7 +247,7 @@ test("jobDetails summarises a Cloud Run job and jobEnvNames lists names only", (
     name: "projects/p/locations/l/jobs/my-job",
     createTime: { seconds: "1794425567", nanos: 922767631 },
     executionCount: 36,
-    terminalCondition: { state: "CONDITION_SUCCEEDED" },
+    terminalCondition: { state: "CONDITION_SUCCEEDED" as const },
     latestCreatedExecution: { name: "my-job-abcde" },
     template: {
       taskCount: 1,
@@ -256,7 +256,7 @@ test("jobDetails summarises a Cloud Run job and jobEnvNames lists names only", (
         maxRetries: 3,
         timeout: { seconds: "600", nanos: 0 },
         serviceAccount: "",
-        executionEnvironment: "EXECUTION_ENVIRONMENT_GEN2",
+        executionEnvironment: "EXECUTION_ENVIRONMENT_GEN2" as const,
         containers: [
           {
             image: "agent:latest",

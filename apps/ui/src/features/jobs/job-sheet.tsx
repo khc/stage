@@ -1,5 +1,4 @@
-import { Box, Database, FileText, Plus, Server, Workflow, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Box, Database, FileText, Plus, Server, Workflow } from "lucide-react";
 
 import { PaneHeader, PaneTab, PaneTabsList, TabCount, paneBody } from "@/components/pane";
 import { ResizableSheetContent } from "@/components/resizable-sheet";
@@ -16,15 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import {
-  isSecretEnv,
-  jobDetails,
-  jobEnvVars,
-  shortJobName,
-  type EnvVar,
-  type Job,
-  type Task,
-} from "@/lib/api";
+import { jobDetails, jobEnvNames, shortJobName, type Job, type Task } from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
 import {
@@ -67,7 +58,7 @@ function JobDetails({
   const name = shortJobName(job);
   const { agents, query, register } = useAgentRegistration(name, !!job.name);
   const jobTasks = tasks.filter((task) => task.jobName === name);
-  const envVars = jobEnvVars(job);
+  const envNames = jobEnvNames(job);
   const status = jobDetails(job).find(([label]) => label === "Status")?.[1];
   return (
     <>
@@ -111,7 +102,6 @@ function JobDetails({
           </PaneTab>
         </PaneTabsList>
         <TabsContent value="overview" className={paneBody}>
-          {job.description && <p className="text-sm">{job.description}</p>}
           <div className="shrink-0 overflow-hidden rounded-lg border">
             <Table className="table-fixed">
               <TableBody>
@@ -125,8 +115,8 @@ function JobDetails({
             </Table>
           </div>
           <Overline>Environment variables</Overline>
-          {envVars.length ? (
-            <EnvTable vars={envVars} />
+          {envNames.length ? (
+            <EnvTable names={envNames} />
           ) : (
             <small className="text-muted-foreground">None set.</small>
           )}
@@ -183,47 +173,22 @@ function JobDetails({
   );
 }
 
-function EnvTable({ vars }: { vars: EnvVar[] }) {
-  const [shown, setShown] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setShown((current) => {
-      const next = new Set(current);
-      if (!next.delete(name)) next.add(name);
-      return next;
-    });
+// Only the names: the service never sends the values.
+function EnvTable({ names }: { names: string[] }) {
   return (
     <div className="shrink-0 overflow-hidden rounded-lg border">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[40%]">Name</TableHead>
-            <TableHead>Value</TableHead>
+            <TableHead>Name</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {vars.map(({ name, value }) => {
-            const hidden = isSecretEnv(name) && !shown.has(name);
-            return (
-              <TableRow key={name}>
-                <TableCell className="font-mono text-xs">{name}</TableCell>
-                <TableCell className="font-mono text-xs break-all whitespace-normal">
-                  <span className="flex items-center gap-1">
-                    <span className="flex-1">{hidden ? "••••••••" : value || "—"}</span>
-                    {isSecretEnv(name) && (
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`${hidden ? "Show" : "Hide"} ${name}`}
-                        onClick={() => toggle(name)}
-                      >
-                        {hidden ? <Eye /> : <EyeOff />}
-                      </Button>
-                    )}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {names.map((name) => (
+            <TableRow key={name}>
+              <TableCell className="font-mono text-xs">{name}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </div>

@@ -6,13 +6,6 @@ import type { AgentsService } from "./agents-service";
 
 const tag = "Jobs and agents";
 const loose = t.Object({}, { additionalProperties: true });
-const job = t.Object({
-  name: t.Optional(t.String()),
-  updateTime: t.Optional(t.Any()),
-  conditions: t.Optional(t.Any()),
-  images: t.Array(t.Optional(t.String())),
-  envNames: t.Array(t.Optional(t.String())),
-});
 
 // Mounted at /jobs: the Cloud Run jobs, their registered agents and the agents' cards.
 export const agentsController = (agentsService: AgentsService) =>
@@ -21,8 +14,8 @@ export const agentsController = (agentsService: AgentsService) =>
       ...doc(tag, "List the Cloud Run jobs", {
         200: {
           description:
-            "The jobs of the configured project and region: name, update time, conditions, images and env names (never env values).",
-          schema: t.Object({ jobs: t.Array(job) }),
+            "The jobs of the configured project and region, as Cloud Run reports them but with env variable names only, never their values.",
+          schema: t.Object({ jobs: t.Array(loose) }),
         },
         502: errors.dependency,
       }),

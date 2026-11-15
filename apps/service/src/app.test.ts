@@ -72,13 +72,7 @@ const documentsService = (overrides: Partial<DocumentsService> = {}): DocumentsS
   ...overrides,
 });
 const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService => ({
-  listJobs: async () => [
-    {
-      name: "projects/p/locations/l/jobs/poet-agents",
-      images: [],
-      envNames: [],
-    } as never,
-  ],
+  listJobs: async () => [{ name: "projects/p/locations/l/jobs/poet-agents" }],
   listAgents: async (jobName) => (jobName === "poet-agents" ? [{ name: "haiku" }] : []),
   agentCard: async (jobName, agentName) =>
     jobName === "poet-agents" && agentName === "haiku"
@@ -530,13 +524,7 @@ describe("jobs and agents", () => {
     expect(await call(appWith(), "/jobs")).toEqual({
       status: 200,
       body: {
-        jobs: [
-          {
-            name: "projects/p/locations/l/jobs/poet-agents",
-            images: [],
-            envNames: [],
-          },
-        ],
+        jobs: [{ name: "projects/p/locations/l/jobs/poet-agents" }],
       },
     });
   });

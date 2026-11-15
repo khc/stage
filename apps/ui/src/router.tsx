@@ -262,9 +262,7 @@ function Jobs() {
   const jobsQuery = useJobs();
   const [search, setSearch] = useState("");
   const jobs = jobsQuery.data?.jobs ?? [];
-  const filtered = jobs.filter((job) =>
-    `${job.name} ${job.description ?? ""}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = jobs.filter((job) => `${job.name}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <Card className="has-data-[slot=card-footer]:pb-(--card-spacing)">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">

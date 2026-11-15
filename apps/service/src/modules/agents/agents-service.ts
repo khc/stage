@@ -12,17 +12,21 @@ export type AgentsServiceDeps = {
 
 type Job = Awaited<ReturnType<CloudRunJobs["list"]>>[number];
 
-// A job without its container env values, which can hold credentials: the env names only.
-export const toJobSummary = (job: Job) => {
-  const containers = job.template?.template?.containers ?? [];
-  return {
-    name: job.name,
-    updateTime: job.updateTime,
-    conditions: job.conditions,
-    images: containers.map((container) => container.image),
-    envNames: containers.flatMap((container) => (container.env ?? []).map((env) => env.name)),
-  };
-};
+// The job as Cloud Run reports it, but with only the names of the container env variables:
+// their values (and secret references) can hold credentials and never leave the service.
+export const toJobSummary = (job: Job): Job => ({
+  ...job,
+  template: job.template && {
+    ...job.template,
+    template: job.template.template && {
+      ...job.template.template,
+      containers: job.template.template.containers?.map((container) => ({
+        ...container,
+        env: container.env?.map(({ name }) => ({ name })),
+      })),
+    },
+  },
+});
 
 type AgentInfo = Awaited<ReturnType<AgentRegistry["list"]>>[number];
 
@@ -46,7 +50,13 @@ export const createAgentsService = ({
   agentRegistry,
   allowedJobs,
 }: AgentsServiceDeps): AgentsService => ({
-  listJobs: () => guard("job_error", async () => (await cloudRunJobs.list()).map(toJobSummary)),
+  // Only the allowed jobs are listed, so a client never offers one the service would refuse.
+  listJobs: () =>
+    guard("job_error", async () =>
+      (await cloudRunJobs.list())
+        .filter((job) => !allowedJobs || allowedJobs.has(job.name?.split("/").at(-1) ?? ""))
+        .map(toJobSummary),
+    ),
   listAgents: (jobName) => guard("agents_error", () => agentRegistry.list(jobName)),
   async agentCard(jobName, agentName) {
     const known = await guard("agents_error", () => agentRegistry.list(jobName));

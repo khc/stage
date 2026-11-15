@@ -35,9 +35,7 @@ export function JobCard({ job }: { job: Job }) {
             {name}
           </button>
         </CardTitle>
-        <CardDescription>
-          {job.description || "An agent worker available for task execution."}
-        </CardDescription>
+        <CardDescription>An agent worker available for task execution.</CardDescription>
         <CardAction>
           <Button variant="ghost" size="sm" onClick={() => void openJob(name)}>
             Details

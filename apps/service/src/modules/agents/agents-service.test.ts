@@ -28,17 +28,26 @@ describe("agents service", () => {
     expect(await serviceWith().register("poet-agents")).toBe("op");
   });
 
-  test("lists jobs with the env names but never the env values", async () => {
+  test("lists jobs as Cloud Run reports them, with the env names but never the env values", async () => {
     const service = serviceWith({
       list: async () => [
         {
           name: "projects/p/locations/l/jobs/poet-agents",
+          terminalCondition: { state: "CONDITION_SUCCEEDED" },
           template: {
+            taskCount: 1,
             template: {
+              maxRetries: 0,
               containers: [
                 {
                   image: "img:1",
-                  env: [{ name: "GEMINI_API_KEY", value: "s3cret" }],
+                  env: [
+                    { name: "GEMINI_API_KEY", value: "s3cret" },
+                    {
+                      name: "KEY_FROM_SECRET",
+                      valueSource: { secretKeyRef: { secret: "s3cret" } },
+                    },
+                  ],
                 },
               ],
             },
@@ -50,11 +59,35 @@ describe("agents service", () => {
     expect(jobs).toMatchObject([
       {
         name: "projects/p/locations/l/jobs/poet-agents",
-        images: ["img:1"],
-        envNames: ["GEMINI_API_KEY"],
+        terminalCondition: { state: "CONDITION_SUCCEEDED" },
+        template: {
+          taskCount: 1,
+          template: {
+            maxRetries: 0,
+            containers: [
+              { image: "img:1", env: [{ name: "GEMINI_API_KEY" }, { name: "KEY_FROM_SECRET" }] },
+            ],
+          },
+        },
       },
     ]);
     expect(JSON.stringify(jobs)).not.toContain("s3cret");
+  });
+
+  test("lists only the allowed jobs", async () => {
+    const service = createAgentsService({
+      cloudRunJobs: {
+        list: async () => [
+          { name: "projects/p/locations/l/jobs/poet-agents" },
+          { name: "projects/p/locations/l/jobs/migrate-db" },
+        ],
+      },
+      agentRegistry: { list: async () => [] },
+      allowedJobs: new Set(["poet-agents"]),
+    } as never);
+    expect((await service.listJobs()).map((job) => job.name)).toEqual([
+      "projects/p/locations/l/jobs/poet-agents",
+    ]);
   });
 
   test("does not register a job outside the allowed jobs", async () => {
