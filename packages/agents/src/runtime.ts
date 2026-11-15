@@ -1,10 +1,10 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
+import { annotateJob } from "@stage/http/otel";
 
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 import { FirestoreSessionService } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
-import { annotateJob } from "./telemetry";
 
 export type RunAgent = (
   message: string,

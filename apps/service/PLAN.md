@@ -23,7 +23,7 @@ Status: the rebuild is done and the Hono service has been removed (two parity pa
 ```
 apps/service/src/
   index.ts  app.ts  config.ts
-  http/        errors.ts  request-id.ts  telemetry.ts       # cross-cutting plugins
+  http/        errors.ts                                      # the shared handler plus the service's own errors (the plugins are in packages/http)
   platform/    firestore-client.ts  cloud-run-jobs-client.ts  pubsub-client.ts  extract-client.ts
   modules/
     tasks/     tasks-controller.ts  tasks-service.ts  tasks-model.ts  tasks-store.ts
@@ -93,7 +93,7 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 - `agents` (`/jobs`): list jobs, a job's registered agents, an agent's card, and register. The register route was not run (it executes the job image).
 - `events` (`/events`): platform events as SSE, published when tasks, documents and jobs change; 501 without `PLATFORM_EVENTS_TOPIC`. Ran against Floci: a created and a deleted task showed up in the stream.
 
-- Request ids and telemetry: every response carries `x-request-id` (the caller's id if short and plain, else a UUID; also in the error log and on the span). Each request is one OpenTelemetry server span, continuing a caller's `traceparent`, named after the route, with the status, an error status and the exception on 5xx, and the handler's own Firestore and Cloud Run calls as children (Elysia's `wrap` runs the whole pipeline inside the span). Traces are exported only when an `OTEL_EXPORTER_OTLP_*ENDPOINT` is set, through the same `setupTelemetry` the jobs use, registered by `src/telemetry-init.ts` as a `bun --preload` (`start`, `dev`, and the image entrypoint). Checked with a local OTLP receiver: the exported batch had `service.name` `stage-service`, the span `GET /health` and the request id.
+- Request ids and telemetry (now the plugins in `packages/http`, shared with extract-service): every response carries `x-request-id` (the caller's id if short and plain, else a UUID; also in the error log and on the span). Each request is one OpenTelemetry server span, continuing a caller's `traceparent`, named after the route, with the status, an error status and the exception on 5xx, and the handler's own Firestore and Cloud Run calls as children (Elysia's `wrap` runs the whole pipeline inside the span). Traces are exported only when an `OTEL_EXPORTER_OTLP_*ENDPOINT` is set, through the same `setupTelemetry` the jobs use, registered by `src/telemetry-init.ts` as a `bun --preload` (`start`, `dev`, and the image entrypoint). Checked with a local OTLP receiver: the exported batch had `service.name` `stage-service`, the span `GET /health` and the request id.
 - `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as the Hono service; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
 
 Eden in `apps/ui` (done): `apps/ui/src/lib/api.ts` now builds its `api` object on `treaty<App>` with `App` imported as a type from `@stage/service/app`, so paths, bodies and replies are typed by the service's routes and the UI components did not change (the UI type-checks with no errors). The five server-shape types (`Task`, `DocumentSummary`, `SessionSummary`, `RunState`, `SessionStats`) are derived from the replies; `Job`, `Session`, `SessionEvent`, `AgentInfo` and `JsonSchema` stay UI-shaped (loose views of Cloud Run, ADK and JSON Schema data), and the replies that carry them are cast. Findings: Eden does not encode path parameters, so the facade does (session ids can hold any character); the three `erasableSyntaxOnly` constructs (`event-feed.ts` and the `FirestoreSessionService` constructor) became plain fields; `Dockerfile.ui` copies `packages/agents` and `apps/service` into the build stage for the type check (the image is the same 55 MB, and the bundle grew by 7.9 KB for Eden's runtime); `api.ts` went from 450 to 431 lines, so the gain is type safety, not size. The UI's real `createApi` ran against the live service: health, jobs, agents, create, get, list, upload, detach, delete and the error mapping all passed. Eden types a validation failure as 422 while the service answers 400, and the `run` and `documents` bodies are untyped because those routes read the body themselves.
@@ -133,7 +133,7 @@ Known differences from the Hono service, to settle in the parity run (Phase 5):
 
 - `package.json`, `tsconfig` and the workspace entry for `apps/service`.
 - `config.ts`: one validated environment schema (same variables as the Hono service).
-- `platform/` clients, `http/errors.ts`, `http/request-id.ts`, `http/telemetry.ts`, the `health` module, `index.ts` and `app.ts`.
+- `platform/` clients, `http/errors.ts`, the request id and telemetry plugins (now in `packages/http`), the `health` module, `index.ts` and `app.ts`.
 - Test: `app.handle` on `/health` and an error-mapping case.
 
 **Phase 2: modules, one at a time, each with tests ported from the Hono service.**
@@ -172,3 +172,5 @@ Known differences from the Hono service, to settle in the parity run (Phase 5):
 - New endpoints or behaviour changes. Parity first.
 - Authentication, rate limiting and a DI container.
 - Changes to the agent jobs or `packages/agents`, except what D3 requires.
+
+Shared code (`packages/http`, `@stage/http`): after the Elysia rewrite of extract-service, what both apps had in common moved there, one commit per piece: the request id plugin, the request span plugin together with `setupTelemetry` (moved out of `packages/agents`, which the jobs now import from `@stage/http/otel`), the config loader, and the base error handler. Left in each app on purpose: the `health` module (under 30 lines, and the payloads differ), the bootstrap in `index.ts` and `app.ts`, `DependencyError` and `guard` (Firestore and GCP specific), and the SSE helper and `EventFeed` (only the service streams). The package keeps to `elysia`, TypeBox and OpenTelemetry, so extract-service's image grew by 6 MB and not by the agents' Firestore and ADK dependencies.

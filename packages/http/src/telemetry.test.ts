@@ -5,17 +5,21 @@ import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-tr
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Elysia, t } from "elysia";
 
-import { DependencyError } from "../errors";
-import { errorHandler } from "./errors";
 import { requestId } from "./request-id";
-import { inRequestSpan, requestTelemetry } from "./telemetry";
+import { inRequestSpan, recordRequestError, requestTelemetry } from "./telemetry";
 
 const exporter = new InMemorySpanExporter();
 const app = new Elysia()
   .use(requestId())
   .use(requestTelemetry())
   .wrap(inRequestSpan)
-  .use(errorHandler())
+  // As an app's error handler does: a failure the caller did not cause is recorded on the span.
+  .onError({ as: "global" }, ({ code, error, request, status }) => {
+    if (code === "VALIDATION") return status(400, { error: "invalid_request" });
+    if (code === "NOT_FOUND") return status(404, { error: "not_found" });
+    recordRequestError(request, error);
+    return status(502, { error: "failed" });
+  })
   .get("/ok", async () => {
     await Bun.sleep(1);
     // As the Firestore client would: no explicit parent.
@@ -23,7 +27,7 @@ const app = new Elysia()
     return { ok: true };
   })
   .get("/dependency", () => {
-    throw new DependencyError("task_error", new Error("down"));
+    throw new Error("down");
   })
   .get("/bug", () => {
     throw new Error("bug");

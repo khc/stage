@@ -27,6 +27,17 @@ const withFile = (name = "a.txt", type = "text/plain") => {
   return form;
 };
 
+describe("request ids", () => {
+  test("every response carries x-request-id: the caller's, or a generated one", async () => {
+    const generated = await handle(appWith(), "/health");
+    expect(generated.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+    const kept = await handle(appWith(), "/health", { headers: { "x-request-id": "trace-1" } });
+    expect(kept.headers.get("x-request-id")).toBe("trace-1");
+    const failed = await handle(appWith(), "/extract", { method: "POST" });
+    expect(failed.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
 describe("GET /health", () => {
   test("answers ok", async () => {
     const res = await handle(appWith(), "/health");
