@@ -375,7 +375,7 @@ export class FirestoreSessionService extends BaseSessionService {
       timestamp: appended.timestamp,
       json: JSON.stringify(appended),
     };
-    const sessionData = { state: session.state, lastUpdateTime: session.lastUpdateTime };
+    const sessionData = { state: trimTempState(session.state), lastUpdateTime: session.lastUpdateTime };
     const held = this.leased.get(session.id);
     if (held) {
       // While a run holds the session, a write counts only if it still owns it.
