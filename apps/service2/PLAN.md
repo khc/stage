@@ -81,6 +81,17 @@ Rules:
 
 D2 and D5 are still open.
 
+## Progress
+
+Done and verified against the local Floci stack (unit tests, the Firestore-backed store tests, and a real run of the API):
+
+- Skeleton: config (`PORT`, `HOST`, optional `EXTRACT_URL`), error mapping, Firestore and extract clients, health.
+- `tasks`: create, list, get, delete (cascades to sessions, then releases documents).
+- `tasks/sessions`: list, get, delete. Not yet: `/stats`, the live `messages` stream.
+- `tasks/documents`: list, get, upload, delete, with 501 when `EXTRACT_URL` is unset.
+
+Still to do: `POST /tasks/:taskId/run` (needs `platform/cloud-run-jobs-client.ts`), session `/stats` and `messages` (SSE), the `agents` and `events` modules, then Phases 3 to 5.
+
 ## Phases
 
 **Phase 0: spikes.** Settle D1 to D4 with throwaway code in `service2`. Output: a short note per decision here. Stop and reassess if D1 and D2 both fail.

@@ -6,6 +6,8 @@ const Env = TypeCompiler.Compile(
     PORT: t.Numeric({ minimum: 1, maximum: 65535, multipleOf: 1 }),
     // Local runs listen on loopback only; the container sets HOST=0.0.0.0 explicitly.
     HOST: t.String({ minLength: 1 }),
+    // Base URL of apps/extract. Without it the document routes answer 501.
+    EXTRACT_URL: t.Optional(t.String({ minLength: 1 })),
   }),
 );
 

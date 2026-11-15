@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { errorHandler } from "./http/errors";
 import { healthController } from "./modules/health/health-controller";
 import type { HealthService } from "./modules/health/health-service";
+import type { DocumentsService } from "./modules/tasks/documents/documents-service";
 import type { SessionsService } from "./modules/tasks/sessions/sessions-service";
 import { tasksController } from "./modules/tasks/tasks-controller";
 import type { TasksService } from "./modules/tasks/tasks-service";
@@ -12,6 +13,8 @@ export type AppDeps = {
   healthService: HealthService;
   tasksService: TasksService;
   sessionsService: SessionsService;
+  // Undefined when EXTRACT_URL is not set: the document routes answer 501.
+  documentsService?: DocumentsService;
 };
 
 // One controller per module, mounted here. Keep this one unbroken chain: Eden reads its type.
