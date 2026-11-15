@@ -23,7 +23,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // Types only (`import type { App }` in src/lib/api.ts). Not a package dependency on purpose: a
+      // workspace dependency makes `bun --filter` wait for the service's long-running dev script.
+      "@stage/service/app": ["../service/src/app.ts"]
     }
   },
   "include": ["src"]
