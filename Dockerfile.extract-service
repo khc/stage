@@ -30,4 +30,5 @@ COPY --from=deps /app/apps/extract-service/node_modules ./apps/extract-service/n
 
 USER bun
 EXPOSE 8080
-CMD ["bun", "apps/extract-service/src/index.ts"]
+# The preload registers the tracer provider (apps/extract-service/src/telemetry-init.ts).
+CMD ["bun", "--preload", "/app/apps/extract-service/src/telemetry-init.ts", "apps/extract-service/src/index.ts"]
