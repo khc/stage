@@ -86,11 +86,17 @@ D2 and D5 are still open.
 Done and verified against the local Floci stack (unit tests, the Firestore-backed store tests, and a real run of the API):
 
 - Skeleton: config (`PORT`, `HOST`, optional `EXTRACT_URL`), error mapping, Firestore and extract clients, health.
-- `tasks`: create, list, get, delete (cascades to sessions, then releases documents).
+- `tasks`: create, list, get, delete (cascades to sessions, then releases documents), and `POST /tasks/:taskId/run` (new session or resume, via `platform/cloud-run-jobs-client.ts`; config needs `GCP_PROJECT` and `GCP_REGION`). The failure paths ran against Floci; a real job execution was not started, since the poet and generic jobs call Gemini.
 - `tasks/sessions`: list, get, delete. Not yet: `/stats`, the live `messages` stream.
 - `tasks/documents`: list, get, upload, delete, with 501 when `EXTRACT_URL` is unset.
 
-Still to do: `POST /tasks/:taskId/run` (needs `platform/cloud-run-jobs-client.ts`), session `/stats` and `messages` (SSE), the `agents` and `events` modules, then Phases 3 to 5.
+Still to do: session `/stats` and `messages` (SSE), the `agents` and `events` modules (including `/jobs`, `/events`, `/docs`, `/openapi.json`), then Phases 3 to 5.
+
+Known differences from `apps/service`, to settle in the parity run (Phase 5):
+
+- Validation errors answer 400 `{ error: "invalid_request", details }` (Elysia's 422 is remapped; `details` exposes schema internals). A bad resume answers 400 `{ success: false, error: "invalid_resume" }` without the Zod error object, and is checked before the task lookup, so an invalid resume for an unknown task answers 400 and not 404.
+- A prompt is trimmed in the controller, so the 10,000-character limit applies before trimming.
+- Unknown routes answer `{ error: "not_found" }`.
 
 ## Phases
 

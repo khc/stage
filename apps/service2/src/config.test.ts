@@ -2,27 +2,38 @@ import { describe, expect, test } from "bun:test";
 
 import { loadConfig } from "./config";
 
+const gcp = { GCP_PROJECT: "floci-local", GCP_REGION: "us-central1" };
+
 describe("loadConfig", () => {
-  test("defaults to loopback on port 3001", () => {
-    expect(loadConfig({})).toEqual({ PORT: 3001, HOST: "127.0.0.1" });
+  test("defaults to loopback on port 3001, and EXTRACT_URL is optional", () => {
+    expect(loadConfig(gcp)).toEqual({ ...gcp, PORT: 3001, HOST: "127.0.0.1" });
   });
 
   test("treats undefined values as missing", () => {
-    expect(loadConfig({ PORT: undefined, HOST: undefined })).toEqual({
+    expect(
+      loadConfig({ ...gcp, PORT: undefined, HOST: undefined, EXTRACT_URL: undefined }),
+    ).toEqual({
+      ...gcp,
       PORT: 3001,
       HOST: "127.0.0.1",
     });
   });
 
-  test("coerces PORT to a number and takes HOST as given", () => {
-    expect(loadConfig({ PORT: "4000", HOST: "0.0.0.0" })).toEqual({ PORT: 4000, HOST: "0.0.0.0" });
+  test("coerces PORT to a number and takes HOST and EXTRACT_URL as given", () => {
+    expect(
+      loadConfig({ ...gcp, PORT: "4000", HOST: "0.0.0.0", EXTRACT_URL: "http://extract:8080" }),
+    ).toEqual({ ...gcp, PORT: 4000, HOST: "0.0.0.0", EXTRACT_URL: "http://extract:8080" });
   });
 
   test.each(["abc", "", "0", "30.5", "99999"])("rejects PORT=%p", (PORT) => {
-    expect(() => loadConfig({ PORT })).toThrow();
+    expect(() => loadConfig({ ...gcp, PORT })).toThrow();
   });
 
   test("rejects an empty HOST", () => {
-    expect(() => loadConfig({ HOST: "" })).toThrow();
+    expect(() => loadConfig({ ...gcp, HOST: "" })).toThrow();
+  });
+
+  test.each(["GCP_PROJECT", "GCP_REGION"])("requires %s", (name) => {
+    expect(() => loadConfig({ ...gcp, [name]: undefined })).toThrow();
   });
 });

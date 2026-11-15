@@ -1,5 +1,7 @@
 import { describe, expect, mock, spyOn, test } from "bun:test";
 
+import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
+
 import { DependencyError } from "../../errors";
 import { createTasksService, type TasksServiceDeps } from "./tasks-service";
 
@@ -25,6 +27,7 @@ const setupDelete = (found = true) => {
       delete: deleteTask,
     },
     agentRegistry: { list: async () => [] },
+    cloudRunJobs: { run: async () => "op" },
     sessionsStore: { list: async () => [{ id: "s1" }, { id: "s2" }], delete: sessionsDelete },
     documentsStore: { release },
   } as unknown as TasksServiceDeps;
@@ -102,5 +105,125 @@ describe("tasks service create", () => {
 
   test("a job without a registration accepts any valid agent name", async () => {
     expect((await createWith([]).service.create(input)).status).toBe("created");
+  });
+});
+
+describe("tasks service run", () => {
+  const task = { taskId, prompt: "p", jobName: "my-job" };
+  const setupRun = (
+    overrides: { task?: unknown; session?: unknown; queue?: () => Promise<boolean> } = {},
+  ) => {
+    const runJob = mock(async (..._args: unknown[]) => "op-1");
+    const getTask = mock(async (_id: string) => ("task" in overrides ? overrides.task : task));
+    const get = mock(async (_t: string, _s: string) =>
+      "session" in overrides ? overrides.session : { id: "s1" },
+    );
+    const queueMessage = mock(async (_t: string, _s: string, _m: string) =>
+      (overrides.queue ?? (async () => true))(),
+    );
+    const clearMessage = mock(async (_t: string, _s: string) => {});
+    const service = createTasksService({
+      tasksStore: { get: getTask },
+      agentRegistry: { list: async () => [] },
+      cloudRunJobs: { run: runJob },
+      sessionsStore: { get, queueMessage, clearMessage },
+    } as unknown as TasksServiceDeps);
+    return { service, getTask, runJob, queueMessage, clearMessage };
+  };
+  const resume = { sessionId: "s1", message: "answer" };
+  const rejection = (promise: Promise<unknown>) =>
+    promise.then(
+      () => undefined,
+      (e) => e,
+    );
+
+  test("starts a new session without a resume", async () => {
+    const { service, runJob, queueMessage } = setupRun();
+    expect(await service.run(taskId)).toEqual({ status: "started", operation: "op-1" });
+    expect(runJob).toHaveBeenCalledWith("my-job", taskId);
+    expect(queueMessage).not.toHaveBeenCalled();
+  });
+
+  test("reports a missing task, and a task without a valid job name", async () => {
+    expect(await setupRun({ task: undefined }).service.run(taskId)).toEqual({
+      status: "task_not_found",
+    });
+    for (const jobName of [undefined, "Bad_Name"]) {
+      const { service, runJob } = setupRun({ task: { taskId, prompt: "p", jobName } });
+      expect(await service.run(taskId)).toEqual({ status: "task_not_executable" });
+      expect(runJob).not.toHaveBeenCalled();
+    }
+  });
+
+  test("a failing task lookup is a task_error dependency failure", async () => {
+    const { service, getTask } = setupRun();
+    getTask.mockRejectedValue(new Error("firestore down"));
+    const err = await rejection(service.run(taskId));
+    expect(err).toBeInstanceOf(DependencyError);
+    expect((err as DependencyError).code).toBe("task_error");
+  });
+
+  test("resumes a session: queues the message, then starts the job with only the session id", async () => {
+    const { service, runJob, queueMessage } = setupRun();
+    expect(await service.run(taskId, resume)).toEqual({ status: "started", operation: "op-1" });
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "answer");
+    expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s1");
+  });
+
+  test("a missing session, or one that is not the task's, is session_not_found", async () => {
+    expect(await setupRun({ session: undefined }).service.run(taskId, resume)).toEqual({
+      status: "session_not_found",
+    });
+    const { service, runJob } = setupRun({ queue: async () => false });
+    expect(await service.run(taskId, resume)).toEqual({ status: "session_not_found" });
+    expect(runJob).not.toHaveBeenCalled();
+  });
+
+  test("a running session, or a message still waiting, stops the resume before the job", async () => {
+    const running = setupRun({ session: { id: "s1", run: { status: "running", startedAt: 1 } } });
+    expect(await running.service.run(taskId, resume)).toEqual({ status: "run_in_progress" });
+    expect(running.queueMessage).not.toHaveBeenCalled();
+
+    const lease = setupRun({ queue: async () => Promise.reject(new RunInProgressError()) });
+    expect(await lease.service.run(taskId, resume)).toEqual({ status: "run_in_progress" });
+
+    const pending = setupRun({ queue: async () => Promise.reject(new MessageQueuedError()) });
+    expect(await pending.service.run(taskId, resume)).toEqual({ status: "message_pending" });
+    expect(pending.runJob).not.toHaveBeenCalled();
+  });
+
+  test("any other session failure is a session_error dependency failure", async () => {
+    const { service } = setupRun({
+      queue: async () => Promise.reject(new Error("firestore down")),
+    });
+    expect(((await rejection(service.run(taskId, resume))) as DependencyError).code).toBe(
+      "session_error",
+    );
+  });
+
+  test("when the job cannot start, a queued message is cleared and the failure is a job_error", async () => {
+    const resumed = setupRun();
+    resumed.runJob.mockRejectedValue(new Error("cloud run down"));
+    expect(((await rejection(resumed.service.run(taskId, resume))) as DependencyError).code).toBe(
+      "job_error",
+    );
+    expect(resumed.clearMessage).toHaveBeenCalledWith(taskId, "s1");
+
+    const fresh = setupRun();
+    fresh.runJob.mockRejectedValue(new Error("cloud run down"));
+    await rejection(fresh.service.run(taskId));
+    expect(fresh.clearMessage).not.toHaveBeenCalled();
+  });
+
+  test("a failing clear of the queued message is only logged", async () => {
+    const { service, runJob, clearMessage } = setupRun();
+    runJob.mockRejectedValue(new Error("cloud run down"));
+    clearMessage.mockRejectedValue(new Error("firestore down"));
+    const spy = spyOn(console, "error").mockImplementation(() => {});
+    expect(((await rejection(service.run(taskId, resume))) as DependencyError).code).toBe(
+      "job_error",
+    );
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

@@ -10,6 +10,7 @@ import { createSessionsService } from "./modules/tasks/sessions/sessions-service
 import { createSessionsStore } from "./modules/tasks/sessions/sessions-store";
 import { createTasksService } from "./modules/tasks/tasks-service";
 import { createTasksStore } from "./modules/tasks/tasks-store";
+import { createCloudRunJobs, createJobsClient } from "./platform/cloud-run-jobs-client";
 import { createExtractClient } from "./platform/extract-client";
 import { createFirestoreClient } from "./platform/firestore-client";
 
@@ -26,6 +27,10 @@ const app = createApp({
   tasksService: createTasksService({
     tasksStore: createTasksStore(firestore),
     agentRegistry: createAgentRegistry(firestore),
+    cloudRunJobs: createCloudRunJobs(createJobsClient(process.env), {
+      project: config.GCP_PROJECT,
+      location: config.GCP_REGION,
+    }),
     sessionsStore,
     documentsStore,
   }),

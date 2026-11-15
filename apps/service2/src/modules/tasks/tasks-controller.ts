@@ -1,11 +1,14 @@
 import { Elysia } from "elysia";
+import { TypeCompiler } from "elysia/type-system";
 
 import { documentsController } from "./documents/documents-controller";
 import type { DocumentsService } from "./documents/documents-service";
 import { sessionsController } from "./sessions/sessions-controller";
 import type { SessionsService } from "./sessions/sessions-service";
 import { TasksModel } from "./tasks-model";
-import type { TasksService } from "./tasks-service";
+import type { Resume, TasksService } from "./tasks-service";
+
+const isResume = TypeCompiler.Compile(TasksModel.resume);
 
 export type TasksControllerDeps = {
   tasksService: TasksService;
@@ -37,6 +40,35 @@ export const tasksController = ({
         (await tasksService.get(params.taskId.toLowerCase())) ??
         status(404, { error: "task_not_found" }),
       { params: TasksModel.params },
+    )
+    .post(
+      "/:taskId/run",
+      async ({ params, request, status }) => {
+        const raw = (await request.json().catch(() => undefined)) as
+          | Record<string, unknown>
+          | undefined;
+        let resume: Resume | undefined;
+        if (raw?.sessionId !== undefined) {
+          if (!isResume.Check(raw)) return status(400, { success: false, error: "invalid_resume" });
+          resume = { sessionId: raw.sessionId, message: raw.message.trim() };
+        }
+        const result = await tasksService.run(params.taskId.toLowerCase(), resume);
+        switch (result.status) {
+          case "started":
+            return status(202, { operation: result.operation });
+          case "task_not_found":
+          case "session_not_found":
+            return status(404, { error: result.status });
+          default:
+            return status(409, { error: result.status });
+        }
+      },
+      {
+        params: TasksModel.params,
+        // Elysia would answer 400 to a body that is not JSON; here it is a plain run, as in
+        // apps/service, so the handler reads the body itself.
+        parse: "none",
+      },
     )
     .delete(
       "/:taskId",

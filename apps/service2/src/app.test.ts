@@ -17,6 +17,8 @@ const tasksService = (overrides: Partial<TasksService> = {}): TasksService => ({
   list: async () => [task],
   get: async (id) => (id === task.taskId ? task : undefined),
   delete: async (id) => (id === task.taskId ? "deleted" : "not_found"),
+  run: async (id) =>
+    id === task.taskId ? { status: "started", operation: "op-1" } : { status: "task_not_found" },
   ...overrides,
 });
 const session = {
@@ -312,5 +314,68 @@ describe("documents of a task", () => {
       { list: async () => Promise.reject(new DependencyError("document_error", new Error("x"))) },
     );
     expect(await call(app, base)).toEqual({ status: 502, body: { error: "document_error" } });
+  });
+});
+
+describe("POST /tasks/:taskId/run", () => {
+  const run = (taskId: string, body?: BodyInit, contentType = "application/json") =>
+    call(appWith(), `/tasks/${taskId}/run`, {
+      method: "POST",
+      headers: body === undefined ? {} : { "content-type": contentType },
+      body,
+    });
+
+  test("starts a run without a body and answers 202 with the operation", async () => {
+    expect(await run(task.taskId)).toEqual({ status: 202, body: { operation: "op-1" } });
+  });
+
+  test("a body that is not JSON is a plain run", async () => {
+    expect((await run(task.taskId, "not json {")).status).toBe(202);
+  });
+
+  test("a resume passes the session id and the trimmed message to the service", async () => {
+    let seen: unknown;
+    const app = appWith({
+      run: async (_id, resume) => ((seen = resume), { status: "started", operation: "op-2" }),
+    });
+    const res = await call(
+      app,
+      `/tasks/${task.taskId.toUpperCase()}/run`,
+      json({ sessionId: "s1", message: "  answer  " }),
+    );
+    expect(res).toEqual({ status: 202, body: { operation: "op-2" } });
+    expect(seen).toEqual({ sessionId: "s1", message: "answer" });
+  });
+
+  test.each([
+    ["a blank message", { sessionId: "s1", message: "  " }],
+    ["a missing message", { sessionId: "s1" }],
+    ["an empty session id", { sessionId: "", message: "m" }],
+  ])("a resume with %s is 400 invalid_resume and starts nothing", async (_name, body) => {
+    let started = false;
+    const app = appWith({
+      run: async () => ((started = true), { status: "started", operation: "x" }),
+    });
+    const res = await call(app, `/tasks/${task.taskId}/run`, json(body));
+    expect(res).toEqual({ status: 400, body: { success: false, error: "invalid_resume" } });
+    expect(started).toBe(false);
+  });
+
+  test.each([
+    ["task_not_found", 404],
+    ["session_not_found", 404],
+    ["task_not_executable", 409],
+    ["run_in_progress", 409],
+    ["message_pending", 409],
+  ] as const)("maps the status %s to %i", async (status, code) => {
+    const app = appWith({ run: async () => ({ status }) });
+    expect(await call(app, `/tasks/${task.taskId}/run`, { method: "POST" })).toEqual({
+      status: code,
+      body: { error: status },
+    });
+  });
+
+  test("rejects a malformed task id with 400", async () => {
+    expect((await run("not-a-uuid")).status).toBe(400);
   });
 });
