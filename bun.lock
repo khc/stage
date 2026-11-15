@@ -74,8 +74,10 @@
       "version": "0.1.0",
       "dependencies": {
         "@google-cloud/firestore": "^9.4.1",
+        "@google-cloud/pubsub": "^6.4.1",
         "@google-cloud/run": "^4.2.0",
         "@google/adk": "^2.5.0",
+        "@sinclair/typebox": "^0.34.52",
         "@stage/agents": "workspace:*",
         "elysia": "^1.4.32",
       },

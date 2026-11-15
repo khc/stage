@@ -3,9 +3,9 @@ import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-se
 
 import { DependencyError, guard } from "../../errors";
 import type { CloudRunJobs } from "../../platform/cloud-run-jobs-client";
+import { isJobName } from "../agents/agents-model";
 import type { DocumentsStore } from "./documents/documents-store";
 import type { SessionsStore } from "./sessions/sessions-store";
-import { isJobName } from "./tasks-model";
 import type { NewTask, TaskContract, TasksStore } from "./tasks-store";
 
 export type TasksServiceDeps = {

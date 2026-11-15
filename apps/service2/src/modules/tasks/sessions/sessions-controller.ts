@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 
+import { KEEPALIVE_MS, toSse } from "../../../utils/sse";
 import { tasksGuard } from "../tasks-guard";
 import type { TasksService } from "../tasks-service";
 import { SessionsModel } from "./sessions-model";
@@ -22,6 +23,32 @@ export const sessionsController = ({ tasksService, sessionsService }: SessionsCo
       async ({ task, params, status }) =>
         (await sessionsService.get(task.taskId, params.sessionId)) ??
         status(404, { error: "session_not_found" }),
+      { params: SessionsModel.params },
+    )
+    .get(
+      "/:sessionId/stats",
+      async ({ task, params, status }) =>
+        (await sessionsService.stats(task.taskId, params.sessionId)) ??
+        status(404, { error: "session_not_found" }),
+      { params: SessionsModel.params },
+    )
+    .get(
+      "/:sessionId/messages",
+      async function* ({ task, params, request, status }) {
+        const controller = new AbortController();
+        // A disconnect aborts the feed at once, which also unsubscribes from Pub/Sub.
+        request.signal.addEventListener("abort", () => controller.abort(), { once: true });
+        const result = await sessionsService.messages(task.taskId, params.sessionId, {
+          signal: controller.signal,
+          idleMs: KEEPALIVE_MS,
+        });
+        if (result.status !== "ok") return status(404, { error: result.status });
+        try {
+          for await (const entry of result.entries) yield toSse(entry);
+        } finally {
+          controller.abort();
+        }
+      },
       { params: SessionsModel.params },
     )
     .delete(

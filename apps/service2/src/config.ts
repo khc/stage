@@ -1,5 +1,5 @@
+import { TypeCompiler } from "@sinclair/typebox/compiler";
 import { t } from "elysia";
-import { TypeCompiler } from "elysia/type-system";
 
 const Env = TypeCompiler.Compile(
   t.Object({
@@ -11,6 +11,10 @@ const Env = TypeCompiler.Compile(
     GCP_REGION: t.String({ minLength: 1 }),
     // Base URL of apps/extract. Without it the document routes answer 501.
     EXTRACT_URL: t.Optional(t.String({ minLength: 1 })),
+    // The Pub/Sub topic the agents publish session events to. Without it, messages serve only stored events.
+    PUBSUB_TOPIC: t.Optional(t.String({ minLength: 1 })),
+    // The topic the service publishes its own events to and /events streams from. Without it, /events answers 501.
+    PLATFORM_EVENTS_TOPIC: t.Optional(t.String({ minLength: 1 })),
   }),
 );
 

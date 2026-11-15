@@ -11,7 +11,13 @@ describe("loadConfig", () => {
 
   test("treats undefined values as missing", () => {
     expect(
-      loadConfig({ ...gcp, PORT: undefined, HOST: undefined, EXTRACT_URL: undefined }),
+      loadConfig({
+        ...gcp,
+        PORT: undefined,
+        HOST: undefined,
+        EXTRACT_URL: undefined,
+        PUBSUB_TOPIC: undefined,
+      }),
     ).toEqual({
       ...gcp,
       PORT: 3001,
@@ -21,8 +27,20 @@ describe("loadConfig", () => {
 
   test("coerces PORT to a number and takes HOST and EXTRACT_URL as given", () => {
     expect(
-      loadConfig({ ...gcp, PORT: "4000", HOST: "0.0.0.0", EXTRACT_URL: "http://extract:8080" }),
-    ).toEqual({ ...gcp, PORT: 4000, HOST: "0.0.0.0", EXTRACT_URL: "http://extract:8080" });
+      loadConfig({
+        ...gcp,
+        PORT: "4000",
+        HOST: "0.0.0.0",
+        EXTRACT_URL: "http://extract:8080",
+        PUBSUB_TOPIC: "agent-events",
+      }),
+    ).toEqual({
+      ...gcp,
+      PORT: 4000,
+      HOST: "0.0.0.0",
+      EXTRACT_URL: "http://extract:8080",
+      PUBSUB_TOPIC: "agent-events",
+    });
   });
 
   test.each(["abc", "", "0", "30.5", "99999"])("rejects PORT=%p", (PORT) => {

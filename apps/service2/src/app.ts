@@ -1,6 +1,10 @@
 import { Elysia } from "elysia";
 
 import { errorHandler } from "./http/errors";
+import { agentsController } from "./modules/agents/agents-controller";
+import type { AgentsService } from "./modules/agents/agents-service";
+import { eventsController } from "./modules/events/events-controller";
+import type { EventsService } from "./modules/events/events-service";
 import { healthController } from "./modules/health/health-controller";
 import type { HealthService } from "./modules/health/health-service";
 import type { DocumentsService } from "./modules/tasks/documents/documents-service";
@@ -15,6 +19,9 @@ export type AppDeps = {
   sessionsService: SessionsService;
   // Undefined when EXTRACT_URL is not set: the document routes answer 501.
   documentsService?: DocumentsService;
+  agentsService: AgentsService;
+  // Undefined when PLATFORM_EVENTS_TOPIC is not set: /events answers 501.
+  eventsService?: EventsService;
 };
 
 // One controller per module, mounted here. Keep this one unbroken chain: Eden reads its type.
@@ -23,6 +30,8 @@ export const createApp = (deps: AppDeps) =>
   new Elysia()
     .use(errorHandler())
     .use(healthController(deps.healthService))
+    .use(agentsController(deps.agentsService))
+    .use(eventsController(deps.eventsService))
     .use(tasksController(deps));
 
 export type App = ReturnType<typeof createApp>;

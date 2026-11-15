@@ -87,16 +87,19 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 
 - Skeleton: config (`PORT`, `HOST`, optional `EXTRACT_URL`), error mapping, Firestore and extract clients, health.
 - `tasks`: create, list, get, delete (cascades to sessions, then releases documents), and `POST /tasks/:taskId/run` (new session or resume, via `platform/cloud-run-jobs-client.ts`; config needs `GCP_PROJECT` and `GCP_REGION`). The failure paths ran against Floci; a real job execution was not started, since the poet and generic jobs call Gemini.
-- `tasks/sessions`: list, get, delete. Not yet: `/stats`, the live `messages` stream.
+- `tasks/sessions`: list, get, delete, `/stats` and the live `messages` stream (stored events first, then live ones from Pub/Sub when `PUBSUB_TOPIC` is set, `keepalive` events every 5 seconds, using Elysia's native `sse` generator). The stream was run against Floci with a real Pub/Sub message.
 - `tasks/documents`: list, get, upload, delete, with 501 when `EXTRACT_URL` is unset.
+- `agents` (`/jobs`): list jobs, a job's registered agents, an agent's card, and register. The register route was not run (it executes the job image).
+- `events` (`/events`): platform events as SSE, published when tasks, documents and jobs change; 501 without `PLATFORM_EVENTS_TOPIC`. Ran against Floci: a created and a deleted task showed up in the stream.
 
-Still to do: session `/stats` and `messages` (SSE), the `agents` and `events` modules (including `/jobs`, `/events`, `/docs`, `/openapi.json`), then Phases 3 to 5.
+Still to do: `/docs` and `/openapi.json` (Phase 3, with the contracts decision D2), then Phases 4 and 5.
 
 Known differences from `apps/service`, to settle in the parity run (Phase 5):
 
 - Validation errors answer 400 `{ error: "invalid_request", details }` (Elysia's 422 is remapped; `details` exposes schema internals). A bad resume answers 400 `{ success: false, error: "invalid_resume" }` without the Zod error object, and is checked before the task lookup, so an invalid resume for an unknown task answers 400 and not 404.
 - A prompt is trimmed in the controller, so the 10,000-character limit applies before trimming.
 - Unknown routes answer `{ error: "not_found" }`.
+- The `messages` stream keepalive is a named `event: keepalive` event, not the `: keepalive` comment line of `apps/service`, because Elysia's `sse` helper (id, event, retry, data) has no comments. A browser `EventSource` listening for `message` events never sees it.
 
 ## Phases
 

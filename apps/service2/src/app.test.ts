@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { createApp, type AppDeps } from "./app";
 import { DependencyError } from "./errors";
+import type { AgentsService } from "./modules/agents/agents-service";
+import type { EventsService } from "./modules/events/events-service";
 import type { DocumentsService } from "./modules/tasks/documents/documents-service";
 import type { SessionsService } from "./modules/tasks/sessions/sessions-service";
 import type { TasksService } from "./modules/tasks/tasks-service";
@@ -34,7 +36,25 @@ const sessionsService = (overrides: Partial<SessionsService> = {}): SessionsServ
     taskId === task.taskId && id === "s1"
       ? ({ ...session, state: {}, events: [] } as never)
       : undefined,
+  stats: async (taskId, id) =>
+    taskId === task.taskId && id === "s1"
+      ? {
+          events: 0,
+          llmCalls: 0,
+          tokens: { prompt: 0, candidates: 0, thoughts: 0, toolUsePrompt: 0, cached: 0, total: 0 },
+        }
+      : undefined,
   delete: async (taskId, id) => taskId === task.taskId && id === "s1",
+  messages: async (taskId, id) =>
+    taskId === task.taskId && id === "s1"
+      ? {
+          status: "ok",
+          entries: (async function* () {
+            yield { id: "e1", data: '{"id":"e1"}' };
+            yield "idle" as const;
+          })(),
+        }
+      : { status: "session_not_found" },
   ...overrides,
 });
 const doc = {
@@ -51,16 +71,29 @@ const documentsService = (overrides: Partial<DocumentsService> = {}): DocumentsS
   delete: async (taskId, id) => taskId === task.taskId && id === doc.documentId,
   ...overrides,
 });
+const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService => ({
+  listJobs: async () => [{ name: "projects/p/locations/l/jobs/poet-agents" }],
+  listAgents: async (jobName) => (jobName === "poet-agents" ? [{ name: "haiku" }] : []),
+  agentCard: async (jobName, agentName) =>
+    jobName === "poet-agents" && agentName === "haiku"
+      ? ({ name: "haiku", url: "x" } as never)
+      : undefined,
+  register: async () => "operations/op-1",
+  ...overrides,
+});
 const appWith = (
   overrides: Partial<TasksService> = {},
   sessionOverrides: Partial<SessionsService> = {},
   documents: Partial<DocumentsService> | null = {},
+  extras: { agents?: Partial<AgentsService>; events?: EventsService } = {},
 ) => {
   const deps: AppDeps = {
     healthService: { check: () => ({ status: "ok" }) },
     tasksService: tasksService(overrides),
     sessionsService: sessionsService(sessionOverrides),
     ...(documents && { documentsService: documentsService(documents) }),
+    agentsService: agentsService(extras.agents),
+    ...(extras.events && { eventsService: extras.events }),
   };
   return createApp(deps);
 };
@@ -84,6 +117,7 @@ describe("GET /health", () => {
       healthService: { check: () => ({ status: "down" }) as never },
       tasksService: tasksService(),
       sessionsService: sessionsService(),
+      agentsService: agentsService(),
     });
     expect((await call(app, "/health")).status).not.toBe(200);
   });
@@ -377,5 +411,180 @@ describe("POST /tasks/:taskId/run", () => {
 
   test("rejects a malformed task id with 400", async () => {
     expect((await run("not-a-uuid")).status).toBe(400);
+  });
+});
+
+describe("session stats and messages", () => {
+  const base = `/tasks/${task.taskId}/sessions`;
+
+  test("GET stats answers with the totals, or 404 session_not_found", async () => {
+    expect((await call(appWith(), `${base}/s1/stats`)).body).toMatchObject({
+      events: 0,
+      llmCalls: 0,
+    });
+    expect(await call(appWith(), `${base}/nope/stats`)).toEqual({
+      status: 404,
+      body: { error: "session_not_found" },
+    });
+  });
+
+  test("GET messages streams the events as Server-Sent Events, with a keepalive event when idle", async () => {
+    const res = await appWith().handle(new Request(`http://localhost${base}/s1/messages`));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toBe('id: e1\ndata: {"id":"e1"}\n\nevent: keepalive\ndata: \n\n');
+  });
+
+  test("GET messages answers 404 session_not_found, and 404 task_not_found for an unknown task", async () => {
+    expect(await call(appWith(), `${base}/nope/messages`)).toEqual({
+      status: 404,
+      body: { error: "session_not_found" },
+    });
+    expect(
+      await call(appWith(), "/tasks/00000000-0000-4000-8000-000000000000/sessions/s1/messages"),
+    ).toEqual({ status: 404, body: { error: "task_not_found" } });
+  });
+
+  test("a client that disconnects aborts the feed", async () => {
+    let aborted = false;
+    const app = appWith(
+      {},
+      {
+        messages: async (_t, _s, { signal }) => {
+          signal.addEventListener("abort", () => (aborted = true), { once: true });
+          return {
+            status: "ok",
+            entries: (async function* () {
+              yield { id: "e1", data: "x" };
+              await new Promise(() => {});
+            })(),
+          };
+        },
+      },
+    );
+    const client = new AbortController();
+    const res = await app.handle(
+      new Request(`http://localhost${base}/s1/messages`, { signal: client.signal }),
+    );
+    await res.body!.getReader().read();
+    client.abort();
+    expect(aborted).toBe(true);
+  });
+});
+
+describe("jobs and agents", () => {
+  test("GET /jobs lists the jobs", async () => {
+    expect(await call(appWith(), "/jobs")).toEqual({
+      status: 200,
+      body: { jobs: [{ name: "projects/p/locations/l/jobs/poet-agents" }] },
+    });
+  });
+
+  test("GET /jobs/:jobName/agents lists the registered agents", async () => {
+    expect(await call(appWith(), "/jobs/poet-agents/agents")).toEqual({
+      status: 200,
+      body: { agents: [{ name: "haiku" }] },
+    });
+  });
+
+  test("GET an agent card, or 404 agent_not_found", async () => {
+    expect((await call(appWith(), "/jobs/poet-agents/agents/haiku/card")).body).toMatchObject({
+      name: "haiku",
+    });
+    expect(await call(appWith(), "/jobs/poet-agents/agents/ghost/card")).toEqual({
+      status: 404,
+      body: { error: "agent_not_found" },
+    });
+  });
+
+  test("POST register answers 202 with the operation", async () => {
+    expect(await call(appWith(), "/jobs/poet-agents/register", { method: "POST" })).toEqual({
+      status: 202,
+      body: { operation: "operations/op-1" },
+    });
+  });
+
+  test.each([["/jobs/Bad_Name/agents"], ["/jobs/poet-agents/agents/1bad/card"]])(
+    "rejects an invalid name in %s with 400",
+    async (path) => {
+      expect((await call(appWith(), path)).status).toBe(400);
+    },
+  );
+
+  test("a failing job or registry call answers 502 with the short code", async () => {
+    const jobs = appWith(
+      {},
+      {},
+      {},
+      {
+        agents: {
+          listJobs: async () => Promise.reject(new DependencyError("job_error", new Error("x"))),
+        },
+      },
+    );
+    expect(await call(jobs, "/jobs")).toEqual({ status: 502, body: { error: "job_error" } });
+    const agents = appWith(
+      {},
+      {},
+      {},
+      {
+        agents: {
+          listAgents: async () =>
+            Promise.reject(new DependencyError("agents_error", new Error("x"))),
+        },
+      },
+    );
+    expect(await call(agents, "/jobs/poet-agents/agents")).toEqual({
+      status: 502,
+      body: { error: "agents_error" },
+    });
+  });
+});
+
+describe("GET /events", () => {
+  const eventsService = (): EventsService => ({
+    stream: async () =>
+      (async function* () {
+        yield { id: "e1", data: '{"type":"task.created"}' };
+        yield "idle" as const;
+      })(),
+  });
+
+  test("answers 501 not_supported without a platform event stream", async () => {
+    expect(await call(appWith(), "/events")).toEqual({
+      status: 501,
+      body: { error: "not_supported" },
+    });
+  });
+
+  test("streams the platform events as Server-Sent Events", async () => {
+    const res = await appWith({}, {}, {}, { events: eventsService() }).handle(
+      new Request("http://localhost/events"),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toBe(
+      'id: e1\ndata: {"type":"task.created"}\n\nevent: keepalive\ndata: \n\n',
+    );
+  });
+
+  test("a client that disconnects aborts the feed", async () => {
+    let aborted = false;
+    const events: EventsService = {
+      stream: async ({ signal }) => {
+        signal.addEventListener("abort", () => (aborted = true), { once: true });
+        return (async function* () {
+          yield { id: "e1", data: "x" };
+          await new Promise(() => {});
+        })();
+      },
+    };
+    const client = new AbortController();
+    const res = await appWith({}, {}, {}, { events }).handle(
+      new Request("http://localhost/events", { signal: client.signal }),
+    );
+    await res.body!.getReader().read();
+    client.abort();
+    expect(aborted).toBe(true);
   });
 });

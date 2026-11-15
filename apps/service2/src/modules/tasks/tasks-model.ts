@@ -1,11 +1,6 @@
 import { t } from "elysia";
 
-const JOB_NAME_PATTERN = "^[a-z]([-a-z0-9]*[a-z0-9])?$";
-const jobName = t.String({ pattern: JOB_NAME_PATTERN, maxLength: 63 });
-// A task whose job name is not a valid Cloud Run job name cannot be run.
-export const isJobName = (value: string) =>
-  value.length <= 63 && new RegExp(JOB_NAME_PATTERN).test(value);
-const agentName = t.String({ pattern: "^[A-Za-z_][A-Za-z0-9_-]*$", maxLength: 64 });
+import { agentName, jobName } from "../agents/agents-model";
 
 export const TasksModel = {
   // `\S` rejects a blank prompt; the controller trims it, as apps/service does.

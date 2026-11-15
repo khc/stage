@@ -1,5 +1,5 @@
+import { TypeCompiler } from "@sinclair/typebox/compiler";
 import { Elysia } from "elysia";
-import { TypeCompiler } from "elysia/type-system";
 
 import { documentsController } from "./documents/documents-controller";
 import type { DocumentsService } from "./documents/documents-service";
