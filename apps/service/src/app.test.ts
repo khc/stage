@@ -140,6 +140,28 @@ describe("tasks", () => {
     });
   });
 
+  test("a body that claims to be JSON but is not answers 400 invalid_request, not a server error", async () => {
+    const res = await call(appWith(), "/tasks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "not json {",
+    });
+    expect(res).toEqual({ status: 400, body: { error: "invalid_request" } });
+  });
+
+  test("a validation failure lists where and why, without the schema or the offending value", async () => {
+    const res = await call(
+      appWith(),
+      "/tasks",
+      json({ prompt: "x".repeat(10_001), jobName: "my-job" }),
+    );
+    expect(res.status).toBe(400);
+    const body = res.body as { error: string; details: Record<string, unknown>[] };
+    expect(body.error).toBe("invalid_request");
+    expect(body.details).toEqual([{ path: "/prompt", message: expect.any(String) }]);
+    expect(JSON.stringify(body)).not.toContain("xxxxxxxxxx");
+  });
+
   test.each([
     ["a blank prompt", { prompt: "   ", jobName: "my-job" }],
     ["a missing jobName", { prompt: "p" }],
@@ -430,11 +452,13 @@ describe("session stats and messages", () => {
     });
   });
 
-  test("GET messages streams the events as Server-Sent Events, with a keepalive event when idle", async () => {
+  test("GET messages streams the events as Server-Sent Events, with a keepalive event first and when idle", async () => {
     const res = await appWith().handle(new Request(`http://localhost${base}/s1/messages`));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/event-stream");
-    expect(await res.text()).toBe('id: e1\ndata: {"id":"e1"}\n\nevent: keepalive\ndata: \n\n');
+    expect(await res.text()).toBe(
+      'event: keepalive\ndata: \n\nid: e1\ndata: {"id":"e1"}\n\nevent: keepalive\ndata: \n\n',
+    );
   });
 
   test("GET messages answers 404 session_not_found, and 404 task_not_found for an unknown task", async () => {
@@ -566,7 +590,7 @@ describe("GET /events", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/event-stream");
     expect(await res.text()).toBe(
-      'id: e1\ndata: {"type":"task.created"}\n\nevent: keepalive\ndata: \n\n',
+      'event: keepalive\ndata: \n\nid: e1\ndata: {"type":"task.created"}\n\nevent: keepalive\ndata: \n\n',
     );
   });
 
