@@ -1,5 +1,5 @@
 {
-  "name": "@stage/extract",
+  "name": "@stage/extract-service",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,9 @@
     "typecheck": "bun check"
   },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
     "@xberg-io/xberg": "^1.3.10",
-    "hono": "^4.13.18"
+    "elysia": "^1.4.32"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4"

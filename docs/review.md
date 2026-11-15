@@ -1,6 +1,6 @@
 # Architecture review
 
-Note: this review is of the Hono service that `apps/service` has since replaced (it was `apps/service` then, and is shown here as `apps/service-hono`, no longer in the tree; the links to it are dead). Re-review of the whole project at commit `28a0c5d`. The first version of this document reviewed `packages/agents`, `apps/service-hono` and `agents/*`; the second added `apps/extract`, `scripts/`, the Taskfile, Docker and compose files and the tooling. This one also covers the Terraform in `infra/` and, for the first time, security.
+Note: this review is of the Hono service that `apps/service` has since replaced (it was `apps/service` then, and is shown here as `apps/service-hono`, no longer in the tree; the links to it are dead). Re-review of the whole project at commit `28a0c5d`. The first version of this document reviewed `packages/agents`, `apps/service-hono` and `agents/*`; the second added `apps/extract-service`, `scripts/`, the Taskfile, Docker and compose files and the tooling. This one also covers the Terraform in `infra/` and, for the first time, security.
 
 **Verification:** `bun test` (323 tests), typecheck, lint and `format:check` pass. The emulator-backed tests were not re-run for this version. `apps/ui` was reviewed through the work done on it, not file by file. The architecture diagram is [architecture.drawio](architecture.drawio).
 
@@ -9,7 +9,7 @@ Note: this review is of the Hono service that `apps/service` has since replaced 
 ```
 UI (apps/ui) → Hono service → Cloud Run Job (one image per agent app)
                   │                 └─ ADK Runner → Firestore sessions/events
-                  ├─ apps/extract (document → text)
+                  ├─ apps/extract-service (document → text)
                   └─ Firestore (tasks, docs, agent registry) + 2 Pub/Sub topics → SSE
 
 infra/modules/stage: jobs, extract, topics · envs/local (Floci) · envs/gcp (APIs, Firestore, SAs, IAM, secret)
@@ -82,14 +82,14 @@ Ordered by severity. "Likely" means the evidence is strong but was not exercised
 7. **Floci gets the host Docker socket (security, medium, likely; local only).** [docker-compose.yml](../docker-compose.yml) mounts `/var/run/docker.sock` into the third-party Floci image, which exposes a job-launching API without credentials on `127.0.0.1:4588`.
    - **Fix:** pin the image by digest and put a Docker socket proxy in front of the socket; write down the trust assumption.
 
-8. **Extract parses untrusted files without limits (security, medium, likely).** [extract.ts](../apps/extract/src/extract.ts) parses uploads inside the server process, trusts the client's MIME type, and sets no parser limits, deadline or concurrency cap. A parser hang or crash takes the service down.
+8. **Extract parses untrusted files without limits (security, medium, likely).** [xberg-client.ts](../apps/extract-service/src/platform/xberg-client.ts) parses uploads inside the server process, trusts the client's MIME type, and sets no parser limits, deadline or concurrency cap. A parser hang or crash takes the service down.
    - **Fix:** set `securityLimits`, run the parser under a timeout or in a worker that can be killed, cap Cloud Run concurrency for extract, and allowlist or sniff MIME types.
 
 9. **Document text is put in the system instruction (security, low).** The `document_analyser` concatenates the uploaded text and the client's filename into its instruction ([document-analyser.ts](../agents/generic/src/document-analyser.ts)), which gives prompt injection from a document more weight. The agent has no tools, so the impact is limited to its output.
    - **Fix:** pass documents as separate, delimited user-message parts, escape filenames, and keep document-reading agents tool-less.
 
 10. **Smaller security points (low).**
-    - `apps/extract` returns the parser's error message to callers as is ([app.ts](../apps/extract/src/app.ts)). Fix: return a fixed code and log the detail.
+    - `apps/extract-service` returns the parser's error message to callers as is ([extractions-controller.ts](../apps/extract-service/src/modules/extractions/extractions-controller.ts)). Fix: return a fixed code and log the detail.
     - The agent service account has `roles/datastore.user` on the whole project ([envs/gcp](../infra/envs/gcp/main.tf)), so a future agent tool could read and write all Firestore data. Fix: a dedicated database with IAM conditions, or a written rule that agent tools never take arbitrary document paths.
 
 11. **Session store scalability (low; first-review finding 6).** The service lists sessions by `taskId`, which is fine, but the ADK `listSessions` still loads every session of the app and pages in memory, `getSession` reads all events, and `userId` is hardcoded to `"user"`.
@@ -104,7 +104,7 @@ Ordered by severity. "Likely" means the evidence is strong but was not exercised
 14. **Unused job script (low).** [cloud-run-job.ts](../scripts/cloud-run-job.ts) is no longer called now that Terraform owns the jobs; only its own test references it.
     - **Fix:** delete it and its test.
 
-15. **Done: naming leftovers (low).** The document converter is `toDocumentSummary` and the session one `toSessionSummary`; the upload limits are `MAX_SERVICE_UPLOAD_BYTES` (25 MiB, service) and `MAX_EXTRACT_BYTES` (50 MiB, extract); the fallback error code is `internal_error`, with a test that the message is not returned; and `apps/extract` names the caught error `err`. The error code changed from `agent_error`; nothing in the repository (UI, tests, OpenAPI, README) used the old one.
+15. **Done: naming leftovers (low).** The document converter is `toDocumentSummary` and the session one `toSessionSummary`; the upload limits are `MAX_SERVICE_UPLOAD_BYTES` (25 MiB, service) and `MAX_EXTRACT_BYTES` (50 MiB, extract); the fallback error code is `internal_error`, with a test that the message is not returned; and `apps/extract-service` names the caught error `err`. The error code changed from `agent_error`; nothing in the repository (UI, tests, OpenAPI, README) used the old one.
 
 16. **Stray text in a commit message (low).** Commits `bd7b359` and `c45dea1` end with `<|think_end|>`, a model-output token that was committed by mistake.
     - **Fix:** ignore it; it only affects history.

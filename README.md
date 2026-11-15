@@ -7,7 +7,7 @@ Bun workspace monorepo with apps under `apps/`, agent apps under `agents/` and s
 - `@stage/poet-agents` (`agents/poet`): a Cloud Run Job image with the poetry agents (`haiku`).
 - `@stage/service` (`apps/service`): the Elysia HTTP API with its OpenAPI/Scalar reference, laid out by feature ([PLAN.md](apps/service/PLAN.md)); it listens on `127.0.0.1:3000` (`0.0.0.0:3000` in its image, `task build:service`).
 - `@stage/ui` (`apps/ui`): the React/Tailwind/shadcn dashboard, served by Vite on port `5173` (proxies API requests to `SERVICE_URL`, default `http://localhost:3000`). `task build:ui` builds it as an nginx image (`stage-ui:latest`, `Dockerfile.ui`) that serves the build on port `8080` and proxies the API paths to the `SERVICE_URL` environment variable (a bare `scheme://host:port` with no path; default `http://host.docker.internal:3000`). The proxy forwards the whole API, including `/docs` and `/openapi.json`, without authentication or TLS: publish the port on `127.0.0.1` (`-p 127.0.0.1:8080:8080`) or run the image behind an authenticated ingress.
-- `@stage/extract` (`apps/extract`): turns an uploaded document into text for tasks.
+- `@stage/extract-service` (`apps/extract-service`): the Elysia service that turns an uploaded document into text for tasks (`POST /extract`, port `8080`; `task build:extract-service` builds its image).
 
 To install dependencies:
 

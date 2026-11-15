@@ -40,12 +40,13 @@
         "@types/bun": "^1.4.4",
       },
     },
-    "apps/extract": {
-      "name": "@stage/extract",
+    "apps/extract-service": {
+      "name": "@stage/extract-service",
       "version": "0.1.0",
       "dependencies": {
+        "@sinclair/typebox": "^0.34.52",
         "@xberg-io/xberg": "^1.3.10",
-        "hono": "^4.13.18",
+        "elysia": "^1.4.32",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
@@ -462,7 +463,7 @@
 
     "@stage/agents": ["@stage/agents@workspace:packages/agents"],
 
-    "@stage/extract": ["@stage/extract@workspace:apps/extract"],
+    "@stage/extract-service": ["@stage/extract-service@workspace:apps/extract-service"],
 
     "@stage/generic-agents": ["@stage/generic-agents@workspace:agents/generic"],
 
@@ -865,8 +866,6 @@
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
     "heap-js": ["heap-js@2.7.1", "", {}, "sha512-EQfezRg0NCZGNlhlDR3Evrw1FVL2G3LhU7EgPoxufQKruNBSYA8MiRPHeWbU+36o+Fhel0wMwM+sLEiBAlNLJA=="],
-
-    "hono": ["hono@4.13.18", "", {}, "sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA=="],
 
     "html-url-attributes": ["html-url-attributes@3.0.1", "", {}, "sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ=="],
 

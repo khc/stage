@@ -1,0 +1,30 @@
+# Stateless document extraction service (apps/extract-service). Listens on PORT (default 8080).
+# slim, not distroless: the xberg native module needs libstdc++ and libgcc_s.
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
+
+FROM ${BUN_IMAGE} AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY packages/agents/package.json ./packages/agents/package.json
+COPY agents/generic/package.json ./agents/generic/package.json
+COPY agents/poet/package.json ./agents/poet/package.json
+COPY apps/extract-service/package.json ./apps/extract-service/package.json
+COPY apps/service/package.json ./apps/service/package.json
+# Elysia's optional peers (typescript, bun-types) get installed but are not used at runtime.
+RUN bun install --frozen-lockfile --production --filter "./apps/extract-service" \
+ && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete \
+ && rm -rf node_modules/.bun/typescript@* node_modules/.bun/@typescript+* node_modules/.bun/bun-types@*
+
+FROM ${BUN_IMAGE} AS runtime
+WORKDIR /app
+# The service listens on loopback by default; a container must listen on every interface.
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY apps/extract-service ./apps/extract-service
+COPY --from=deps /app/apps/extract-service/node_modules ./apps/extract-service/node_modules
+
+USER bun
+EXPOSE 8080
+CMD ["bun", "apps/extract-service/src/index.ts"]

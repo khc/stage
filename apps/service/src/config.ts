@@ -9,7 +9,7 @@ const Env = TypeCompiler.Compile(
     // The Cloud Run project and region that hold the agent jobs.
     GCP_PROJECT: t.String({ minLength: 1 }),
     GCP_REGION: t.String({ minLength: 1 }),
-    // Base URL of apps/extract. Without it the document routes answer 501.
+    // Base URL of apps/extract-service. Without it the document routes answer 501.
     EXTRACT_URL: t.Optional(t.String({ minLength: 1 })),
     // Set on GCP, where extract is internal-only and needs a Google ID token for this audience
     // (its URL). Leave it unset for Floci and local runs, which send no credentials.

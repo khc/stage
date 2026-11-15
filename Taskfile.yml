@@ -25,10 +25,10 @@ tasks:
         cmd: docker build -f Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
       - docker image prune -f
 
-  build:extract:
-    desc: Build the extract service image (stage-extract:latest)
+  build:extract-service:
+    desc: Build the extract service image (stage-extract:latest, the name infra/ deploys)
     cmds:
-      - docker build -f Dockerfile.extract -t stage-extract:latest .
+      - docker build -f Dockerfile.extract-service -t stage-extract:latest .
       - docker image prune -f
 
   build:service:

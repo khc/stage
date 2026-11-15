@@ -12,7 +12,11 @@ export type Extraction = {
   pages: { page: number; content: string; regions: Region[] }[];
 };
 
-export type ExtractFile = (file: File) => Promise<Extraction>;
+// The xberg document parser (a native module): turns a file into text, pages and layout regions.
+export type Xberg = {
+  // Throws when xberg cannot parse the file.
+  extract: (file: File) => Promise<Extraction>;
+};
 
 const config = {
   pages: { extractPages: true },
@@ -38,18 +42,20 @@ export const toExtraction = (doc: ExtractedDocument): Extraction => ({
   })),
 });
 
-export const extractFile: ExtractFile = async (file) => {
-  const result = await extract(
-    {
-      kind: ExtractInputKind.Bytes,
-      bytes: new Uint8Array(await file.arrayBuffer()),
-      filename: file.name,
-      mimeType: file.type || undefined,
-    },
-    config,
-  );
-  const error = result.errors?.[0];
-  const doc = result.results?.[0];
-  if (!doc) throw new Error(error?.message ?? "extraction failed");
-  return toExtraction(doc);
-};
+export const createXberg = (): Xberg => ({
+  async extract(file) {
+    const result = await extract(
+      {
+        kind: ExtractInputKind.Bytes,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        filename: file.name,
+        mimeType: file.type || undefined,
+      },
+      config,
+    );
+    const error = result.errors?.[0];
+    const doc = result.results?.[0];
+    if (!doc) throw new Error(error?.message ?? "extraction failed");
+    return toExtraction(doc);
+  },
+});

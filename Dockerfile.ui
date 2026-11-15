@@ -9,7 +9,7 @@ COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
-COPY apps/extract/package.json ./apps/extract/package.json
+COPY apps/extract-service/package.json ./apps/extract-service/package.json
 COPY apps/service/package.json ./apps/service/package.json
 COPY apps/ui/package.json ./apps/ui/package.json
 RUN bun install --frozen-lockfile
