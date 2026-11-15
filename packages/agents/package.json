@@ -12,8 +12,7 @@
     "./session-service": "./src/session-service.ts",
     "./spec": "./src/spec.ts",
     "./task-contract": "./src/task-contract.ts",
-    "./task-documents": "./src/task-documents.ts",
-    "./telemetry": "./src/telemetry.ts"
+    "./task-documents": "./src/task-documents.ts"
   },
   "scripts": {
     "typecheck": "bun check"
@@ -23,11 +22,7 @@
     "@google-cloud/pubsub": "^6.4.1",
     "@google/adk": "^2.5.0",
     "@google/genai": "^2.32.0",
-    "@opentelemetry/api": "^1.10.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
-    "@opentelemetry/resources": "^3.1.1",
-    "@opentelemetry/sdk-trace-base": "^2.12.1",
-    "@opentelemetry/sdk-trace-node": "^2.12.1",
+    "@stage/http": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

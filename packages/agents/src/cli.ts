@@ -1,4 +1,5 @@
 import { Firestore } from "@google-cloud/firestore";
+import { annotateJob, flushTelemetry, traceJob } from "@stage/http/otel";
 import { z } from "zod";
 
 import { createAgentRegistry, type AgentInfo, type AgentRegistry } from "./agent-registry";
@@ -6,7 +7,6 @@ import { appName, createRunAgent, userId, type RunAgent } from "./runtime";
 import { FirestoreSessionService } from "./session-service";
 import { describeAgents, type AgentSet } from "./spec";
 import { createGetTask, type GetTask } from "./task-contract";
-import { annotateJob, flushTelemetry, traceJob } from "./telemetry";
 
 // The next message of a session being resumed; the service queues it in Firestore.
 export type GetMessage = (taskId: string, sessionId: string) => Promise<string | undefined>;

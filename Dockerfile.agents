@@ -14,6 +14,7 @@ ARG APP
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
+COPY packages/http/package.json ./packages/http/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
@@ -29,7 +30,9 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY packages/agents ./packages/agents
+COPY packages/http ./packages/http
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
+COPY --from=deps /app/packages/http/node_modules ./packages/http/node_modules
 # A fixed path: exec-form ENTRYPOINT cannot expand ARG, and the distroless image
 # has no shell to create a symlink. It sits two levels below /app, like
 # agents/<APP>, so the relative workspace symlinks in node_modules still resolve.

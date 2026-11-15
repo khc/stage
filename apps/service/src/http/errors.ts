@@ -1,8 +1,8 @@
 import { requestIdOf } from "@stage/http/request-id";
+import { recordRequestError } from "@stage/http/telemetry";
 import { Elysia } from "elysia";
 
 import { DependencyError } from "../errors";
-import { recordRequestError } from "./telemetry";
 
 // Register this first in createApp: onError only covers what is added after it.
 export const errorHandler = () =>

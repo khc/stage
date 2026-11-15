@@ -8,8 +8,9 @@ import {
   type Context,
   type Span,
 } from "@opentelemetry/api";
-import { requestIdOf } from "@stage/http/request-id";
 import { Elysia } from "elysia";
+
+import { requestIdOf } from "./request-id";
 
 type Active = { span: Span; ctx: Context };
 

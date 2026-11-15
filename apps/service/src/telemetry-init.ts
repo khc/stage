@@ -1,4 +1,4 @@
-import { setupTelemetry } from "@stage/agents/telemetry";
+import { setupTelemetry } from "@stage/http/otel";
 
 // Loaded with `bun --preload` (see package.json and Dockerfile.service) so the tracer provider
 // exists before `@google/adk` loads: ADK creates its tracer on import, and one created earlier
