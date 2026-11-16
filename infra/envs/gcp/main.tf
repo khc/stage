@@ -80,6 +80,12 @@ variable "service_invokers" {
   description = "IAM members allowed to call the service, e.g. the account the UI's proxy runs as. Nobody is allowed by default, and there is no allUsers: the service has no authentication of its own."
 }
 
+variable "scheduler_target_url" {
+  type        = string
+  default     = null
+  description = "Base URL that Cloud Scheduler calls to run a task: the service's own URL as Scheduler reaches it, e.g. https://service-<project-number>.<region>.run.app. Set it (with deploy_service) to turn on task schedules; it cannot come from the service's own uri, which would be a cycle."
+}
+
 variable "deletion_protection" {
   type    = bool
   default = true
@@ -90,14 +96,22 @@ provider "google" {
   region  = var.region
 }
 
+locals {
+  # Task schedules need the service deployed and a URL for Scheduler to call.
+  scheduler_enabled = var.deploy_service && var.scheduler_target_url != null
+}
+
 resource "google_project_service" "apis" {
-  for_each = toset([
-    "iam.googleapis.com",
-    "run.googleapis.com",
-    "pubsub.googleapis.com",
-    "firestore.googleapis.com",
-    "secretmanager.googleapis.com",
-  ])
+  for_each = toset(concat(
+    [
+      "iam.googleapis.com",
+      "run.googleapis.com",
+      "pubsub.googleapis.com",
+      "firestore.googleapis.com",
+      "secretmanager.googleapis.com",
+    ],
+    local.scheduler_enabled ? ["cloudscheduler.googleapis.com"] : [],
+  ))
   service            = each.key
   disable_on_destroy = false
 }
@@ -129,9 +143,18 @@ resource "google_service_account" "service" {
   depends_on   = [google_project_service.apis]
 }
 
+# The account Cloud Scheduler calls the service as (an ID token for the service's URL).
+resource "google_service_account" "scheduler" {
+  count        = local.scheduler_enabled ? 1 : 0
+  account_id   = "stage-scheduler"
+  display_name = "Stage task schedules"
+  depends_on   = [google_project_service.apis]
+}
+
 locals {
   # Known at plan time (unlike the resource's email), so it can key a for_each.
-  service_member = "serviceAccount:stage-service@${var.project}.iam.gserviceaccount.com"
+  service_member   = "serviceAccount:stage-service@${var.project}.iam.gserviceaccount.com"
+  scheduler_member = "serviceAccount:stage-scheduler@${var.project}.iam.gserviceaccount.com"
 }
 
 # Firestore has no per-database IAM here, so this one is project-wide.
@@ -196,6 +219,35 @@ resource "google_project_iam_member" "service_pubsub" {
   member  = "serviceAccount:${google_service_account.service[0].email}"
 }
 
+# The schedule routes create, read, update and delete one Scheduler job per task.
+resource "google_project_iam_custom_role" "service_scheduler" {
+  count       = local.scheduler_enabled ? 1 : 0
+  role_id     = "stageServiceScheduler"
+  title       = "Stage service Scheduler"
+  description = "Manage the Cloud Scheduler jobs that run tasks."
+  permissions = [
+    "cloudscheduler.jobs.create",
+    "cloudscheduler.jobs.get",
+    "cloudscheduler.jobs.update",
+    "cloudscheduler.jobs.delete",
+  ]
+}
+
+resource "google_project_iam_member" "service_scheduler" {
+  count   = local.scheduler_enabled ? 1 : 0
+  project = var.project
+  role    = google_project_iam_custom_role.service_scheduler[0].id
+  member  = "serviceAccount:${google_service_account.service[0].email}"
+}
+
+# Creating a job that signs as the scheduler account needs act-as on that account.
+resource "google_service_account_iam_member" "service_acts_as_scheduler" {
+  count              = local.scheduler_enabled ? 1 : 0
+  service_account_id = google_service_account.scheduler[0].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.service[0].email}"
+}
+
 # GET /jobs lists the jobs of the project and region.
 resource "google_project_iam_member" "service_run_viewer" {
   count   = var.deploy_service ? 1 : 0
@@ -236,6 +288,10 @@ module "stage" {
   service_service_account = var.deploy_service ? google_service_account.service[0].email : null
   service_ingress         = var.service_ingress
   service_extract_auth    = true
+  service_extra_env = local.scheduler_enabled ? {
+    SCHEDULER_TARGET_URL = var.scheduler_target_url
+    SCHEDULER_INVOKER    = google_service_account.scheduler[0].email
+  } : {}
 
   depends_on = [google_project_service.apis, google_secret_manager_secret_iam_member.agents]
 }
@@ -255,7 +311,7 @@ output "extract_url" {
 
 # No allUsers: only the members listed in service_invokers may call the service.
 resource "google_cloud_run_v2_service_iam_member" "service_invoker" {
-  for_each = var.deploy_service ? var.service_invokers : toset([])
+  for_each = var.deploy_service ? setunion(var.service_invokers, local.scheduler_enabled ? [local.scheduler_member] : []) : toset([])
   name     = module.stage.service_name
   location = var.region
   role     = "roles/run.invoker"

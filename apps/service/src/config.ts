@@ -19,6 +19,10 @@ export const loadConfig = createConfigLoader(
     PUBSUB_TOPIC: t.Optional(t.String({ minLength: 1 })),
     // The topic the service publishes its own events to and /events streams from. Without it, /events answers 501.
     PLATFORM_EVENTS_TOPIC: t.Optional(t.String({ minLength: 1 })),
+    // Base URL that Cloud Scheduler calls to run a task (this service, as Scheduler reaches it). Without it, the schedule routes answer 501.
+    SCHEDULER_TARGET_URL: t.Optional(t.String({ minLength: 1 })),
+    // The service account Scheduler signs its ID token as. Set on GCP; leave it unset for Floci, which sends no credentials.
+    SCHEDULER_INVOKER: t.Optional(t.String({ minLength: 1 })),
   },
   serverDefaults(3000),
 );

@@ -15,6 +15,8 @@ describe("loadConfig", () => {
       EXTRACT_AUDIENCE: "https://extract.run.app",
       PUBSUB_TOPIC: "agent-events",
       PLATFORM_EVENTS_TOPIC: "platform-events",
+      SCHEDULER_TARGET_URL: "https://service.run.app",
+      SCHEDULER_INVOKER: "stage-scheduler@floci-local.iam.gserviceaccount.com",
     };
     expect(loadConfig({ ...gcp, PORT: "4000", HOST: "0.0.0.0", ...optional })).toEqual({
       ...gcp,
@@ -28,12 +30,16 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...gcp, [name]: undefined })).toThrow();
   });
 
-  test.each(["EXTRACT_URL", "EXTRACT_AUDIENCE", "PUBSUB_TOPIC", "PLATFORM_EVENTS_TOPIC"])(
-    "rejects an empty %s",
-    (name) => {
-      expect(() => loadConfig({ ...gcp, [name]: "" })).toThrow();
-    },
-  );
+  test.each([
+    "EXTRACT_URL",
+    "EXTRACT_AUDIENCE",
+    "PUBSUB_TOPIC",
+    "PLATFORM_EVENTS_TOPIC",
+    "SCHEDULER_TARGET_URL",
+    "SCHEDULER_INVOKER",
+  ])("rejects an empty %s", (name) => {
+    expect(() => loadConfig({ ...gcp, [name]: "" })).toThrow();
+  });
 });
 
 describe("parseAllowedJobs", () => {

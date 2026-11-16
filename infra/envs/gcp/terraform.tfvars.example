@@ -6,4 +6,5 @@ image_tag        = "1.0.0" # pin a version or sha256 digest, not latest
 extract_invokers = []   # the service account of apps/service is added when deploy_service is true
 
 deploy_service   = false # true: the Elysia service (apps/service), its service account and IAM
+scheduler_target_url = null # task schedules: the service's URL as Scheduler reaches it, e.g. "https://service-<project-number>.us-central1.run.app"; needs deploy_service
 service_invokers = []    # IAM members allowed to call it, e.g. ["serviceAccount:ui@your-gcp-project.iam.gserviceaccount.com"]
