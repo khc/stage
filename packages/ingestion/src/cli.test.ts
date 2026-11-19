@@ -363,3 +363,63 @@ test("search without --source has no filter, and without a query or embedding se
   expect(await main(["search", "x"], { OUT_DIR: out }, deps)).toBe(1);
   expect(await main(["search", "x", "--source", "nope"], env(), deps)).toBe(1);
 });
+
+const evalDeps = (hitsByPrefix: Record<"prefix" | "plain", string>) => {
+  const { deps } = setup();
+  const prefixes: (string | undefined)[] = [];
+  deps.createEmbedder = async (config) => {
+    prefixes.push(config.queryPrefix);
+    return {
+      dimension: 2,
+      embed: async (texts) => texts.map(() => [0, 0]),
+      embedQuery: async () => [config.queryPrefix ? 1 : 0, 0],
+    };
+  };
+  deps.createVectorIndex = async () => ({
+    upsert: async () => {},
+    deleteWhere: async () => {},
+    deleteIds: async () => {},
+    listSourceHashes: async () => new Map(),
+    search: async ({ vector }) => {
+      const docId = hitsByPrefix[vector[0] === 1 ? "prefix" : "plain"];
+      return [{ id: "p", score: 1, payload: { doc_id: docId } }];
+    },
+  });
+  return { deps, prefixes };
+};
+
+test("eval runs the judged queries with and without the query prefix and reports each", async () => {
+  const { deps, prefixes } = evalDeps({
+    prefix: "bun:runtime/http/server.mdx",
+    plain: "bun:other.mdx",
+  });
+  expect(await main(["eval"], env({ EMBEDDING_QUERY_PREFIX: "Instruct: x\\nQuery: " }), deps)).toBe(
+    0,
+  );
+  expect(prefixes).toEqual(["Instruct: x\\nQuery: ", undefined]);
+  expect(logs.filter((line) => !line.startsWith("  "))).toEqual([
+    "with query prefix",
+    "plain (no query prefix)",
+  ]);
+  const summaries = logs.filter((line) => line.trimStart().startsWith("recall@5"));
+  expect(summaries[0]).toMatch(
+    /^ {2}recall@5 1\/\d+ \(0\.\d\d\) {2}MRR 0\.0\d\d {2}not found \d+$/,
+  );
+  expect(summaries[1]).toMatch(/^ {2}recall@5 0\/\d+ \(0\.00\) {2}MRR 0\.000 {2}not found \d+$/);
+  expect(logs).toContain("  hit   rank 1  start an http server");
+  expect(logs).toContain("  miss  rank -  start an http server");
+});
+
+test("eval without a query prefix runs only the plain variant", async () => {
+  const { deps, prefixes } = evalDeps({ prefix: "bun:a", plain: "bun:guides/http/simple.mdx" });
+  expect(await main(["eval"], env(), deps)).toBe(0);
+  expect(prefixes).toEqual([undefined]);
+  expect(logs[0]).toBe("plain (no query prefix)");
+  expect(logs).toContain("  hit   rank 1  start an http server");
+});
+
+test("eval names a missing embedding setting", async () => {
+  const { deps } = evalDeps({ prefix: "x", plain: "x" });
+  expect(await main(["eval"], { OUT_DIR: out }, deps)).toBe(1);
+  expect(errors.join("\n")).toContain("EMBEDDING_URL");
+});

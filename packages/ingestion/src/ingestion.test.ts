@@ -35,8 +35,7 @@ const setup = (
   const deletedIds: string[][] = [];
   const listedSources: string[] = [];
   const embedded: string[][] = [];
-  const store =
-    options.existing ?? new Map<string, Map<string, string | null>>();
+  const store = options.existing ?? new Map<string, Map<string, string | null>>();
   let embedCalls = 0;
   const catalogSink: CatalogSink = {
     write: async () => void events.push("write"),
@@ -76,9 +75,7 @@ const setup = (
     listSourceHashes: async (source) => {
       events.push("list");
       listedSources.push(source);
-      return new Map(
-        [...store.entries()].map(([docId, hashes]) => [docId, new Map(hashes)]),
-      );
+      return new Map([...store.entries()].map(([docId, hashes]) => [docId, new Map(hashes)]));
     },
     deleteIds: async (ids) => {
       events.push("deleteIds");

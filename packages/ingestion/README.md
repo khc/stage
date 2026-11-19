@@ -43,6 +43,17 @@ bun --filter @stage/ingestion search "start an http server" --source bun
 - The vector size is read from the embeddings server. Switching model needs a new collection
   (`QDRANT_COLLECTION`); the client refuses to reuse one of another size.
 
+## Retrieval evaluation
+
+`bun --filter @stage/ingestion eval` runs the judged questions in `eval/queries.json` against the
+index and reports, per question, whether an acceptable document is in the top 5 (`hit`) and its best
+rank, then recall@5 (the share of questions with a hit) and MRR (the mean of 1 / best rank, a miss
+counting 0). A document counts at the position of its first chunk among the 40 best chunks. With
+`EMBEDDING_QUERY_PREFIX` set it runs twice, with the instruction and plain, so the two can be
+compared. Each `relevant` entry is a document id or a prefix ending in `*`; any one of them is a
+good answer. Write a judgment from what the documents are about, before running the questions, and
+note it when an entry is changed after seeing results.
+
 ## Catalog
 
 `OUT_DIR/catalog/<source>.jsonl` is written only when a run completes (a failed run leaves the previous

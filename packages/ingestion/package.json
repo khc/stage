@@ -10,6 +10,7 @@
     "./ingestion": "./src/ingestion.ts"
   },
   "scripts": {
+    "eval": "bun --env-file=../../.env src/cli.ts eval",
     "fetch": "bun --env-file=../../.env src/cli.ts fetch",
     "ingest": "bun --env-file=../../.env src/cli.ts ingest",
     "search": "bun --env-file=../../.env src/cli.ts search",

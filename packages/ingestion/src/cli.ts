@@ -9,7 +9,9 @@ import { createJsonlCatalogSink } from "./catalog-sink";
 import { ConfigError, loadConfig } from "./config";
 import { createDocsConnector } from "./connectors/docs-connector";
 import { corpora, corpusDir, fetchCorpus, type CorpusName, type Run } from "./corpora";
+import { evaluateQuery, rankDocs, summarize, type JudgedQuery } from "./evaluation";
 import { createIngestion } from "./ingestion";
+import { mapLimit } from "./map-limit";
 import { createEmbedder, type Embedder, type EmbedderConfig } from "./platform/embeddings-client";
 import { createQdrantIndex, type QdrantConfig, type VectorIndex } from "./platform/qdrant-client";
 
@@ -31,6 +33,7 @@ const USAGE = [
   "  fetch <bun|duckdb|all>",
   "  ingest <bun|duckdb|all> [--dry-run] [--limit N]",
   "  search <query...> [--source bun|duckdb]",
+  "  eval",
 ].join("\n");
 
 // Corpus text is not trusted: control characters (ESC and friends) would act on the terminal.
@@ -75,15 +78,17 @@ const embedderConfig = (config: Config): EmbedderConfig => {
 };
 
 // The embedder first: its dimension is what the collection is created with.
-const open = async (config: Config, deps: CliDeps) => {
-  const embedder = await deps.createEmbedder(embedderConfig(config));
-  const vectorIndex = await deps.createVectorIndex({
+const openIndex = (config: Config, deps: CliDeps, dimension: number) =>
+  deps.createVectorIndex({
     url: config.QDRANT_URL,
     collection: config.QDRANT_COLLECTION,
-    dimension: embedder.dimension,
+    dimension,
     apiKey: config.QDRANT_API_KEY || undefined,
   });
-  return { embedder, vectorIndex };
+
+const open = async (config: Config, deps: CliDeps) => {
+  const embedder = await deps.createEmbedder(embedderConfig(config));
+  return { embedder, vectorIndex: await openIndex(config, deps, embedder.dimension) };
 };
 
 const connectorFor = async (
@@ -203,6 +208,50 @@ const searchCommand = async (
   }
 };
 
+// Chunks retrieved per query, and the rank that counts as a hit.
+const EVAL_CHUNKS = 40;
+const EVAL_RANK = 5;
+
+// Runs the judged queries against the index, with the query prefix if one is set and without it,
+// and prints each query's best rank and the totals, so the two can be compared.
+const evalCommand = async (config: Config, deps: CliDeps) => {
+  const base = embedderConfig(config);
+  const queries = (await Bun.file(
+    `${import.meta.dir}/../eval/queries.json`,
+  ).json()) as JudgedQuery[];
+  const variants = [
+    ...(base.queryPrefix ? [{ label: "with query prefix", embedder: base }] : []),
+    { label: "plain (no query prefix)", embedder: { ...base, queryPrefix: undefined } },
+  ];
+  const embedders = await Promise.all(
+    variants.map(({ embedder }) => deps.createEmbedder(embedder)),
+  );
+  const vectorIndex = await openIndex(config, deps, embedders[0]!.dimension);
+  // The variants run side by side; the output below is printed in order.
+  const all = await Promise.all(
+    variants.map((_, i) =>
+      mapLimit(queries, 2, async (judged) => {
+        const hits = await vectorIndex.search({
+          vector: await embedders[i]!.embedQuery(judged.query),
+          k: EVAL_CHUNKS,
+        });
+        return evaluateQuery(judged, rankDocs(hits), EVAL_RANK);
+      }),
+    ),
+  );
+  for (const [i, { label }] of variants.entries()) {
+    const results = all[i]!;
+    console.log(label);
+    for (const { hit, bestRank, query } of results) {
+      console.log(`  ${hit ? "hit " : "miss"}  rank ${bestRank ?? "-"}  ${query}`);
+    }
+    const { hits, queries: total, recall, mrr, notFound } = summarize(results);
+    console.log(
+      `  recall@${EVAL_RANK} ${hits}/${total} (${recall.toFixed(2)})  MRR ${mrr.toFixed(3)}  not found ${notFound}`,
+    );
+  }
+};
+
 export const main = async (
   argv: string[],
   env: Record<string, string | undefined>,
@@ -237,6 +286,9 @@ export const main = async (
         return 0;
       case "search":
         await searchCommand(positionals.join(" ").trim(), values.source, config, deps);
+        return 0;
+      case "eval":
+        await evalCommand(config, deps);
         return 0;
       default:
         throw new CliError(USAGE);

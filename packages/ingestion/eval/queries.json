@@ -1,0 +1,33 @@
+[
+  {
+    "query": "start an http server",
+    "relevant": ["bun:runtime/http/server.mdx", "bun:guides/http/*"]
+  },
+  { "query": "read a file", "relevant": ["bun:runtime/file-io.mdx", "bun:guides/read-file/*"] },
+  {
+    "query": "install a package",
+    "relevant": [
+      "bun:pm/*",
+      "bun:snippets/cli/install.mdx",
+      "bun:snippets/cli/add.mdx",
+      "bun:guides/install/*"
+    ]
+  },
+  { "query": "write and run tests", "relevant": ["bun:test/*", "bun:guides/test/*"] },
+  { "query": "bundle typescript for the browser", "relevant": ["bun:bundler/*"] },
+  { "query": "query a sqlite database from Bun", "relevant": ["bun:runtime/sqlite.mdx"] },
+  { "query": "compile an app into a single executable", "relevant": ["bun:compiler/*"] },
+  { "query": "set environment variables", "relevant": ["bun:runtime/environment-variables.mdx"] },
+  { "query": "restart the app when a file changes", "relevant": ["bun:runtime/watch-mode.mdx"] },
+  { "query": "read a parquet file", "relevant": ["duckdb:data/parquet/*"] },
+  { "query": "import a CSV file", "relevant": ["duckdb:data/csv/*"] },
+  {
+    "query": "window functions",
+    "relevant": ["duckdb:sql/functions/window_functions.md", "duckdb:sql/query_syntax/window.md"]
+  },
+  { "query": "use DuckDB from Python", "relevant": ["duckdb:clients/python/*"] },
+  {
+    "query": "query files stored in S3",
+    "relevant": ["duckdb:core_extensions/httpfs/*", "duckdb:guides/network_cloud_storage/*"]
+  }
+]
