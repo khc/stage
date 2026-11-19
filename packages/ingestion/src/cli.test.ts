@@ -48,7 +48,7 @@ type Setup = {
   embedderConfigs: unknown[];
   indexConfigs: unknown[];
   upserts: IndexPoint[][];
-  deletes: Record<string, string>[];
+  deletedIds: string[][];
   searches: unknown[];
   queries: string[];
 };
@@ -58,7 +58,7 @@ const setup = (hits: SearchHit[] = []): Setup => {
     embedderConfigs: [],
     indexConfigs: [],
     upserts: [],
-    deletes: [],
+    deletedIds: [],
     searches: [],
     queries: [],
     deps: undefined as never,
@@ -74,7 +74,9 @@ const setup = (hits: SearchHit[] = []): Setup => {
   const vectorIndex: VectorIndex = {
     upsert: async (points) => void state.upserts.push(points),
     search: async (query) => (state.searches.push(query), hits),
-    deleteWhere: async (filter) => void state.deletes.push(filter),
+    listSourceHashes: async () => new Map(),
+    deleteIds: async (ids) => void state.deletedIds.push(ids),
+    deleteWhere: async () => {},
   };
   state.deps = {
     run: async (cmd, cwd) => {
@@ -171,7 +173,7 @@ test("ingest names the missing embedding setting", async () => {
 
 test("ingest embeds the chunks into Qdrant, writes the catalog and prints the summary", async () => {
   await corpora();
-  const { deps, upserts, deletes, embedderConfigs, indexConfigs } = setup();
+  const { deps, upserts, embedderConfigs, indexConfigs } = setup();
   const code = await main(
     ["ingest", "bun"],
     env({
@@ -197,7 +199,7 @@ test("ingest embeds the chunks into Qdrant, writes the catalog and prints the su
   const chunks = upserts.flat();
   expect(chunks.length).toBeGreaterThan(0);
   expect(chunks.every((point) => point.payload.source === "bun")).toBe(true);
-  expect(deletes.map((f) => f.doc_id).toSorted()).toEqual([
+  expect([...new Set(chunks.map((point) => point.payload.doc_id))].toSorted()).toEqual([
     "bun:runtime/guide.mdx",
     "bun:runtime/http/server.mdx",
   ]);
@@ -224,9 +226,11 @@ test("QDRANT_API_KEY reaches the vector index config", async () => {
 
 test("--limit keeps the first documents in path order", async () => {
   await corpora();
-  const { deps, deletes } = setup();
+  const { deps, upserts } = setup();
   expect(await main(["ingest", "bun", "--limit", "1"], env(), deps)).toBe(0);
-  expect(deletes.map((f) => f.doc_id)).toEqual(["bun:runtime/guide.mdx"]);
+  expect([...new Set(upserts.flat().map((point) => point.payload.doc_id))]).toEqual([
+    "bun:runtime/guide.mdx",
+  ]);
 });
 
 test("a --limit run writes bun.partial.jsonl and leaves the full catalog alone", async () => {
@@ -254,7 +258,7 @@ test("a --limit that is not a positive integer is rejected", async () => {
 
 test("ingest all runs every source with one embedder and one index", async () => {
   await corpora();
-  const { deps, deletes } = setup();
+  const { deps, upserts } = setup();
   expect(await main(["ingest", "all"], env(), deps)).toBe(0);
   expect(deps.createEmbedder).toHaveBeenCalledTimes(1);
   expect(deps.createVectorIndex).toHaveBeenCalledTimes(1);
@@ -262,7 +266,7 @@ test("ingest all runs every source with one embedder and one index", async () =>
     "bun",
     "duckdb",
   ]);
-  expect(deletes.some((f) => f.source === "duckdb")).toBe(true);
+  expect(upserts.flat().some((point) => point.payload.source === "duckdb")).toBe(true);
 });
 
 test("a configuration error names the setting and prints no environment variable", async () => {

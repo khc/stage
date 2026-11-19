@@ -176,6 +176,82 @@ test("deleteWhere without a filter is refused instead of deleting everything", a
   expect(calls).toHaveLength(1);
 });
 
+test("listSourceHashes scrolls all pages for a source and records missing chunk_hash as null", async () => {
+  let page = 0;
+  const { fetchFn, calls } = server((call) => {
+    if (call.method === "GET") return { json: collectionInfo(4) };
+    page += 1;
+    if (page === 1) {
+      return {
+        json: {
+          result: {
+            points: [
+              { id: "p1", payload: { doc_id: "bun:a.mdx", chunk_hash: "h1" } },
+              { id: "p2", payload: { doc_id: "bun:a.mdx" } },
+            ],
+            next_page_offset: "p2",
+          },
+          status: "ok",
+        },
+      };
+    }
+    return {
+      json: {
+        result: {
+          points: [{ id: "p3", payload: { doc_id: "bun:b.mdx", chunk_hash: "h3" } }],
+          next_page_offset: null,
+        },
+        status: "ok",
+      },
+    };
+  });
+  const index = await createQdrantIndex(fetchFn, config);
+  const byDoc = await index.listSourceHashes("bun");
+  expect(calls.slice(1)).toEqual([
+    {
+      method: "POST",
+      url: "http://127.0.0.1:6333/collections/docs/points/scroll",
+      body: {
+        filter: { must: [{ key: "source", match: { value: "bun" } }] },
+        limit: 256,
+        with_payload: ["doc_id", "chunk_hash"],
+        with_vector: false,
+      },
+    },
+    {
+      method: "POST",
+      url: "http://127.0.0.1:6333/collections/docs/points/scroll",
+      body: {
+        filter: { must: [{ key: "source", match: { value: "bun" } }] },
+        limit: 256,
+        with_payload: ["doc_id", "chunk_hash"],
+        with_vector: false,
+        offset: "p2",
+      },
+    },
+  ]);
+  expect(byDoc.get("bun:a.mdx")).toEqual(
+    new Map<string, string | null>([
+      ["p1", "h1"],
+      ["p2", null],
+    ]),
+  );
+  expect(byDoc.get("bun:b.mdx")).toEqual(new Map<string, string | null>([["p3", "h3"]]));
+});
+
+test("deleteIds skips empty input and deletes specific point ids when non-empty", async () => {
+  const { fetchFn, calls } = existing();
+  const index = await createQdrantIndex(fetchFn, config);
+  await index.deleteIds([]);
+  expect(calls).toHaveLength(1);
+  await index.deleteIds(["p1", "p2"]);
+  expect(calls[1]).toEqual({
+    method: "POST",
+    url: "http://127.0.0.1:6333/collections/docs/points/delete?wait=true",
+    body: { points: ["p1", "p2"] },
+  });
+});
+
 test("an error response is thrown with Qdrant's message", async () => {
   const { fetchFn } = server((call) => {
     if (call.method === "GET") return { json: collectionInfo(4) };

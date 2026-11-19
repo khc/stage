@@ -3,6 +3,8 @@ import { mapLimit } from "../map-limit";
 export type Embedder = {
   // The length of every vector, learned from the endpoint when the embedder is created.
   dimension: number;
+  // Identifies the active model and document prefix so stored chunk hashes invalidate on changes.
+  fingerprint?: string;
   // Embeds documents (the document prefix is added to each text).
   embed: (texts: string[]) => Promise<number[][]>;
   // Embeds a search query (the query prefix is added).
@@ -134,6 +136,7 @@ export const createEmbedder = async (
 
   return {
     dimension,
+    fingerprint: `${model}\0${docPrefix}`,
     embed: (texts) => embedAll(texts.map((text) => `${docPrefix}${text}`)),
     embedQuery: async (text) => (await embedAll([`${qPrefix}${text}`]))[0]!,
   };

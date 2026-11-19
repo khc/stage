@@ -73,6 +73,27 @@ test("the probe is sent without a prefix", async () => {
   expect(calls[0]!.body.input[0]!.startsWith("query")).toBe(false);
 });
 
+test("fingerprint reflects model and unescaped documentPrefix", async () => {
+  const a = await createEmbedder(server().fetchFn, {
+    ...config,
+    model: "m1",
+    documentPrefix: "line1\\n",
+  });
+  const b = await createEmbedder(server().fetchFn, {
+    ...config,
+    model: "m2",
+    documentPrefix: "line1\\n",
+  });
+  const c = await createEmbedder(server().fetchFn, {
+    ...config,
+    model: "m1",
+    documentPrefix: "other\\n",
+  });
+  expect(a.fingerprint).toBe("m1\0line1\n");
+  expect(a.fingerprint).not.toBe(b.fingerprint);
+  expect(a.fingerprint).not.toBe(c.fingerprint);
+});
+
 test("vectors are returned in input order even when the server answers in another order", async () => {
   const { fetchFn } = server();
   const embedder = await createEmbedder(fetchFn, config);

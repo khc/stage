@@ -15,6 +15,10 @@ export type VectorIndex = {
     k: number;
     filter?: Record<string, string>;
   }) => Promise<SearchHit[]>;
+  // Returns existing `{ pointId -> chunk_hash | null }` grouped by `doc_id` for a source.
+  listSourceHashes: (source: string) => Promise<Map<string, Map<string, string | null>>>;
+  // Deletes specific point IDs; an empty list is a no-op.
+  deleteIds: (ids: string[]) => Promise<void>;
   // Deletes every point whose payload matches all the keys; an empty filter is refused.
   deleteWhere: (filter: Record<string, string>) => Promise<void>;
 };
@@ -32,6 +36,7 @@ export type QdrantConfig = {
 // Payload fields the pipeline filters on.
 const INDEXED_FIELDS = ["source", "doc_id", "section_id"];
 const UPSERT_SLICE = 128;
+const SCROLL_LIMIT = 256;
 // Upsert slices of one document that may be in flight at once.
 const MAX_CONCURRENT_SLICES = 2;
 
@@ -138,6 +143,44 @@ export const createQdrantIndex = async (
       });
       const points = (body as { result?: { points?: SearchHit[] } }).result?.points ?? [];
       return points.map(({ id, score, payload }) => ({ id, score, payload }));
+    },
+    async listSourceHashes(source) {
+      const byDoc = new Map<string, Map<string, string | null>>();
+      let offset: unknown;
+      do {
+        const { body } = await request("POST", "/points/scroll", {
+          filter: toFilter({ source }),
+          limit: SCROLL_LIMIT,
+          with_payload: ["doc_id", "chunk_hash"],
+          with_vector: false,
+          ...(offset !== undefined && { offset }),
+        });
+        const result = (
+          body as {
+            result?: {
+              points?: { id: string | number; payload?: Payload }[];
+              next_page_offset?: unknown;
+            };
+          }
+        ).result;
+        for (const point of result?.points ?? []) {
+          const docId = point.payload?.doc_id;
+          if (typeof docId !== "string") continue;
+          let docHashes = byDoc.get(docId);
+          if (!docHashes) {
+            docHashes = new Map();
+            byDoc.set(docId, docHashes);
+          }
+          const hash = point.payload?.chunk_hash;
+          docHashes.set(String(point.id), typeof hash === "string" ? hash : null);
+        }
+        offset = result?.next_page_offset ?? undefined;
+      } while (offset !== undefined);
+      return byDoc;
+    },
+    async deleteIds(ids) {
+      if (ids.length === 0) return;
+      await request("POST", "/points/delete?wait=true", { points: ids });
     },
     async deleteWhere(filter) {
       if (Object.keys(filter).length === 0) throw new Error("deleteWhere needs a filter");

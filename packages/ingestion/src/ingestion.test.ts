@@ -22,12 +22,21 @@ const docBatch = (docId: string, texts: string[]): DiscoveryBatch => ({
 
 const setup = (
   batches: DiscoveryBatch[],
-  options: { embedFails?: boolean; embedFailsOnCall?: number; discoverFails?: boolean } = {},
+  options: {
+    embedFails?: boolean;
+    embedFailsOnCall?: number;
+    discoverFails?: boolean;
+    fingerprint?: string;
+    existing?: Map<string, Map<string, string | null>>;
+  } = {},
 ) => {
   const events: string[] = [];
   const upserts: IndexPoint[][] = [];
-  const deletes: Record<string, string>[] = [];
+  const deletedIds: string[][] = [];
+  const listedSources: string[] = [];
   const embedded: string[][] = [];
+  const store =
+    options.existing ?? new Map<string, Map<string, string | null>>();
   let embedCalls = 0;
   const catalogSink: CatalogSink = {
     write: async () => void events.push("write"),
@@ -36,6 +45,7 @@ const setup = (
   };
   const embedder: Embedder = {
     dimension: 2,
+    ...(options.fingerprint !== undefined && { fingerprint: options.fingerprint }),
     embed: async (texts) => {
       events.push("embed");
       embedded.push(texts);
@@ -48,9 +58,37 @@ const setup = (
     embedQuery: async () => [0, 0],
   };
   const vectorIndex: VectorIndex = {
-    upsert: async (points) => void (events.push("upsert"), upserts.push(points)),
+    upsert: async (points) => {
+      events.push("upsert");
+      upserts.push(points);
+      for (const point of points) {
+        const docId = String(point.payload.doc_id);
+        let docMap = store.get(docId);
+        if (!docMap) {
+          docMap = new Map();
+          store.set(docId, docMap);
+        }
+        const hash = point.payload.chunk_hash;
+        docMap.set(point.id, typeof hash === "string" ? hash : null);
+      }
+    },
     search: async () => [],
-    deleteWhere: async (filter) => void (events.push("delete"), deletes.push(filter)),
+    listSourceHashes: async (source) => {
+      events.push("list");
+      listedSources.push(source);
+      return new Map(
+        [...store.entries()].map(([docId, hashes]) => [docId, new Map(hashes)]),
+      );
+    },
+    deleteIds: async (ids) => {
+      events.push("deleteIds");
+      deletedIds.push(ids);
+      const removed = new Set(ids);
+      for (const hashes of store.values()) {
+        for (const id of removed) hashes.delete(id);
+      }
+    },
+    deleteWhere: async () => {},
   };
   const connector: Connector = {
     source: "bun",
@@ -61,17 +99,18 @@ const setup = (
     },
   };
   const ingestion = createIngestion({ catalogSink, embedder, vectorIndex });
-  return { ingestion, connector, events, upserts, deletes, embedded };
+  return { ingestion, connector, events, upserts, deletedIds, listedSources, embedded, store };
 };
 
-test("a document is embedded, then its old points deleted, then the new ones upserted", async () => {
-  const { ingestion, connector, events, upserts, deletes, embedded } = setup([
+test("new chunks are embedded with chunk_hash and upserted once per source scroll", async () => {
+  const { ingestion, connector, events, upserts, deletedIds, listedSources, embedded } = setup([
     docBatch("bun:a.mdx", ["one", "three"]),
   ]);
   await ingestion.run(connector);
-  expect(events).toEqual(["embed", "delete", "upsert", "write", "close"]);
+  expect(listedSources).toEqual(["bun"]);
+  expect(events).toEqual(["list", "embed", "upsert", "write", "close"]);
   expect(embedded).toEqual([["one", "three"]]);
-  expect(deletes).toEqual([{ source: "bun", doc_id: "bun:a.mdx" }]);
+  expect(deletedIds).toEqual([]);
   expect(upserts).toEqual([
     [
       {
@@ -84,6 +123,7 @@ test("a document is embedded, then its old points deleted, then the new ones ups
           section_path: "Title > S",
           chunk_index: 0,
           chunk_id: "bun:a.mdx#s:0",
+          chunk_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
           text: "one",
         },
       },
@@ -97,6 +137,7 @@ test("a document is embedded, then its old points deleted, then the new ones ups
           section_path: "Title > S",
           chunk_index: 1,
           chunk_id: "bun:a.mdx#s:1",
+          chunk_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
           text: "three",
         },
       },
@@ -104,22 +145,87 @@ test("a document is embedded, then its old points deleted, then the new ones ups
   ]);
 });
 
-test("running twice produces the same deletes and upserts", async () => {
+test("re-running on unchanged chunks skips embed, upsert and deleteIds", async () => {
   const batches = [docBatch("bun:a.mdx", ["one"]), docBatch("bun:b.mdx", ["two", "three"])];
-  const first = setup(batches);
-  const second = setup(batches);
+  const first = setup(batches, { fingerprint: "m\0" });
   await first.ingestion.run(first.connector);
+  const second = setup(batches, { fingerprint: "m\0", existing: first.store });
   await second.ingestion.run(second.connector);
-  expect(second.upserts).toEqual(first.upserts);
-  expect(second.deletes).toEqual(first.deletes);
+  expect(second.embedded).toEqual([]);
+  expect(second.upserts).toEqual([]);
+  expect(second.deletedIds).toEqual([]);
+  expect(second.events).toEqual(["list", "write", "write", "close"]);
+});
+
+test("modifying one chunk embeds and upserts only the changed chunk", async () => {
+  const first = setup([docBatch("bun:a.mdx", ["one", "two"])], { fingerprint: "m\0" });
+  await first.ingestion.run(first.connector);
+  const second = setup([docBatch("bun:a.mdx", ["one", "two-edited"])], {
+    fingerprint: "m\0",
+    existing: first.store,
+  });
+  await second.ingestion.run(second.connector);
+  expect(second.embedded).toEqual([["two-edited"]]);
+  expect(second.upserts.flat().map((p) => p.id)).toEqual([pointId("bun:a.mdx#s:1")]);
+  expect(second.deletedIds).toEqual([]);
+});
+
+test("shortening a document deletes only removed point ids, including legacy points with null hash", async () => {
+  const existing = new Map<string, Map<string, string | null>>([
+    [
+      "bun:a.mdx",
+      new Map<string, string | null>([
+        [pointId("bun:a.mdx#s:0"), null],
+        [pointId("bun:a.mdx#s:1"), null],
+      ]),
+    ],
+  ]);
+  const { ingestion, connector, embedded, upserts, deletedIds } = setup(
+    [docBatch("bun:a.mdx", ["one"])],
+    { existing },
+  );
+  await ingestion.run(connector);
+  expect(embedded).toEqual([["one"]]);
+  expect(upserts.flat().map((p) => p.id)).toEqual([pointId("bun:a.mdx#s:0")]);
+  expect(deletedIds).toEqual([[pointId("bun:a.mdx#s:1")]]);
+
+  // When a document still has one unchanged chunk and lost a second chunk, embed/upsert are skipped.
+  const twoChunks = setup([docBatch("bun:b.mdx", ["one", "two"])], { fingerprint: "m\0" });
+  await twoChunks.ingestion.run(twoChunks.connector);
+  const trimmed = setup([docBatch("bun:b.mdx", ["one"])], {
+    fingerprint: "m\0",
+    existing: twoChunks.store,
+  });
+  await trimmed.ingestion.run(trimmed.connector);
+  expect(trimmed.embedded).toEqual([]);
+  expect(trimmed.upserts).toEqual([]);
+  expect(trimmed.deletedIds).toEqual([[pointId("bun:b.mdx#s:1")]]);
+});
+
+test("changing embedder fingerprint re-embeds unchanged text", async () => {
+  const first = setup([docBatch("bun:a.mdx", ["one"])], { fingerprint: "m1\0" });
+  await first.ingestion.run(first.connector);
+  const second = setup([docBatch("bun:a.mdx", ["one"])], {
+    fingerprint: "m2\0",
+    existing: first.store,
+  });
+  await second.ingestion.run(second.connector);
+  expect(second.embedded).toEqual([["one"]]);
+  expect(second.upserts).toHaveLength(1);
 });
 
 test("a failed embedding deletes nothing, writes no catalog, aborts the sink and throws", async () => {
-  const { ingestion, connector, events } = setup([docBatch("bun:a.mdx", ["one"])], {
-    embedFails: true,
-  });
+  const existing = new Map<string, Map<string, string | null>>([
+    ["bun:a.mdx", new Map([[pointId("bun:a.mdx#s:1"), "old-hash"]])],
+  ]);
+  const { ingestion, connector, events, upserts, deletedIds } = setup(
+    [docBatch("bun:a.mdx", ["one"])],
+    { embedFails: true, existing },
+  );
   await expect(ingestion.run(connector)).rejects.toThrow("embedding server down");
-  expect(events).toEqual(["embed", "abort"]);
+  expect(events).toEqual(["list", "embed", "abort"]);
+  expect(upserts).toEqual([]);
+  expect(deletedIds).toEqual([]);
 });
 
 test("the sink is aborted, never closed, when the connector throws", async () => {
@@ -127,7 +233,7 @@ test("the sink is aborted, never closed, when the connector throws", async () =>
     discoverFails: true,
   });
   await expect(ingestion.run(connector)).rejects.toThrow("disk unreadable");
-  expect(events).toEqual(["embed", "delete", "upsert", "write", "abort"]);
+  expect(events).toEqual(["list", "embed", "upsert", "write", "abort"]);
 });
 
 test("a failure on a later document keeps the catalog uncommitted and omits that document", async () => {
@@ -137,16 +243,16 @@ test("a failure on a later document keeps the catalog uncommitted and omits that
   );
   await expect(ingestion.run(connector)).rejects.toThrow("embedding server down");
   expect(embedded).toEqual([["one"], ["two"]]);
-  expect(events).toEqual(["embed", "delete", "upsert", "write", "embed", "abort"]);
+  expect(events).toEqual(["list", "embed", "upsert", "write", "embed", "abort"]);
 });
 
-test("a batch without chunks writes the catalog and makes no vector calls", async () => {
+test("a batch without chunks writes the catalog and makes no embed, upsert or deleteIds calls", async () => {
   const { ingestion, connector, events } = setup([
     { nodes: [{ id: "bun", kind: "source", source: "bun", name: "bun" }], edges: [] },
     { ...docBatch("bun:a.mdx", []), chunks: [] },
   ]);
   await ingestion.run(connector);
-  expect(events).toEqual(["write", "write", "close"]);
+  expect(events).toEqual(["list", "write", "write", "close"]);
 });
 
 test("the summary counts documents, nodes, edges, chunks and skipped files", async () => {
