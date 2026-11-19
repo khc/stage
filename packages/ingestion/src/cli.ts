@@ -6,7 +6,7 @@ import { $ } from "bun";
 
 import type { Connector } from "./catalog";
 import { createJsonlCatalogSink } from "./catalog-sink";
-import { loadConfig } from "./config";
+import { ConfigError, loadConfig } from "./config";
 import { createDocsConnector } from "./connectors/docs-connector";
 import { corpora, corpusDir, fetchCorpus, type CorpusName, type Run } from "./corpora";
 import { createIngestion } from "./ingestion";
@@ -242,7 +242,12 @@ export const main = async (
         throw new CliError(USAGE);
     }
   } catch (err) {
-    console.error(err instanceof CliError ? err.message : err);
+    // Only the message: an error object can carry more than is safe to print (a config error
+    // once carried the whole environment), and its text can come from a server or a file name.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      err instanceof CliError || err instanceof ConfigError ? message : printable(message),
+    );
     return 1;
   }
 };

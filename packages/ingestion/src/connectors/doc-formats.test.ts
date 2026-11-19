@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { docFormats } from "./doc-formats";
+import { docFormats, dropLiquid } from "./doc-formats";
 
 const fixture = (path: string) => Bun.file(`${import.meta.dir}/../../fixtures/${path}`).text();
 const outsideCode = (blocks: string[]) =>
@@ -208,4 +208,19 @@ test("a very long line does not make the heading-id or the HTML pass quadratic",
 test("a trailing heading id is still dropped, with the space before it", () => {
   const doc = docFormats.mdx.parse("# T\n\n## Setup {#setup}  \n\ntext\n", "a.mdx");
   expect(doc.sections.map((s) => s.path.at(-1))).toEqual(["T", "Setup"]);
+});
+
+test("the post_url Liquid pass is linear on a long line", () => {
+  const line = "](  {%post_url x%}".repeat(28_000);
+  const started = performance.now();
+  expect(dropLiquid(line)).not.toContain("{%");
+  expect(performance.now() - started).toBeLessThan(200);
+});
+
+test("an inherited object key is not an HTML entity", () => {
+  const doc = docFormats.jekyll.parse(
+    "<pre><code>a &constructor; b &toString; c &lt;</code></pre>\n",
+    "a.md",
+  );
+  expect(doc.sections[0]!.blocks).toEqual(["```\na &constructor; b &toString; c <\n```"]);
 });

@@ -38,7 +38,8 @@ services:
     ports:
       - "127.0.0.1:6333:6333"
     environment:
-      # Qdrant allows any origin by default, so a web page could call it through localhost.
+      # Qdrant allows any origin by default, so a web page could read it through localhost. This
+      # blocks that, but not DNS rebinding (Qdrant does not check the Host header): set the key.
       - QDRANT__SERVICE__ENABLE_CORS=false
       # Set in .env to require an `api-key` header; left unset it is not passed (an empty value
       # would make Qdrant require an empty key). See the Ingestion block of .env.example.

@@ -100,11 +100,11 @@ const dropHeadingIds = (text: string) =>
 
 // A `({% link ... %})` target is not a valid markdown link destination, so Liquid goes first. A
 // link tag becomes a corpus-rooted path, a blog link a dead anchor, any other tag is removed.
-const dropLiquid = (text: string) =>
+export const dropLiquid = (text: string) =>
   outsideFences(text, (line) =>
     line
       .replace(/\]\(\s*\{%-?\s*link\s+docs\/[^/\s]+\/([^\s%]+)\s*-?%\}/g, "](/$1")
-      .replace(/\]\(\s*\{%-?\s*post_url[^%]*%\}[^)]*\)/g, "](#)")
+      .replace(/\]\(\s*\{%-?\s*post_url[^%\n]{0,200}%\}[^)\n]{0,200}\)/g, "](#)")
       .replace(/\{%-?[^%]*%\}/g, ""),
   );
 
@@ -124,7 +124,8 @@ const decodeEntities = (text: string) =>
       const code = Number.parseInt(entity.slice(hex ? 2 : 1), hex ? 16 : 10);
       return Number.isNaN(code) ? match : String.fromCodePoint(code);
     }
-    return entities[entity.toLowerCase()] ?? match;
+    const name = entity.toLowerCase();
+    return Object.hasOwn(entities, name) ? entities[name]! : match;
   });
 
 // A pre-rendered highlighted code block (<pre><code> inside divs) becomes a code node; any other

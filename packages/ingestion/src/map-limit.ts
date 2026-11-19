@@ -7,12 +7,19 @@ export const mapLimit = async <T, R>(
 ): Promise<R[]> => {
   const results: R[] = [];
   let next = 0;
+  let failed = false;
   const worker = async () => {
     // Each worker takes the next index when its call finishes, which is the point of the limit.
+    // After a rejection nobody takes another, so the failed map does not go on working.
     // oxlint-disable eslint/no-await-in-loop
-    while (next < items.length) {
+    while (!failed && next < items.length) {
       const index = next++;
-      results[index] = await fn(items[index]!);
+      try {
+        results[index] = await fn(items[index]!);
+      } catch (err) {
+        failed = true;
+        throw err;
+      }
     }
     // oxlint-enable eslint/no-await-in-loop
   };

@@ -265,6 +265,37 @@ test("ingest all runs every source with one embedder and one index", async () =>
   expect(deletes.some((f) => f.source === "duckdb")).toBe(true);
 });
 
+test("a configuration error names the setting and prints no environment variable", async () => {
+  const { deps } = setup();
+  const code = await main(
+    ["ingest", "bun", "--dry-run"],
+    {
+      OUT_DIR: out,
+      CHUNK_SIZE: "abc",
+      QDRANT_API_KEY: "FAKE_TEST_KEY_123",
+      UNRELATED: "FAKE_OTHER_456",
+    },
+    deps,
+  );
+  expect(code).toBe(1);
+  const printed = errors.join("\n");
+  expect(printed).toContain("CHUNK_SIZE");
+  expect(printed).not.toContain("FAKE_TEST_KEY_123");
+  expect(printed).not.toContain("FAKE_OTHER_456");
+});
+
+test("an unexpected error is printed as its message with control characters removed", async () => {
+  await corpora();
+  const { deps } = setup();
+  deps.createEmbedder = async () => {
+    throw new Error("server said \u001b[31mno\u001b]0;x\u0007");
+  };
+  expect(await main(["ingest", "bun"], env(), deps)).toBe(1);
+  const printed = errors.join("\n");
+  expect(printed).toContain("server said");
+  expect(/\p{Cc}/u.test(printed.replaceAll("\n", " "))).toBe(false);
+});
+
 test("a chunk overlap that is not smaller than the chunk size is rejected", async () => {
   const { deps } = setup();
   expect(

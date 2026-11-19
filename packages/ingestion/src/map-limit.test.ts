@@ -29,3 +29,17 @@ test("a failing call rejects the whole map", async () => {
     }),
   ).rejects.toThrow("boom");
 });
+
+test("after a call rejects, no further call is started", async () => {
+  const started: number[] = [];
+  await expect(
+    mapLimit([1, 2, 3, 4, 5, 6, 7, 8], 2, async (n) => {
+      started.push(n);
+      await Bun.sleep(10);
+      if (n === 1) throw new Error("boom");
+      return n;
+    }),
+  ).rejects.toThrow("boom");
+  await Bun.sleep(60);
+  expect(started).toEqual([1, 2]);
+});

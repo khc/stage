@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { loadConfig } from "./config";
+import { ConfigError, loadConfig } from "./config";
 
 test("defaults point at the local Qdrant and leave the embedding server unset", () => {
   expect(loadConfig({})).toEqual({
@@ -50,4 +50,26 @@ test("an invalid number is rejected", () => {
   expect(() => loadConfig({ CHUNK_SIZE: "50" })).toThrow();
   expect(() => loadConfig({ CHUNK_OVERLAP: "-1" })).toThrow();
   expect(() => loadConfig({ QDRANT_URL: "" })).toThrow();
+});
+
+test("an invalid value is reported by name, without the environment", () => {
+  const env = {
+    CHUNK_SIZE: "abc",
+    QDRANT_URL: "",
+    QDRANT_API_KEY: "FAKE_TEST_KEY_123",
+    OTHER: "FAKE_OTHER_456",
+  };
+  let error: unknown;
+  try {
+    loadConfig(env);
+  } catch (err) {
+    error = err;
+  }
+  expect(error).toBeInstanceOf(ConfigError);
+  const text = `${(error as Error).message} ${JSON.stringify(error)} ${Bun.inspect(error)}`;
+  expect(text).toContain("CHUNK_SIZE");
+  expect(text).toContain("QDRANT_URL");
+  expect(text).not.toContain("FAKE_TEST_KEY_123");
+  expect(text).not.toContain("FAKE_OTHER_456");
+  expect(text).not.toContain("abc");
 });
