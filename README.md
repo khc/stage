@@ -4,6 +4,7 @@ Bun workspace monorepo with apps under `apps/`, agent apps under `agents/` and s
 
 - `@stage/http` (`packages/http`): what the Elysia apps share: the request id and request span plugins, the OpenTelemetry setup (`setupTelemetry`, also used by the agent jobs), a config loader (`createConfigLoader`, `PORT` and `HOST`) and a base error handler. It depends on `elysia` and OpenTelemetry only, not on the agents' Firestore and ADK code.
 - `@stage/agents` (`packages/agents`): code shared by the agent apps: the job entrypoint (`runCli`: run a task, or `register`), the ADK runtime, the Firestore session store, the task-contract reader, the agent registry, the event publisher, and the model factory.
+- `@stage/ingestion` (`packages/ingestion`): ingestion pipelines for documentation corpora (the Bun and DuckDB docs): fetch, normalize, chunk, embed through an OpenAI-compatible embeddings server and store in Qdrant, plus a catalog file of documents, sections and links for a graph. A CLI, not a service; see [its README](packages/ingestion/README.md).
 - `@stage/generic-agents` (`agents/generic`): a Cloud Run Job image with the general-purpose agents (`assistant`, which can tell the time in a city).
 - `@stage/poet-agents` (`agents/poet`): a Cloud Run Job image with the poetry agents (`haiku`).
 - `@stage/service` (`apps/service`): the Elysia HTTP API with its OpenAPI/Scalar reference, laid out by feature ([PLAN.md](apps/service/PLAN.md)); it listens on `127.0.0.1:3000` (`0.0.0.0:3000` in its image, `task build:service`).
@@ -34,7 +35,7 @@ Run `bun run format` (oxfmt, configured in `.oxfmtrc.json`) to format the code, 
 ## Local environment
 
 ```bash
-docker compose up -d           # start Floci, Floci UI and MLflow
+docker compose up -d           # start Floci, Floci UI, MLflow and Qdrant (`docker compose up -d qdrant` starts only that)
 docker compose down            # stop
 bun run dev:service            # the API on http://localhost:3000 (runs on the host)
 bun run dev:ui                 # the dashboard on http://localhost:5173

@@ -12,5 +12,5 @@
   "sortTailwindcss": { "stylesheet": "./apps/ui/src/index.css", "functions": ["cn", "cva"] },
   "sortPackageJson": true,
 
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**"]
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**", "**/fixtures/**"]
 }
