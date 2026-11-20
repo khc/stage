@@ -50,6 +50,11 @@ test("discovery-assistant must discover assets before querying and carries no ha
   expect(instruction).not.toContain("name_basics");
 });
 
+test("discovery-assistant tries internal sources before the public web", () => {
+  expect(instruction).toContain("Use the internal sources first");
+  expect(instruction).toContain("only when the user asks to search the web");
+});
+
 const exaResult = {
   title: "Bun test runner",
   url: "https://bun.com/docs/test",
@@ -218,27 +223,23 @@ test("a follow-up in the same session can search without repeating the prefix", 
   ]);
 });
 
-test("internal data from an earlier turn blocks a model-written query in a later turn", async () => {
+test("a follow-up after an internal lookup can search with the model-written query", async () => {
   const runner = await setupRunner(
     new ScriptedModel([
       call("discover_assets"),
       answer("Found it."),
-      call("search_web", { query: "private fixture text" }),
-      answer("Please supply a public query."),
+      call("search_web", { query: "Jennifer Aniston residence" }),
+      answer("Los Angeles area.", [exaResult.url]),
     ]),
     "test-key",
   );
   await runner.send("Look up the internal record.");
 
-  const { responses } = await runner.send("where does she live?");
+  await runner.send("where does she live?");
 
-  expect(responses).toEqual([
-    expect.objectContaining({
-      name: "search_web",
-      response: { error: "web_search_query_required" },
-    }),
+  expect(runner.requests).toEqual([
+    expect.objectContaining({ query: "Jennifer Aniston residence" }),
   ]);
-  expect(runner.requests).toEqual([]);
 });
 
 test("the prefixed line is still searched after an internal tool returned data", async () => {
