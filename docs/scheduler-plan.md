@@ -31,12 +31,12 @@ Response model: `{ cron, timeZone, state, scheduleTime, lastAttemptTime, status 
 
 If no Scheduler config is set, the service still starts and the schedule routes answer 501, like the document and events routes. `TasksService.delete` then skips the schedule step.
 
-| Method | Success | Errors |
-|--------|---------|--------|
-| `POST` | 201 | 409 `schedule_exists`, 409 `task_not_executable`, 400 `invalid_schedule` |
-| `GET` | 200 | 404 `schedule_not_found` |
-| `PUT` | 200 | 404 `schedule_not_found`, 409 `task_not_executable`, 400 `invalid_schedule` |
-| `DELETE` | 204 | 404 `schedule_not_found` |
+| Method   | Success | Errors                                                                      |
+| -------- | ------- | --------------------------------------------------------------------------- |
+| `POST`   | 201     | 409 `schedule_exists`, 409 `task_not_executable`, 400 `invalid_schedule`    |
+| `GET`    | 200     | 404 `schedule_not_found`                                                    |
+| `PUT`    | 200     | 404 `schedule_not_found`, 409 `task_not_executable`, 400 `invalid_schedule` |
+| `DELETE` | 204     | 404 `schedule_not_found`                                                    |
 
 All routes return 404 `task_not_found` (from `tasksGuard`).
 

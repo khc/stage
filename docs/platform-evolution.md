@@ -9,6 +9,7 @@ The web research behind this was mostly Python ADK documentation. Check each ite
 **Why.** The failures we hit were routing and behaviour regressions: the agent searched the web before querying IMDb, a guard blocked an IMDb-then-web follow-up, and a missing key surfaced as `web_search_not_configured`. Unit tests with a scripted model do not catch these. Today only `bun run --filter @stage/knowledge-agents smoke` exercises an agent live.
 
 **What.**
+
 - Keep eval sets of expected tool-call sequences and final answers per agent. ADK's [evaluation framework](https://adk.dev/evaluate/) scores trajectories and tool use. Eval sets and criteria are separate, so one recorded interaction can be scored in different ways.
 - The first cases already exist as sessions: "what is the cast of Friends?" (internal discovery, then IMDb), then "where is she living?" (web, with a model-written query).
 - MLflow is already in the observability plane, and [`mlflow.genai.evaluate`](https://mlflow.org/docs/3.5.0/genai/eval-monitor) adds scorers and LLM judges.
@@ -22,6 +23,7 @@ The web research behind this was mostly Python ADK documentation. Check each ite
 **Why.** The Exa guard lives inside one agent (`discovery-agent.ts`) and reviews found gaps: parallel `search_web` calls bypass the per-turn cap, and the guard is scoped to one turn.
 
 **What.**
+
 - Follow ADK's [layered safety guidance](https://adk.dev/safety/): input and response validation, and deterministic tool-context policies that the model cannot set (tool arguments come from the model, tool context from the developer).
 - Register policies as a plugin on the Runner so they apply to every agent, instead of per-agent callbacks.
 - On GCP, put [Model Armor](https://cloud.google.com/blog/topics/developers-practitioners/agent-factory-recap-securing-ai-agents-in-production) in front of the model to screen prompt injection and sensitive data.
