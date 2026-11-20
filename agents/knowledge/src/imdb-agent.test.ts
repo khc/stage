@@ -9,9 +9,13 @@ import { imdbAgent, queryImdb } from "./imdb-agent";
 const schema = await Bun.file(new URL("../../../data/schemas/imdb.sql", import.meta.url)).text();
 const instruction = String(imdbAgent.instruction);
 
-test("both agents are registered and knowledge-assistant stays the default", () => {
+test("all three knowledge agents are registered and knowledge-assistant stays the default", () => {
   expect(agentSet.defaultAgent).toBe("knowledge-assistant");
-  expect(Object.keys(agentSet.agents)).toEqual(["knowledge-assistant", "imdb-assistant"]);
+  expect(Object.keys(agentSet.agents)).toEqual([
+    "knowledge-assistant",
+    "imdb-assistant",
+    "discovery-assistant",
+  ]);
   expect(agentSet.agents["imdb-assistant"]?.agent).toBe(imdbAgent);
   expect(imdbAgent.tools).toContain(queryImdb);
   expect(imdbAgent.tools).toContain(discoverAssets);

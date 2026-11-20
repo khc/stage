@@ -7,6 +7,7 @@ export type Neo4jConfig = {
   user?: string;
   password?: string;
   timeoutMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export type GraphAsset = {
@@ -60,7 +61,10 @@ export type GraphStore = {
 };
 
 const UPSERT_SLICE = 128;
-const MAX_CONCURRENT_SLICES = 2;
+// Sequential slices avoid Neo4j lock deadlocks when edges share hub nodes (e.g. Source -> Document).
+const MAX_CONCURRENT_SLICES = 1;
+const MAX_TRANSIENT_RETRIES = 3;
+const RETRY_BASE_MS = 50;
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 
@@ -142,7 +146,7 @@ const rowsFrom = (body: QueryApiResponse): Record<string, unknown>[] => {
 
 export const createNeo4jStore = (
   fetchFn: typeof fetch,
-  { url, database = "neo4j", user, password, timeoutMs = 30_000 }: Neo4jConfig,
+  { url, database = "neo4j", user, password, timeoutMs = 30_000, sleep = Bun.sleep }: Neo4jConfig,
 ): GraphStore => {
   const endpoint = `${url.replace(/\/$/, "")}/db/${encodeURIComponent(database)}/query/v2`;
   const authHeader =
@@ -154,6 +158,7 @@ export const createNeo4jStore = (
     statement: string,
     parameters: Record<string, unknown> = {},
     accessMode: "Read" | "Write" = "Write",
+    attempt = 0,
   ): Promise<Record<string, unknown>[]> => {
     let res: Response;
     try {
@@ -177,6 +182,10 @@ export const createNeo4jStore = (
     }
     const parsed = (await res.json().catch(() => undefined)) as QueryApiResponse | undefined;
     const neo4jError = parsed?.errors?.[0];
+    if (neo4jError?.code?.startsWith("Neo.TransientError.") && attempt < MAX_TRANSIENT_RETRIES) {
+      await sleep(RETRY_BASE_MS * 2 ** attempt);
+      return query(statement, parameters, accessMode, attempt + 1);
+    }
     if (!res.ok || neo4jError) {
       const detail = neo4jError
         ? `${neo4jError.code ? `${neo4jError.code}: ` : ""}${neo4jError.message ?? "query error"}`

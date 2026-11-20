@@ -1,7 +1,9 @@
+import { FunctionTool } from "@google/adk";
 import { loadConfig } from "@stage/ingestion/config";
-import type { CorpusName } from "@stage/ingestion/corpora";
+import { corpora, type CorpusName } from "@stage/ingestion/corpora";
 import { createEmbedder, type Embedder } from "@stage/ingestion/platform/embeddings-client";
 import { createQdrantIndex, type VectorIndex } from "@stage/ingestion/platform/qdrant-client";
+import { z } from "zod";
 
 // Chunks returned per search.
 const HITS = 5;
@@ -78,3 +80,19 @@ export const createSearchKnowledgeBase = (
     };
   };
 };
+
+export const searchParameters = z.object({
+  query: z.string().min(1).describe("What to look for, phrased as a search query."),
+  source: z
+    .enum(Object.keys(corpora) as [CorpusName, ...CorpusName[]])
+    .optional()
+    .describe("Search only this documentation source. Omit to search all of them."),
+});
+
+export const searchKnowledgeBase = new FunctionTool({
+  name: "search_knowledge_base",
+  description:
+    "Searches the documentation knowledge base and returns the best matching chunks with their source, document and section.",
+  parameters: searchParameters,
+  execute: createSearchKnowledgeBase(() => openKnowledgeBase(process.env)),
+});

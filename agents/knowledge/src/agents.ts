@@ -1,32 +1,16 @@
-import { FunctionTool, LlmAgent } from "@google/adk";
+import { LlmAgent } from "@google/adk";
 import { createModel } from "@stage/agents/model";
 import type { AgentSet } from "@stage/agents/spec";
-import { corpora, type CorpusName } from "@stage/ingestion/corpora";
 import { z } from "zod";
 
+import { discoveryAgent } from "./discovery-agent";
 import { discoverAssets, exploreAsset } from "./graph";
 import { imdbAgent } from "./imdb-agent";
-import { createSearchKnowledgeBase, openKnowledgeBase } from "./knowledge-base";
+import { searchKnowledgeBase, searchParameters } from "./knowledge-base";
 import { knowledgeOutput } from "./output";
 
-// The reply of every agent of this app; it lives in output.ts so that imdb-agent.ts can use it too.
-export { knowledgeOutput };
-
-export const searchParameters = z.object({
-  query: z.string().min(1).describe("What to look for, phrased as a search query."),
-  source: z
-    .enum(Object.keys(corpora) as [CorpusName, ...CorpusName[]])
-    .optional()
-    .describe("Search only this documentation source. Omit to search all of them."),
-});
-
-export const searchKnowledgeBase = new FunctionTool({
-  name: "search_knowledge_base",
-  description:
-    "Searches the documentation knowledge base and returns the best matching chunks with their source, document and section.",
-  parameters: searchParameters,
-  execute: createSearchKnowledgeBase(() => openKnowledgeBase(process.env)),
-});
+// Re-exported for callers/tests; searchParameters and searchKnowledgeBase live in knowledge-base.ts.
+export { knowledgeOutput, searchKnowledgeBase, searchParameters };
 
 export const knowledgeAgent = new LlmAgent({
   name: "knowledge-assistant",
@@ -49,6 +33,13 @@ export const agentSet: AgentSet = {
     [imdbAgent.name]: {
       agent: imdbAgent,
       inputSchema: z.string().describe("A question about films, series or people, in plain text."),
+      outputSchema: knowledgeOutput,
+    },
+    [discoveryAgent.name]: {
+      agent: discoveryAgent,
+      inputSchema: z
+        .string()
+        .describe("A question across any ingested documentation or database, in plain text."),
       outputSchema: knowledgeOutput,
     },
   },

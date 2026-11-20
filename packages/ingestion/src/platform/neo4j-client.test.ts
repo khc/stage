@@ -262,6 +262,48 @@ test("upsertBatch strips reserved keys from props, resets node properties, match
   ).rejects.toThrow("unknown edge type");
 });
 
+test("upsertBatch runs edge slices sequentially and retries Neo.TransientError deadlocks", async () => {
+  let inFlight = 0;
+  let peak = 0;
+  let attempts = 0;
+  const delays: number[] = [];
+  const fetchFn = (async (_input: string | URL | Request, _init?: RequestInit) => {
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await Bun.sleep(2);
+    inFlight -= 1;
+    attempts += 1;
+    if (attempts === 1) {
+      return Response.json(
+        {
+          errors: [
+            {
+              code: "Neo.TransientError.Transaction.DeadlockDetected",
+              message: "ForsetiClient deadlock",
+            },
+          ],
+        },
+        { status: 400 },
+      );
+    }
+    return Response.json({ data: { fields: [], values: [] } });
+  }) as typeof fetch;
+
+  const edges = Array.from({ length: 260 }, (_, i) => ({
+    from: "bun",
+    to: `bun:doc-${i}`,
+    type: "CONTAINS" as const,
+  }));
+  const store = createNeo4jStore(fetchFn, {
+    ...config,
+    sleep: async (ms) => void delays.push(ms),
+  });
+  await store.upsertBatch({ nodes: [], edges, runId: "r1" });
+  expect(peak).toBe(1);
+  expect(attempts).toBe(4);
+  expect(delays).toEqual([50]);
+});
+
 const live = process.env.NEO4J_URL;
 const testSource = `test-${crypto.randomUUID()}`;
 afterAll(async () => {

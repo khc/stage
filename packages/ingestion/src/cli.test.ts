@@ -3,7 +3,13 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { createDockerPostgresRunner, DEFAULT_IMDB_CONTAINER, main, type CliDeps } from "./cli";
+import {
+  createDockerPostgresRunner,
+  DEFAULT_IMDB_CONTAINER,
+  defaultPsqlExec,
+  main,
+  type CliDeps,
+} from "./cli";
 import type { Embedder } from "./platform/embeddings-client";
 import type { IndexPoint, SearchHit, VectorIndex } from "./platform/qdrant-client";
 
@@ -547,4 +553,15 @@ test("createDockerPostgresRunner wraps queries in json_agg, substitutes $1 array
     exitCode: 1,
   }));
   await expect(failing("SELECT 1")).rejects.toThrow("docker exec floci-pg failed (1)");
+
+  await expect(runSql("SELECT '$1' AS lit, $1 AS val", ["\\'\n\\! id"])).resolves.toEqual([
+    { table_name: "title_basics" },
+  ]);
+  expect(seen[1]!.input).toContain("SELECT '$1' AS lit, E'\\\\''\\n\\\\! id' AS val");
+
+  await expect(runSql("SELECT $1", [Number.NaN])).rejects.toThrow("non-finite");
+  await expect(runSql("SELECT $2", ["only-one"])).rejects.toThrow("missing parameter $2");
+  await expect(defaultPsqlExec(["bun", "-e", "await Bun.sleep(5000)"], "", 20)).rejects.toThrow(
+    "timed out",
+  );
 });

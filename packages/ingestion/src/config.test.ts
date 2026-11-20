@@ -86,6 +86,7 @@ test("Neo4j and IMDB settings are decoded when present", () => {
     NEO4J_USER: "neo4j",
     NEO4J_PASSWORD: "secret",
     IMDB_DATABASE_URL: "postgres://imdb_reader:x@localhost:5432/imdb",
+    IMDB_CONTAINER: "floci-pg",
   });
   expect(config).toMatchObject({
     NEO4J_URL: "http://localhost:7474",
@@ -93,5 +94,7 @@ test("Neo4j and IMDB settings are decoded when present", () => {
     NEO4J_USER: "neo4j",
     NEO4J_PASSWORD: "secret",
     IMDB_DATABASE_URL: "postgres://imdb_reader:x@localhost:5432/imdb",
+    IMDB_CONTAINER: "floci-pg",
   });
+  expect(loadConfig({}).IMDB_CONTAINER).toBeUndefined();
 });

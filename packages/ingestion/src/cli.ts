@@ -34,28 +34,66 @@ export type PsqlExec = (
   input: string,
 ) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
 
-const defaultPsqlExec: PsqlExec = async (command, input) => {
+const DEFAULT_PSQL_TIMEOUT_MS = 30_000;
+
+export const defaultPsqlExec = async (
+  command: string[],
+  input: string,
+  timeoutMs = DEFAULT_PSQL_TIMEOUT_MS,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
   const child = Bun.spawn(command, {
     stdin: new Blob([input]),
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  return { stdout, stderr, exitCode };
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    if (timedOut) {
+      throw new Error(`docker exec timed out after ${timeoutMs}ms`);
+    }
+    return { stdout, stderr, exitCode };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const formatPgString = (text: string): string => {
+  if (text.includes("\0")) {
+    throw new Error("null byte in PostgreSQL string parameter");
+  }
+  if (!/[\\\r\n]/.test(text)) {
+    return `'${text.replaceAll("'", "''")}'`;
+  }
+  return `E'${text
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "''")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\n", "\\n")}'`;
 };
 
 const formatPgLiteral = (value: unknown): string => {
   if (Array.isArray(value)) {
-    const items = value.map((item) => `'${String(item).replaceAll("'", "''")}'`).join(", ");
+    const items = value.map((item) => formatPgString(String(item))).join(", ");
     return `ARRAY[${items}]::text[]`;
   }
   if (value === null || value === undefined) return "NULL";
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return `'${String(value).replaceAll("'", "''")}'`;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(`non-finite PostgreSQL numeric parameter: ${value}`);
+    }
+    return String(value);
+  }
+  if (typeof value === "boolean") return String(value);
+  return formatPgString(String(value));
 };
 
 export const createDockerPostgresRunner = (
@@ -66,9 +104,14 @@ export const createDockerPostgresRunner = (
     throw new CliError(`invalid container name "${container}"`);
   }
   return async (query, params = []) => {
-    const substituted = query.replace(/\$(\d+)\b/g, (_m, index) =>
-      formatPgLiteral(params[Number(index) - 1]),
-    );
+    const substituted = query.replace(/'(?:''|[^'])*'|\$(\d+)\b/g, (match, index?: string) => {
+      if (!index) return match;
+      const idx = Number(index) - 1;
+      if (idx < 0 || idx >= params.length) {
+        throw new Error(`missing parameter $${index}`);
+      }
+      return formatPgLiteral(params[idx]);
+    });
     const wrapped = `SELECT COALESCE(json_agg(row_to_json(q)), '[]'::json)\nFROM (\n${substituted}\n) AS q;\n`;
     const command = [
       "docker",
