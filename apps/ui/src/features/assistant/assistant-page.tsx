@@ -55,7 +55,7 @@ function ThreadList({
     : tasks;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-2.5">
       <Button className="w-full justify-start gap-2 rounded-xl" onClick={onNewChat}>
         <Plus className="size-4" />
         New chat
@@ -72,7 +72,7 @@ function ThreadList({
           />
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-0.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-0.5">
         {!filtered.length ? (
           <p className="px-2 py-6 text-center text-xs text-muted-foreground">
             {tasks.length ? "No matching conversations." : "Your conversations appear here."}
@@ -85,14 +85,14 @@ function ThreadList({
               <div
                 key={task.taskId}
                 className={cn(
-                  "group flex items-center gap-1 rounded-xl px-2 py-1.5 transition-colors",
+                  "group flex items-center gap-1 rounded-lg px-2 py-0.5 transition-colors",
                   active ? "bg-accent text-accent-foreground" : "hover:bg-muted/60",
                 )}
               >
                 <button
                   type="button"
                   onClick={() => onSelectChat(task.taskId)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] leading-5"
                 >
                   <MessageSquare
                     className={cn(
@@ -102,13 +102,14 @@ function ThreadList({
                   />
                   <span className="min-w-0 flex-1 truncate">{taskTitle(task)}</span>
                   {subtasks > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                       {subtasks}
                     </Badge>
                   )}
                 </button>
                 <div className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   <ConfirmDelete
+                    size="icon-xs"
                     label="Delete conversation"
                     question={`Delete "${taskTitle(task)}"${subtasks ? ` and its ${subtasks} subtask${subtasks === 1 ? "" : "s"}` : ""}?`}
                     remove={() => api.deleteTask(task.taskId)}

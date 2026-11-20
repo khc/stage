@@ -20,6 +20,7 @@ export function ConfirmDelete({
   remove,
   onDeleted,
   variant = "ghost",
+  size = "icon",
   disabled = false,
 }: {
   label: string;
@@ -27,6 +28,7 @@ export function ConfirmDelete({
   remove: () => Promise<unknown>;
   onDeleted: () => void;
   variant?: "ghost" | "outline";
+  size?: "icon" | "icon-xs" | "icon-sm";
   // For when the question cannot be answered yet, for instance while the numbers in it are loading.
   disabled?: boolean;
 }) {
@@ -42,7 +44,7 @@ export function ConfirmDelete({
     <>
       <Button
         variant={variant}
-        size="icon"
+        size={size}
         aria-label={label}
         title={label}
         disabled={disabled}

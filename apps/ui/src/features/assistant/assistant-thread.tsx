@@ -136,7 +136,7 @@ export function AssistantThread({
             <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent text-primary ring-1 ring-primary/20">
               <Sparkles className="size-6" />
             </span>
-            <h2 className="font-display text-3xl tracking-tight sm:text-4xl">
+            <h2 className="font-display text-5xl tracking-tight sm:text-6xl">
               How can I help today?
             </h2>
             <p className="max-w-md text-sm text-muted-foreground">
