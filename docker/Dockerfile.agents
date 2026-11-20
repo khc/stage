@@ -21,6 +21,7 @@ COPY packages/tools/package.json ./packages/tools/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY agents/knowledge/package.json ./agents/knowledge/package.json
+COPY agents/orchestrator/package.json ./agents/orchestrator/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
 COPY apps/service/package.json ./apps/service/package.json
 RUN bun install --frozen-lockfile --production --filter "./agents/${APP}" \

@@ -9,6 +9,8 @@ export type AgentInfo = {
 };
 export type AgentRegistry = {
   list: (jobName: string) => Promise<AgentInfo[]>;
+  // Every registered agent of every job, ordered by job and then name.
+  listAll: () => Promise<(AgentInfo & { jobName: string })[]>;
   // Replaces everything registered for the job, so agents removed from the
   // image disappear from the registry on the next registration.
   register: (jobName: string, agents: AgentInfo[]) => Promise<void>;
@@ -25,23 +27,30 @@ const parseSchema = (value: unknown): JsonSchema | undefined => {
   }
 };
 
+const toAgentInfo = (doc: { get: (field: string) => unknown }): AgentInfo => {
+  const info: AgentInfo = { name: doc.get("name") as string };
+  const description = doc.get("description");
+  if (description !== undefined) info.description = description as string;
+  const inputSchema = parseSchema(doc.get("inputSchema"));
+  if (inputSchema) info.inputSchema = inputSchema;
+  const outputSchema = parseSchema(doc.get("outputSchema"));
+  if (outputSchema) info.outputSchema = outputSchema;
+  return info;
+};
+
 export const createAgentRegistry = (
   db: Pick<Firestore, "collection" | "batch">,
 ): AgentRegistry => ({
   async list(jobName) {
     const stored = await db.collection(COLLECTION).where("jobName", "==", jobName).get();
+    return stored.docs.map(toAgentInfo).toSorted((a, b) => a.name.localeCompare(b.name));
+  },
+
+  async listAll() {
+    const stored = await db.collection(COLLECTION).get();
     return stored.docs
-      .map((doc): AgentInfo => {
-        const info: AgentInfo = { name: doc.get("name") };
-        const description = doc.get("description");
-        if (description !== undefined) info.description = description;
-        const inputSchema = parseSchema(doc.get("inputSchema"));
-        if (inputSchema) info.inputSchema = inputSchema;
-        const outputSchema = parseSchema(doc.get("outputSchema"));
-        if (outputSchema) info.outputSchema = outputSchema;
-        return info;
-      })
-      .toSorted((a, b) => a.name.localeCompare(b.name));
+      .map((doc) => Object.assign(toAgentInfo(doc), { jobName: doc.get("jobName") as string }))
+      .toSorted((a, b) => a.jobName.localeCompare(b.jobName) || a.name.localeCompare(b.name));
   },
 
   async register(jobName, agents) {

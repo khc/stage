@@ -106,6 +106,7 @@ test("the app publishes task create, run and delete events", async () => {
     tasksService,
     sessionsService: {} as never,
     agentsService: {} as never,
+    a2aService: {} as never,
   });
 
   await app.handle(

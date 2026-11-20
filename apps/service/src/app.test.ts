@@ -1,7 +1,11 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, mock, spyOn, test } from "bun:test";
+
+import { createEvent } from "@google/adk";
+import { toAgentCard } from "@stage/agents/agent-registry";
 
 import { createApp, type AppDeps } from "./app";
 import { DependencyError } from "./errors";
+import { createA2aService } from "./modules/a2a/a2a-service";
 import type { AgentsService } from "./modules/agents/agents-service";
 import type { EventsService } from "./modules/events/events-service";
 import type { DocumentsService } from "./modules/tasks/documents/documents-service";
@@ -82,11 +86,40 @@ const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService =>
   register: async () => "operations/op-1",
   ...overrides,
 });
+// The real A2A service over fakes: a haiku agent in poet-agents whose run succeeds at once.
+const a2aService = () =>
+  createA2aService(
+    {
+      agentsService: {
+        agentCard: async (jobName, agentName) =>
+          jobName === "poet-agents" && agentName === "haiku"
+            ? toAgentCard(jobName, { name: "haiku", description: "Haiku" })
+            : undefined,
+      },
+      tasksService: {
+        create: async (input) => ({ status: "created", task: { ...task, ...input } }),
+        run: async () => ({ status: "started", operation: "op-1", sessionId: "s1" }),
+      },
+      sessionsStore: {
+        get: async () =>
+          ({
+            run: { status: "succeeded" },
+            events: [
+              createEvent({
+                author: "haiku",
+                content: { role: "model", parts: [{ text: "an old pond" }] },
+              }),
+            ],
+          }) as never,
+      },
+    },
+    { pollMs: 1 },
+  );
 const appWith = (
   overrides: Partial<TasksService> = {},
   sessionOverrides: Partial<SessionsService> = {},
   documents: Partial<DocumentsService> | null = {},
-  extras: { agents?: Partial<AgentsService>; events?: EventsService } = {},
+  extras: { agents?: Partial<AgentsService>; events?: EventsService; publicUrl?: string } = {},
 ) => {
   const deps: AppDeps = {
     healthService: { check: () => ({ status: "ok" }) },
@@ -94,6 +127,8 @@ const appWith = (
     sessionsService: sessionsService(sessionOverrides),
     ...(documents && { documentsService: documentsService(documents) }),
     agentsService: agentsService(extras.agents),
+    a2aService: a2aService(),
+    ...(extras.publicUrl && { publicUrl: extras.publicUrl }),
     ...(extras.events && { eventsService: extras.events }),
   };
   return createApp(deps);
@@ -120,6 +155,7 @@ describe("GET /health", () => {
       tasksService: tasksService(),
       sessionsService: sessionsService(),
       agentsService: agentsService(),
+      a2aService: a2aService(),
     });
     expect(await call(app, "/health")).toEqual({ status: 502, body: { error: "internal_error" } });
     spy.mockRestore();
@@ -681,5 +717,99 @@ describe("GET /events", () => {
     await res.body!.getReader().read();
     client.abort();
     expect(aborted).toBe(true);
+  });
+});
+
+describe("A2A gateway", () => {
+  const card = "/a2a/poet-agents/haiku/.well-known/agent-card.json";
+  const rpc = (method: string, params: unknown = {}) =>
+    json({ jsonrpc: "2.0", id: 1, method, params });
+
+  test("serves the Agent Card with every required field and the endpoint of the request", async () => {
+    const res = await call(appWith(), card);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      name: "haiku",
+      description: "Haiku",
+      url: "http://localhost/a2a/poet-agents/haiku",
+      protocolVersion: "0.3.0",
+      version: "1.0.0",
+      capabilities: { streaming: false },
+      defaultInputModes: ["text/plain"],
+      defaultOutputModes: ["text/plain"],
+      skills: [expect.objectContaining({ id: "haiku" })],
+    });
+  });
+
+  test("builds the endpoint from PUBLIC_URL when it is set", async () => {
+    const res = await call(appWith({}, {}, {}, { publicUrl: "https://stage.example.com" }), card);
+    expect(res.body).toMatchObject({ url: "https://stage.example.com/a2a/poet-agents/haiku" });
+  });
+
+  test("an agent that is not registered has no card and no endpoint: 404 agent_not_found", async () => {
+    const missing = { status: 404, body: { error: "agent_not_found" } };
+    expect(await call(appWith(), "/a2a/poet-agents/ghost/.well-known/agent-card.json")).toEqual(
+      missing,
+    );
+    expect(await call(appWith(), "/a2a/poet-agents/ghost", rpc("message/send"))).toEqual(missing);
+  });
+
+  test("message/send runs the agent and answers with the completed task", async () => {
+    const message = {
+      kind: "message",
+      messageId: "m-1",
+      role: "user",
+      parts: [{ kind: "text", text: "a haiku about a pond" }],
+    };
+    const res = await call(
+      appWith(),
+      "/a2a/poet-agents/haiku",
+      rpc("message/send", { message, configuration: { blocking: true } }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        kind: "task",
+        status: { state: "completed" },
+        artifacts: [{ parts: [{ kind: "text", text: "an old pond" }] }],
+      },
+    });
+  });
+
+  test("message/stream is refused as plain JSON, not streamed", async () => {
+    const res = await call(appWith(), "/a2a/poet-agents/haiku", rpc("message/stream"));
+    expect(res).toMatchObject({ status: 200, body: { error: { code: -32004 } } });
+  });
+
+  test("message/send lifts the server's idle timeout for the request, so a long run is not reset", async () => {
+    const app = appWith();
+    const timeout = mock((..._args: unknown[]) => {});
+    (app as unknown as { server: unknown }).server = { timeout };
+    await call(
+      app,
+      "/a2a/poet-agents/haiku",
+      rpc("message/send", {
+        message: {
+          kind: "message",
+          messageId: "m",
+          role: "user",
+          parts: [{ kind: "text", text: "hi" }],
+        },
+        configuration: { blocking: true },
+      }),
+    );
+    expect(timeout).toHaveBeenCalledTimes(1);
+    expect(timeout.mock.calls[0]?.[1]).toBe(255);
+  });
+
+  test("a body over 64 KiB is refused: 413 payload_too_large", async () => {
+    const res = await call(appWith(), "/a2a/poet-agents/haiku", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": String(64 * 1024 + 1) },
+      body: "{}",
+    });
+    expect(res).toEqual({ status: 413, body: { error: "payload_too_large" } });
   });
 });

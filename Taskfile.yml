@@ -8,7 +8,7 @@ vars:
   # One Cloud Run job per agent app (agents/<name>). The image is
   # stage-<name>:latest and the job is named <name>-agents (generic-agents).
   # Override to pick some, e.g. `task build:agents JOBS=poet`.
-  JOBS: generic poet knowledge
+  JOBS: generic poet knowledge orchestrator
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
   JOBS_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/jobs"
 

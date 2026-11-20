@@ -19,6 +19,10 @@ export const loadConfig = createConfigLoader(
     PUBSUB_TOPIC: t.Optional(t.String({ minLength: 1 })),
     // The topic the service publishes its own events to and /events streams from. Without it, /events answers 501.
     PLATFORM_EVENTS_TOPIC: t.Optional(t.String({ minLength: 1 })),
+    // The base URL the A2A Agent Cards advertise (set it to the address the orchestrator job uses). Without it, the origin of each request.
+    PUBLIC_URL: t.Optional(t.String({ minLength: 1 })),
+    // How long the A2A gateway waits for a delegated run, in milliseconds. Keep it below the service's request timeout and the 255 s idle limit of the A2A route (hence the maximum).
+    A2A_TIMEOUT_MS: t.Optional(t.Numeric({ minimum: 1000, maximum: 250_000, multipleOf: 1 })),
     // Base URL that Cloud Scheduler calls to run a task (this service, as Scheduler reaches it). Without it, the schedule routes answer 501.
     SCHEDULER_TARGET_URL: t.Optional(t.String({ minLength: 1 })),
     // The service account Scheduler signs its ID token as. Set on GCP; leave it unset for Floci, which sends no credentials.

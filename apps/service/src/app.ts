@@ -5,6 +5,8 @@ import { Elysia } from "elysia";
 import { rejectCrossSite } from "./http/cross-site";
 import { errorHandler } from "./http/errors";
 import { openapiDocs } from "./http/openapi";
+import { a2aController } from "./modules/a2a/a2a-controller";
+import type { A2aService } from "./modules/a2a/a2a-service";
 import { agentsController } from "./modules/agents/agents-controller";
 import type { AgentsService } from "./modules/agents/agents-service";
 import { eventsController } from "./modules/events/events-controller";
@@ -24,6 +26,9 @@ export type AppDeps = {
   // Undefined when EXTRACT_URL is not set: the document routes answer 501.
   documentsService?: DocumentsService;
   agentsService: AgentsService;
+  a2aService: A2aService;
+  // The base URL the A2A Agent Cards advertise; without it, the origin of each request.
+  publicUrl?: string;
   // Undefined when PLATFORM_EVENTS_TOPIC is not set: /events answers 501.
   eventsService?: EventsService;
 };
@@ -41,6 +46,7 @@ export const createApp = (deps: AppDeps) =>
     .use(openapiDocs())
     .use(healthController(deps.healthService))
     .use(agentsController(deps.agentsService))
+    .use(a2aController(deps.a2aService, deps.publicUrl))
     .use(eventsController(deps.eventsService))
     .use(tasksController(deps));
 

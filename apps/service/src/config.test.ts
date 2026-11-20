@@ -17,6 +17,7 @@ describe("loadConfig", () => {
       PLATFORM_EVENTS_TOPIC: "platform-events",
       SCHEDULER_TARGET_URL: "https://service.run.app",
       SCHEDULER_INVOKER: "stage-scheduler@floci-local.iam.gserviceaccount.com",
+      PUBLIC_URL: "http://host.docker.internal:3000",
     };
     expect(loadConfig({ ...gcp, PORT: "4000", HOST: "0.0.0.0", ...optional })).toEqual({
       ...gcp,
@@ -37,8 +38,19 @@ describe("loadConfig", () => {
     "PLATFORM_EVENTS_TOPIC",
     "SCHEDULER_TARGET_URL",
     "SCHEDULER_INVOKER",
+    "PUBLIC_URL",
   ])("rejects an empty %s", (name) => {
     expect(() => loadConfig({ ...gcp, [name]: "" })).toThrow();
+  });
+});
+
+describe("A2A_TIMEOUT_MS", () => {
+  test("is read as a number of milliseconds", () => {
+    expect(loadConfig({ ...gcp, A2A_TIMEOUT_MS: "240000" }).A2A_TIMEOUT_MS).toBe(240_000);
+  });
+
+  test.each(["", "abc", "500", "1500.5", "250001"])("rejects %p", (value) => {
+    expect(() => loadConfig({ ...gcp, A2A_TIMEOUT_MS: value })).toThrow();
   });
 });
 

@@ -42,6 +42,19 @@
         "@types/bun": "^1.4.4",
       },
     },
+    "agents/orchestrator": {
+      "name": "@stage/orchestrator-agents",
+      "version": "0.1.0",
+      "dependencies": {
+        "@google-cloud/firestore": "^9.4.1",
+        "@google/adk": "^2.5.0",
+        "@stage/agents": "workspace:*",
+        "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
     "agents/poet": {
       "name": "@stage/poet-agents",
       "version": "0.1.0",
@@ -70,6 +83,7 @@
       "name": "@stage/service",
       "version": "0.1.0",
       "dependencies": {
+        "@a2a-js/sdk": "0.3.14",
         "@elysiajs/openapi": "^1.4.17",
         "@google-cloud/firestore": "^9.4.1",
         "@google-cloud/pubsub": "^6.4.1",
@@ -537,6 +551,8 @@
     "@stage/ingestion": ["@stage/ingestion@workspace:packages/ingestion"],
 
     "@stage/knowledge-agents": ["@stage/knowledge-agents@workspace:agents/knowledge"],
+
+    "@stage/orchestrator-agents": ["@stage/orchestrator-agents@workspace:agents/orchestrator"],
 
     "@stage/poet-agents": ["@stage/poet-agents@workspace:agents/poet"],
 

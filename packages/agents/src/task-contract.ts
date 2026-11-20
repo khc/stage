@@ -1,4 +1,5 @@
 import type { DocumentSnapshot, Firestore } from "@google-cloud/firestore";
+import { z } from "zod";
 
 export type TaskContract = {
   taskId: string;
@@ -8,6 +9,8 @@ export type TaskContract = {
   agentName?: string;
   documents?: { documentId: string }[];
 };
+// The prompt a job accepts, for a task's first turn and for a queued message.
+export const promptSchema = z.string().trim().min(1).max(10_000);
 export type GetTask = (taskId: string) => Promise<TaskContract | undefined>;
 
 export const toContract = (doc: DocumentSnapshot): TaskContract => {

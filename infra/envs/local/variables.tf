@@ -28,7 +28,13 @@ variable "gemini_api_key" {
 
 variable "agent_apps" {
   type    = set(string)
-  default = ["generic", "poet", "knowledge"]
+  default = ["generic", "poet", "knowledge", "orchestrator"]
+}
+
+variable "gateway_url" {
+  type        = string
+  default     = "http://host.docker.internal:3000"
+  description = "Base URL of the stage service (its A2A gateway) as the orchestrator job container reaches it. The service on the host must listen on 0.0.0.0 (HOST=0.0.0.0)."
 }
 
 variable "agent_events_topic" {

@@ -8,6 +8,7 @@ const app = createApp({
   sessionsService: {} as never,
   documentsService: {} as never,
   agentsService: {} as never,
+  a2aService: {} as never,
   eventsService: {} as never,
 });
 
@@ -19,7 +20,7 @@ const spec = async () =>
     paths: Record<string, Record<string, Operation>>;
   };
 
-// The paths and methods the Hono service documented, which the UI and the jobs rely on.
+// The paths and methods the Hono service documented, which the UI and the jobs rely on, and the A2A gateway.
 const documented = {
   "/health": ["get"],
   "/jobs": ["get"],
@@ -36,6 +37,8 @@ const documented = {
   "/tasks/{taskId}/sessions/{sessionId}/stats": ["get"],
   "/tasks/{taskId}/sessions/{sessionId}/messages": ["get"],
   "/events": ["get"],
+  // The card route (`.../.well-known/agent-card.json`) is served but the generator leaves it out of the document.
+  "/a2a/{jobName}/{agentName}": ["post"],
 };
 
 describe("OpenAPI document", () => {

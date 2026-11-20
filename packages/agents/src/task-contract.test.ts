@@ -2,7 +2,7 @@ import { expect, mock, test } from "bun:test";
 
 import type { Firestore } from "@google-cloud/firestore";
 
-import { createGetTask } from "./task-contract";
+import { createGetTask, promptSchema } from "./task-contract";
 
 const reader = (get: () => Promise<unknown>) => {
   const doc = mock((_id: string) => ({ get }));
@@ -75,4 +75,11 @@ test("includes agentName when stored", async () => {
     jobName: "my-job",
     agentName: "researcher",
   });
+});
+
+test("promptSchema trims, rejects blank text and caps the length at 10 000 characters", () => {
+  expect(promptSchema.safeParse("  hello  ")).toMatchObject({ success: true, data: "hello" });
+  expect(promptSchema.safeParse("   ").success).toBe(false);
+  expect(promptSchema.safeParse("a".repeat(10_000)).success).toBe(true);
+  expect(promptSchema.safeParse("a".repeat(10_001)).success).toBe(false);
 });

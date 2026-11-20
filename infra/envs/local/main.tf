@@ -27,6 +27,14 @@ module "stage" {
 
   # Only the knowledge job gets the Qdrant and embedding settings, keys included.
   agent_app_env = {
+    # The orchestrator reaches the other agents over A2A at the service's gateway. It is the one job that
+    # needs JOB_NAME at run time, to leave itself out of the agents it offers; the gateway is plain http
+    # on a non-loopback host, which ADK accepts only when told to.
+    orchestrator = {
+      GATEWAY_URL            = var.gateway_url
+      GATEWAY_ALLOW_INSECURE = "true"
+      JOB_NAME               = "orchestrator-agents"
+    }
     knowledge = merge(
       var.knowledge_env,
       var.rerank_url == null ? {} : { RERANK_URL = var.rerank_url },

@@ -6,7 +6,7 @@ import { createAgentRegistry, type AgentInfo, type AgentRegistry } from "./agent
 import { appName, createRunAgent, userId, type RunAgent } from "./runtime";
 import { FirestoreSessionService } from "./session-service";
 import { describeAgents, type AgentSet } from "./spec";
-import { createGetTask, type GetTask } from "./task-contract";
+import { createGetTask, promptSchema, type GetTask } from "./task-contract";
 
 // The next message of a session being resumed; the service queues it in Firestore.
 export type GetMessage = (taskId: string, sessionId: string) => Promise<string | undefined>;
@@ -20,7 +20,6 @@ export const createGetMessage =
     });
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());
-const promptSchema = z.string().trim().min(1).max(10_000);
 
 export const main = async (
   env: Record<string, string | undefined>,

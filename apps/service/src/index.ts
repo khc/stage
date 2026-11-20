@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 
 import { createApp, type AppDeps } from "./app";
 import { loadConfig, parseAllowedJobs } from "./config";
+import { createA2aService } from "./modules/a2a/a2a-service";
 import { createAgentsService } from "./modules/agents/agents-service";
 import { createEventsService } from "./modules/events/events-service";
 import { createHealthService } from "./modules/health/health-service";
@@ -70,22 +71,30 @@ const platformEventStream =
     ? createPlatformEventStream(pubsub, config.PLATFORM_EVENTS_TOPIC)
     : undefined;
 
+const tasksService = createTasksService({
+  tasksStore,
+  agentRegistry,
+  cloudRunJobs,
+  sessionsStore,
+  documentsStore,
+  allowedJobs,
+});
+const agentsService = createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs });
+
 const appDeps: AppDeps = {
   healthService: createHealthService(),
-  tasksService: createTasksService({
-    tasksStore,
-    agentRegistry,
-    cloudRunJobs,
-    sessionsStore,
-    documentsStore,
-    allowedJobs,
-  }),
+  tasksService,
   sessionsService: createSessionsService({
     sessionsStore,
     sessionEventStream,
   }),
   documentsService: documentsStore && createDocumentsService({ documentsStore }),
-  agentsService: createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs }),
+  agentsService,
+  a2aService: createA2aService(
+    { agentsService, tasksService, sessionsStore, allowedJobs },
+    { ...(config.A2A_TIMEOUT_MS && { timeoutMs: config.A2A_TIMEOUT_MS }) },
+  ),
+  ...(config.PUBLIC_URL && { publicUrl: config.PUBLIC_URL }),
   eventsService: platformEventStream && createEventsService({ platformEventStream }),
 };
 

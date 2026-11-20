@@ -6,7 +6,7 @@
         <mxCell id="1" parent="0" />
 
         <!-- Header -->
-        <mxCell id="title" value="&lt;b style=&quot;font-size: 18px; color: #0F172A&quot;&gt;Stage — System Architecture&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #475569&quot;&gt;Bun monorepo separated by architectural planes · apps/{ui,service,extract-service} · packages/{http,agents,ingestion,tools} · agents/{generic,poet,knowledge}&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Inter,Helvetica,Arial;" vertex="1" parent="1">
+        <mxCell id="title" value="&lt;b style=&quot;font-size: 18px; color: #0F172A&quot;&gt;Stage — System Architecture&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #475569&quot;&gt;Bun monorepo separated by architectural planes · apps/{ui,service,extract-service} · packages/{http,agents,ingestion,tools} · agents/{generic,poet,knowledge,orchestrator}&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Inter,Helvetica,Arial;" vertex="1" parent="1">
           <mxGeometry x="30" y="14" width="980" height="50" as="geometry" />
         </mxCell>
 
@@ -92,13 +92,16 @@
           <mxGeometry x="300" y="735" width="770" height="240" as="geometry" />
         </mxCell>
         <mxCell id="job-generic" value="&lt;b style=&quot;color:#9F1239&quot;&gt;generic-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;assistant&lt;br&gt;document_analyser&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="320" y="775" width="230" height="78" as="geometry" />
+          <mxGeometry x="320" y="775" width="170" height="78" as="geometry" />
         </mxCell>
         <mxCell id="job-poet" value="&lt;b style=&quot;color:#9F1239&quot;&gt;poet-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;haiku-poet&lt;br&gt;limerick-poet&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="570" y="775" width="230" height="78" as="geometry" />
+          <mxGeometry x="506" y="775" width="170" height="78" as="geometry" />
         </mxCell>
-        <mxCell id="job-knowledge" value="&lt;b style=&quot;color:#9F1239&quot;&gt;knowledge-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;knowledge-assistant · imdb-assistant&lt;br&gt;discovery-assistant&lt;br&gt;&lt;b&gt;search_web&lt;/b&gt; (packages/tools)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="820" y="775" width="230" height="78" as="geometry" />
+        <mxCell id="job-orchestrator" value="&lt;b style=&quot;color:#9F1239&quot;&gt;orchestrator-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;orchestrator&lt;br&gt;calls other agents over A2A&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="692" y="775" width="170" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="job-knowledge" value="&lt;b style=&quot;color:#9F1239&quot;&gt;knowledge-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;knowledge-assistant&lt;br&gt;imdb-assistant&lt;br&gt;discovery-assistant&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="878" y="775" width="170" height="78" as="geometry" />
         </mxCell>
         <mxCell id="runtime" value="&lt;b style=&quot;color:#0F172A&quot;&gt;packages/agents&lt;/b&gt; &lt;font style=&quot;color:#64748B&quot;&gt;(shared runtime)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;Task contract &amp;amp; queued resume message · run lease&lt;br&gt;ADK Runner + FirestoreSessionService (events, heartbeat)&lt;br&gt;Publishes ADK events · register mode · OTEL spans on exit&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="320" y="870" width="480" height="88" as="geometry" />
@@ -136,6 +139,9 @@
 
         <!-- Edges: HTTP / API (Blue) -->
         <mxCell id="e-knowledge-exa" value="public query" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#FFF1F2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="job-knowledge" target="exa">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-orch-svc" value="A2A message/send" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.78;exitY=0;entryX=0.53;entryY=1;" edge="1" parent="1" source="job-orchestrator" target="service">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-ui-svc" value="REST + SSE" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#EFF6FF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ui" target="service">

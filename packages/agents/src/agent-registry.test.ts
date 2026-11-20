@@ -115,3 +115,25 @@ test("toAgentCard treats string or missing schemas as plain text", () => {
   expect(card.description).toBe("");
   expect(card["x-stage"]).not.toHaveProperty("outputSchema");
 });
+
+test("lists the agents of every job with their job name, ordered by job then name", async () => {
+  const stored = [
+    { jobName: "poet-agents", name: "limerick-poet" },
+    { jobName: "generic-agents", name: "document_analyser", description: "Reads documents" },
+    {
+      jobName: "generic-agents",
+      name: "assistant",
+      outputSchema: JSON.stringify({ type: "string" }),
+    },
+  ];
+  const get = mock(async () => ({
+    docs: stored.map((s) => ({ get: (f: string) => (s as Record<string, unknown>)[f] })),
+  }));
+  const db = { collection: () => ({ get }) } as never;
+
+  expect(await createAgentRegistry(db).listAll()).toEqual([
+    { jobName: "generic-agents", name: "assistant", outputSchema: { type: "string" } },
+    { jobName: "generic-agents", name: "document_analyser", description: "Reads documents" },
+    { jobName: "poet-agents", name: "limerick-poet" },
+  ]);
+});
