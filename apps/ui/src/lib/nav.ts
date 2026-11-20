@@ -17,6 +17,14 @@ export function useNav() {
         params: { taskId },
         search: keepSearch({ job: undefined }),
       }),
+    openAssistant: (chatId?: string) =>
+      chatId
+        ? navigate({
+            to: "/assistant/$chatId",
+            params: { chatId },
+            search: keepSearch({ job: undefined }),
+          })
+        : navigate({ to: "/assistant", search: keepSearch({ job: undefined }) }),
     openJob: (job: string) => navigate({ to: "/jobs", search: keepSearch({ job }) }),
     openCreate: (forJob?: string) => setSearch({ new: true, for: forJob }),
     closeTask: () => navigate({ to: "/tasks", search: keepSearch() }),

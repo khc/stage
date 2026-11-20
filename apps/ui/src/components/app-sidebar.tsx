@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { Sparkles } from "lucide-react";
 import type * as React from "react";
 
 import {
@@ -71,6 +72,19 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        <SidebarGroup className="pb-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={pathname === "/assistant" || pathname.startsWith("/assistant/")}
+                render={<Link to="/assistant" />}
+              >
+                <Sparkles />
+                <span>Assistant</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
         <SidebarGroup>
           <SidebarMenu className="gap-2">
             <SidebarMenuItem>

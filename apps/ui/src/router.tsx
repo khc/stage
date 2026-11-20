@@ -38,6 +38,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { Toaster } from "@/components/ui/sonner";
 import { JobCard } from "@/features/jobs/job-card";
 import { JobSheet } from "@/features/jobs/job-sheet";
+import { AssistantPage } from "@/features/assistant/assistant-page";
 import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
 import { TaskSheet } from "@/features/tasks/task-sheet";
 import { TasksPanel } from "@/features/tasks/tasks-panel";
@@ -50,6 +51,7 @@ const str = (value: unknown) => (typeof value === "string" && value ? value : un
 
 const captions: Record<string, [string, string, string]> = {
   "/": ["Overview", "Control room", "A clear view of your agent workspace."],
+  "/assistant": ["Assistant", "Assistant", "Chat with the orchestrator."],
   "/tasks": ["Tasks", "Tasks", "Save a prompt. Choose a job. Put your agents to work."],
   "/jobs": ["Jobs", "Jobs", "The workers behind your tasks."],
 };
@@ -64,8 +66,9 @@ function Shell() {
   };
   useEffect(() => startPlatformEvents(client), [client]);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { taskId } = useParams({ strict: false }) as { taskId?: string };
+  const { taskId, chatId } = useParams({ strict: false }) as { taskId?: string; chatId?: string };
   const section = `/${pathname.split("/")[1]}`;
+  const isAssistant = section === "/assistant";
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
   const [crumb, title, subtitle] = captions[section] ?? captions["/"]!;
@@ -91,8 +94,8 @@ function Shell() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
+      <SidebarInset className={isAssistant ? "h-svh overflow-hidden" : undefined}>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-4" />
           <nav
@@ -104,44 +107,58 @@ function Shell() {
             <strong className="font-medium text-foreground">{crumb}</strong>
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            {isAssistant && chatId && (
+              <Button variant="outline" size="sm" render={<Link to="/assistant" />}>
+                <Plus />
+                New chat
+              </Button>
+            )}
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest text-primary">
-                <span className="h-px w-4 bg-primary" />
-                AGENT OPERATIONS
-              </p>
-              <h1 className="text-2xl font-semibold">{title}</h1>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={refreshing}
-                aria-label="Refresh workspace"
-                onClick={() => void client.invalidateQueries()}
-              >
-                <RefreshCw className={refreshing ? "animate-spin" : ""} />
-              </Button>
-              <Button onClick={() => void openCreate()}>
-                <Plus />
-                New task
-              </Button>
-            </div>
+        {isAssistant ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <Outlet />
           </div>
-          <Outlet />
-        </main>
-        <footer className="flex items-center justify-between border-t px-6 py-3 text-xs text-muted-foreground">
-          <span>STAGE · YOUR AGENT WORKSPACE</span>
-        </footer>
+        ) : (
+          <>
+            <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest text-primary">
+                    <span className="h-px w-4 bg-primary" />
+                    AGENT OPERATIONS
+                  </p>
+                  <h1 className="text-2xl font-semibold">{title}</h1>
+                  <p className="text-sm text-muted-foreground">{subtitle}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={refreshing}
+                    aria-label="Refresh workspace"
+                    onClick={() => void client.invalidateQueries()}
+                  >
+                    <RefreshCw className={refreshing ? "animate-spin" : ""} />
+                  </Button>
+                  <Button onClick={() => void openCreate()}>
+                    <Plus />
+                    New task
+                  </Button>
+                </div>
+              </div>
+              <Outlet />
+            </main>
+            <footer className="flex items-center justify-between border-t px-6 py-3 text-xs text-muted-foreground">
+              <span>STAGE · YOUR AGENT WORKSPACE</span>
+            </footer>
+          </>
+        )}
       </SidebarInset>
       <NewTaskDialog open={!!search.new} initialJob={search.for ?? ""} />
       <JobSheet job={openJob} tasks={tasksQuery.data?.tasks ?? []} />
-      <TaskSheet taskId={taskId} />
+      <TaskSheet taskId={section === "/tasks" ? taskId : undefined} />
       <Toaster />
     </SidebarProvider>
   );
@@ -318,8 +335,23 @@ const rootRoute = createRootRoute({
   }),
 });
 
+function AssistantLayoutRoute() {
+  const { chatId } = useParams({ strict: false }) as { chatId?: string };
+  return <AssistantPage chatId={chatId} />;
+}
+
+const assistantRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assistant",
+  component: AssistantLayoutRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: Overview }),
+  assistantRoute.addChildren([
+    createRoute({ getParentRoute: () => assistantRoute, path: "/", component: () => null }),
+    createRoute({ getParentRoute: () => assistantRoute, path: "/$chatId", component: () => null }),
+  ]),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/tasks",
