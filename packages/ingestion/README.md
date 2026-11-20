@@ -22,7 +22,7 @@ The corpora are cloned (shallow, sparse) into `OUT_DIR/corpora/<source>` and nev
 
 ## Run
 
-Needs Qdrant and, to embed, an OpenAI-compatible embeddings server (oMLX on the host). Set
+Needs Qdrant and, to embed, an OpenAI-compatible embeddings server (oMLX on the host). Optionally set `RERANK_MODEL` (plus `RERANK_URL` / `RERANK_API_KEY` if different from `EMBEDDING_URL` / `EMBEDDING_API_KEY`) to enable two-stage cross-encoder reranking (`POST /v1/rerank`: fetch 25 candidates in `search`, rerank to top 5). Set
 `NEO4J_URL` (plus `NEO4J_USER` / `NEO4J_PASSWORD`) to also write the catalog graph to Neo4j.
 `ingest imdb` queries Floci's `floci-gcp-cloudsql-floci-local-imdb` container via `docker exec` by
 default (override with `--container` or `IMDB_DATABASE_URL`). Copy the `Ingestion` and
@@ -54,7 +54,8 @@ index and reports, per question, whether an acceptable document is in the top 5 
 rank, then recall@5 (the share of questions with a hit) and MRR (the mean of 1 / best rank, a miss
 counting 0). A document counts at the position of its first chunk among the 40 best chunks. With
 `EMBEDDING_QUERY_PREFIX` set it runs twice, with the instruction and plain, so the two can be
-compared. Each `relevant` entry is a document id or a prefix ending in `*`; any one of them is a
+compared; when `RERANK_MODEL` is set, each variant also runs a `+ rerank` pass over those 40
+chunks. Each `relevant` entry is a document id or a prefix ending in `*`; any one of them is a
 good answer. Write a judgment from what the documents are about, before running the questions, and
 note it when an entry is changed after seeing results.
 
@@ -84,4 +85,4 @@ schema to table, table to column), `LINKS_TO` (document to document, from intern
 
 `bun test packages/ingestion` runs offline. Contract tests run only when their server is configured:
 Qdrant when `QDRANT_URL` is set, the embeddings endpoint when `EMBEDDING_URL` and `EMBEDDING_MODEL`
-are set, and Neo4j when `NEO4J_URL` is set.
+are set, the reranker when `RERANK_MODEL` (plus `RERANK_URL` or `EMBEDDING_URL`) is set, and Neo4j when `NEO4J_URL` is set.

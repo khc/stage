@@ -3,14 +3,22 @@ import { loadConfig } from "@stage/ingestion/config";
 import { corpora, type CorpusName } from "@stage/ingestion/corpora";
 import { createEmbedder, type Embedder } from "@stage/ingestion/platform/embeddings-client";
 import { createQdrantIndex, type VectorIndex } from "@stage/ingestion/platform/qdrant-client";
+import {
+  createReranker,
+  rerankItems,
+  resolveRerankerConfig,
+  type Reranker,
+} from "@stage/ingestion/platform/reranker-client";
 import { z } from "zod";
 
-// Chunks returned per search.
+// Chunks returned per search, and candidate pool retrieved when a reranker is active.
 const HITS = 5;
+const RERANK_CANDIDATES = 25;
 
 export type KnowledgeBase = {
   embedder: Pick<Embedder, "embedQuery">;
   vectorIndex: Pick<VectorIndex, "search">;
+  reranker?: Pick<Reranker, "rerank">;
 };
 
 export type Hit = {
@@ -47,7 +55,9 @@ export const openKnowledgeBase = async (
     dimension: embedder.dimension,
     apiKey: config.QDRANT_API_KEY || undefined,
   });
-  return { embedder, vectorIndex };
+  const rerankConfig = resolveRerankerConfig(config);
+  const reranker = rerankConfig ? createReranker(fetch, rerankConfig) : undefined;
+  return { embedder, vectorIndex, ...(reranker && { reranker }) };
 };
 
 // `open` runs on the first search, not at import, so listing the agents needs no network. A failed
@@ -63,12 +73,17 @@ export const createSearchKnowledgeBase = (
     }));
 
   return async ({ query, source }) => {
-    const { embedder, vectorIndex } = await knowledgeBase();
-    const hits = await vectorIndex.search({
+    const { embedder, vectorIndex, reranker } = await knowledgeBase();
+    const rawHits = await vectorIndex.search({
       vector: await embedder.embedQuery(query),
-      k: HITS,
+      k: reranker ? RERANK_CANDIDATES : HITS,
       ...(source && { filter: { source } }),
     });
+    const hits = reranker
+      ? (
+          await rerankItems(reranker, query, rawHits, (hit) => String(hit.payload.text ?? ""), HITS)
+        ).map(({ item, score }) => ({ ...item, score }))
+      : rawHits;
     return {
       hits: hits.map(({ score, payload }) => ({
         score,

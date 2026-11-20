@@ -115,7 +115,7 @@
         <mxCell id="cloudsql" value="&lt;b style=&quot;color:#1E3A8A&quot;&gt;Cloud SQL: Postgres 17&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#2563EB;font-size:11px&quot;&gt;imdb database (Floci)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;title_*, name_basics&lt;br&gt;imdb_reader (SELECT, 10s, 50 rows)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="300" y="1110" width="275" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="embeddings" value="&lt;b style=&quot;color:#854D0E&quot;&gt;Embeddings Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#CA8A04;font-size:11px&quot;&gt;oMLX :8000 (host)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;OpenAI-compatible /v1/embeddings&lt;br&gt;(e.g. Qwen3-Embedding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EAB308;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="embeddings" value="&lt;b style=&quot;color:#854D0E&quot;&gt;Embeddings &amp;amp; Reranker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#CA8A04;font-size:11px&quot;&gt;oMLX :8000 (host)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;/v1/embeddings (Qwen3-Embedding)&lt;br&gt;/v1/rerank (Qwen3-Reranker)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EAB308;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="595" y="1110" width="245" height="100" as="geometry" />
         </mxCell>
         <mxCell id="qdrant" value="&lt;b style=&quot;color:#14532D&quot;&gt;Qdrant&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#16A34A;font-size:11px&quot;&gt;localhost:6333&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;docs collection&lt;br&gt;chunk vectors &amp; metadata&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
@@ -207,7 +207,7 @@
         <mxCell id="e-jobs-gem" value="model calls" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#FFF1F2;exitX=1;exitY=0.48;entryX=0;entryY=0.5;" edge="1" parent="1" source="jobs" target="gemini">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-jobs-emb" value="embed query" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.54;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="jobs" target="embeddings">
+        <mxCell id="e-jobs-emb" value="embed &amp;amp; rerank" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.54;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="jobs" target="embeddings">
           <mxGeometry x="0.05" relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>

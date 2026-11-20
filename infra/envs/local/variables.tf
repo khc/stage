@@ -71,11 +71,17 @@ variable "embedding_url" {
   description = "OpenAI-compatible embeddings server (oMLX on the host) as the job container reaches it."
 }
 
+variable "rerank_url" {
+  type        = string
+  default     = null
+  description = "Optional reranker server base URL as the job container reaches it; unset falls back to embedding_url."
+}
+
 variable "knowledge_env" {
   type        = map(string)
   default     = {}
   sensitive   = true
-  description = "QDRANT_API_KEY, EMBEDDING_MODEL, EMBEDDING_API_KEY and EMBEDDING_QUERY_PREFIX for the knowledge agent; task tf:apply fills it from .env."
+  description = "QDRANT_API_KEY, EMBEDDING_MODEL, EMBEDDING_API_KEY, EMBEDDING_QUERY_PREFIX, RERANK_MODEL, RERANK_API_KEY, NEO4J_USER and NEO4J_PASSWORD for the knowledge agent; task tf:apply fills it from .env."
 }
 
 variable "use_vertexai" {

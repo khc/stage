@@ -16,6 +16,11 @@ const fields = {
   // Text added before each document or query, for models that expect an instruction.
   EMBEDDING_DOCUMENT_PREFIX: t.Optional(t.String()),
   EMBEDDING_QUERY_PREFIX: t.Optional(t.String()),
+  // Optional cross-encoder reranker (oMLX /v1/rerank). RERANK_URL/RERANK_API_KEY default to
+  // EMBEDDING_URL/EMBEDDING_API_KEY at call sites when unset.
+  RERANK_URL: t.Optional(t.String()),
+  RERANK_MODEL: t.Optional(t.String()),
+  RERANK_API_KEY: t.Optional(t.String()),
   // Characters per chunk, and the overlap between the pieces of an oversize block.
   CHUNK_SIZE: t.Numeric({ minimum: 100, multipleOf: 1 }),
   CHUNK_OVERLAP: t.Numeric({ minimum: 0, multipleOf: 1 }),

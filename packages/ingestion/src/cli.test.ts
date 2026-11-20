@@ -370,6 +370,83 @@ test("search without --source has no filter, and without a query or embedding se
   expect(await main(["search", "x", "--source", "nope"], env(), deps)).toBe(1);
 });
 
+test("search with RERANK_MODEL fetches 25 candidates and reorders by reranker score", async () => {
+  const hits: SearchHit[] = [
+    {
+      id: "low",
+      score: 0.9,
+      payload: {
+        source: "bun",
+        doc_id: "bun:a.mdx",
+        section_path: "A",
+        text: "A\n\nunrelated chunk",
+      },
+    },
+    {
+      id: "high",
+      score: 0.4,
+      payload: {
+        source: "bun",
+        doc_id: "bun:b.mdx",
+        section_path: "B",
+        text: "B\n\nBun.serve starts a server",
+      },
+    },
+  ];
+  const { deps, searches } = setup(hits);
+  const rerankerConfigs: unknown[] = [];
+  const rerankCalls: { query: string; documents: string[]; topN?: number }[] = [];
+  deps.createReranker = (config) => {
+    rerankerConfigs.push(config);
+    return {
+      rerank: async (query, documents, topN) => {
+        rerankCalls.push({ query, documents, topN });
+        return [
+          { index: 1, relevanceScore: 0.99 },
+          { index: 0, relevanceScore: 0.12 },
+        ];
+      },
+    };
+  };
+
+  expect(
+    await main(
+      ["search", "start an http server"],
+      env({ RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8", EMBEDDING_API_KEY: "emb-key" }),
+      deps,
+    ),
+  ).toBe(0);
+  expect(rerankerConfigs).toEqual([
+    { url: "http://127.0.0.1:8000", model: "Qwen3-Reranker-0.6B-mxfp8", apiKey: "emb-key" },
+  ]);
+  expect(searches).toEqual([{ vector: [1, 0], k: 25 }]);
+  expect(rerankCalls).toEqual([
+    {
+      query: "start an http server",
+      documents: ["A\n\nunrelated chunk", "B\n\nBun.serve starts a server"],
+      topN: 5,
+    },
+  ]);
+  expect(logs[0]).toBe("0.990  bun  bun:b.mdx  B");
+  expect(logs[2]).toBe("0.120  bun  bun:a.mdx  A");
+
+  rerankerConfigs.length = 0;
+  expect(
+    await main(
+      ["search", "start an http server"],
+      env({
+        RERANK_URL: "http://127.0.0.1:8001",
+        RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8",
+        EMBEDDING_API_KEY: "emb-key",
+      }),
+      deps,
+    ),
+  ).toBe(0);
+  expect(rerankerConfigs).toEqual([
+    { url: "http://127.0.0.1:8001", model: "Qwen3-Reranker-0.6B-mxfp8", apiKey: undefined },
+  ]);
+});
+
 const evalDeps = (hitsByPrefix: Record<"prefix" | "plain", string>) => {
   const { deps } = setup();
   const prefixes: (string | undefined)[] = [];
@@ -422,6 +499,50 @@ test("eval without a query prefix runs only the plain variant", async () => {
   expect(prefixes).toEqual([undefined]);
   expect(logs[0]).toBe("plain (no query prefix)");
   expect(logs).toContain("  hit   rank 1  start an http server");
+});
+
+test("eval with RERANK_MODEL adds a reranked variant without truncating ranks 6..40", async () => {
+  const { deps } = setup();
+  deps.createEmbedder = async () => ({
+    dimension: 2,
+    embed: async (texts) => texts.map(() => [0, 0]),
+    embedQuery: async () => [1, 0],
+  });
+  deps.createVectorIndex = async () => ({
+    upsert: async () => {},
+    deleteWhere: async () => {},
+    deleteIds: async () => {},
+    listSourceHashes: async () => new Map(),
+    search: async () =>
+      Array.from({ length: 7 }, (_, idx) => ({
+        id: String(idx),
+        score: 1 - idx * 0.1,
+        payload: {
+          doc_id: idx === 6 ? "bun:runtime/http/server.mdx" : `bun:other-${idx}.mdx`,
+          text: idx === 6 ? "server docs" : "other",
+        },
+      })),
+  });
+  const topNs: (number | undefined)[] = [];
+  deps.createReranker = () => ({
+    rerank: async (_query, documents, topN) => {
+      topNs.push(topN);
+      // Put the 7th item (index 6) at rank 6 (0-based 5) to verify ranks >= 6 stay in MRR.
+      return [0, 1, 2, 3, 4, 6, 5].slice(0, documents.length).map((index, pos) => ({
+        index,
+        relevanceScore: 1 - pos * 0.1,
+      }));
+    },
+  });
+
+  expect(await main(["eval"], env({ RERANK_MODEL: "rerank-m" }), deps)).toBe(0);
+  expect(topNs.every((n) => n === undefined)).toBe(true);
+  expect(logs.filter((line) => !line.startsWith("  "))).toEqual([
+    "plain (no query prefix)",
+    "plain (no query prefix) + rerank",
+  ]);
+  expect(logs).toContain("  miss  rank 7  start an http server");
+  expect(logs).toContain("  miss  rank 6  start an http server");
 });
 
 test("eval names a missing embedding setting", async () => {

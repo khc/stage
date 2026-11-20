@@ -12,7 +12,8 @@
     "./ingestion": "./src/ingestion.ts",
     "./platform/embeddings-client": "./src/platform/embeddings-client.ts",
     "./platform/neo4j-client": "./src/platform/neo4j-client.ts",
-    "./platform/qdrant-client": "./src/platform/qdrant-client.ts"
+    "./platform/qdrant-client": "./src/platform/qdrant-client.ts",
+    "./platform/reranker-client": "./src/platform/reranker-client.ts"
   },
   "scripts": {
     "eval": "bun --env-file=../../.env src/cli.ts eval",

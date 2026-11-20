@@ -58,6 +58,7 @@ test("an invalid value is reported by name, without the environment", () => {
     CHUNK_SIZE: "abc",
     QDRANT_URL: "",
     QDRANT_API_KEY: "FAKE_TEST_KEY_123",
+    RERANK_API_KEY: "FAKE_RERANK_KEY_321",
     NEO4J_PASSWORD: "FAKE_NEO4J_PASSWORD_789",
     IMDB_DATABASE_URL: "postgres://user:FAKE_DB_PASS@localhost:5432/imdb",
     OTHER: "FAKE_OTHER_456",
@@ -73,10 +74,25 @@ test("an invalid value is reported by name, without the environment", () => {
   expect(text).toContain("CHUNK_SIZE");
   expect(text).toContain("QDRANT_URL");
   expect(text).not.toContain("FAKE_TEST_KEY_123");
+  expect(text).not.toContain("FAKE_RERANK_KEY_321");
   expect(text).not.toContain("FAKE_NEO4J_PASSWORD_789");
   expect(text).not.toContain("FAKE_DB_PASS");
   expect(text).not.toContain("FAKE_OTHER_456");
   expect(text).not.toContain("abc");
+});
+
+test("rerank settings are optional and decoded when present", () => {
+  expect(loadConfig({}).RERANK_MODEL).toBeUndefined();
+  const config = loadConfig({
+    RERANK_URL: "http://127.0.0.1:8001",
+    RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8",
+    RERANK_API_KEY: "rk",
+  });
+  expect(config).toMatchObject({
+    RERANK_URL: "http://127.0.0.1:8001",
+    RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8",
+    RERANK_API_KEY: "rk",
+  });
 });
 
 test("Neo4j and IMDB settings are decoded when present", () => {

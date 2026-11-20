@@ -68,6 +68,79 @@ test("the knowledge base is opened once, on the first search", async () => {
   expect(opened).toBe(1);
 });
 
+test("search with a reranker fetches 25 candidates and reorders hits", async () => {
+  const { base, calls } = fakeBase();
+  const second = {
+    ...payload,
+    doc_id: "bun:runtime/http/server.mdx",
+    text: "Bun.serve starts HTTP.",
+  };
+  base.vectorIndex = {
+    search: async (query) => {
+      calls.search.push(query);
+      return [
+        { id: "1", score: 0.9, payload },
+        { id: "2", score: 0.4, payload: second },
+      ];
+    },
+  };
+  const rerankCalls: { query: string; documents: string[]; topN?: number }[] = [];
+  base.reranker = {
+    rerank: async (query, documents, topN) => {
+      rerankCalls.push({ query, documents, topN });
+      return [
+        { index: 1, relevanceScore: 0.97 },
+        { index: 0, relevanceScore: 0.25 },
+      ];
+    },
+  };
+
+  const search = createSearchKnowledgeBase(async () => base);
+  expect(await search({ query: "start an http server" })).toEqual({
+    hits: [
+      {
+        score: 0.97,
+        source: "bun",
+        docId: "bun:runtime/http/server.mdx",
+        sectionPath: "File I/O > Reading files",
+        text: "Bun.serve starts HTTP.",
+      },
+      {
+        score: 0.25,
+        source: "bun",
+        docId: "bun:runtime/file-io.mdx",
+        sectionPath: "File I/O > Reading files",
+        text: "Bun.file(path) creates a BunFile.",
+      },
+    ],
+  });
+  expect(calls.search).toEqual([{ vector: [0.1, 0.2], k: 25 }]);
+  expect(rerankCalls).toEqual([
+    {
+      query: "start an http server",
+      documents: ["Bun.file(path) creates a BunFile.", "Bun.serve starts HTTP."],
+      topN: 5,
+    },
+  ]);
+});
+
+test("search with a reranker skips reranking when Qdrant returns no hits", async () => {
+  const { base } = fakeBase();
+  base.vectorIndex = { search: async () => [] };
+  let reranked = 0;
+  base.reranker = {
+    rerank: async () => {
+      reranked += 1;
+      return [];
+    },
+  };
+
+  expect(await createSearchKnowledgeBase(async () => base)({ query: "nothing" })).toEqual({
+    hits: [],
+  });
+  expect(reranked).toBe(0);
+});
+
 test("a failed open is retried by the next search", async () => {
   const { base } = fakeBase();
   let opened = 0;
@@ -103,6 +176,12 @@ beforeAll(() => {
       if (pathname === "/collections/docs") {
         return Response.json({ result: { config: { params: { vectors: { size: 3 } } } } });
       }
+      if (pathname === "/v1/rerank") {
+        const { documents } = body as { documents: string[] };
+        return Response.json({
+          results: documents.map((_, index) => ({ index, relevance_score: 0.5 })),
+        });
+      }
       return Response.json({ result: { points: [] } });
     },
   });
@@ -121,7 +200,8 @@ const env = () => ({
 
 test("openKnowledgeBase embeds queries with the model, prefix and key, and searches the collection", async () => {
   seen.length = 0;
-  const { embedder, vectorIndex } = await openKnowledgeBase(env());
+  const { embedder, vectorIndex, reranker } = await openKnowledgeBase(env());
+  expect(reranker).toBeUndefined();
 
   expect(await embedder.embedQuery("read a file")).toEqual([0.1, 0.2, 0.3]);
   await vectorIndex.search({ vector: [0.1, 0.2, 0.3], k: 5 });
@@ -132,6 +212,38 @@ test("openKnowledgeBase embeds queries with the model, prefix and key, and searc
   const search = seen.find((request) => request.path === "/collections/docs/points/query")!;
   expect(search.headers.get("api-key")).toBe("qdrant-test-key");
   expect(search.body).toMatchObject({ limit: 5 });
+});
+
+test("openKnowledgeBase configures the reranker when RERANK_MODEL is set, falling back to EMBEDDING_URL", async () => {
+  seen.length = 0;
+  const { reranker } = await openKnowledgeBase({
+    ...env(),
+    RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8",
+  });
+  expect(reranker).toBeDefined();
+  await reranker!.rerank("read a file", ["chunk a"], 5);
+
+  const call = seen.find((request) => request.path === "/v1/rerank")!;
+  expect(call.headers.get("authorization")).toBe("Bearer embedding-test-key");
+  expect(call.body).toEqual({
+    model: "Qwen3-Reranker-0.6B-mxfp8",
+    query: "read a file",
+    documents: ["chunk a"],
+    top_n: 5,
+  });
+});
+
+test("openKnowledgeBase does not send EMBEDDING_API_KEY to a distinct RERANK_URL", async () => {
+  seen.length = 0;
+  const { reranker } = await openKnowledgeBase({
+    ...env(),
+    RERANK_URL: `http://127.0.0.1:${server.port}`,
+    RERANK_MODEL: "Qwen3-Reranker-0.6B-mxfp8",
+  });
+  await reranker!.rerank("read a file", ["chunk a"], 5);
+
+  const call = seen.find((request) => request.path === "/v1/rerank")!;
+  expect(call.headers.has("authorization")).toBe(false);
 });
 
 test("openKnowledgeBase asks for the embedding server and model", async () => {

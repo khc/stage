@@ -27,14 +27,18 @@ module "stage" {
 
   # Only the knowledge job gets the Qdrant and embedding settings, keys included.
   agent_app_env = {
-    knowledge = merge(var.knowledge_env, {
-      QDRANT_URL        = var.qdrant_url
-      QDRANT_COLLECTION = var.qdrant_collection
-      EMBEDDING_URL     = var.embedding_url
-      NEO4J_URL         = var.neo4j_url
-      NEO4J_DATABASE    = var.neo4j_database
-      # The knowledge agent's imdb-assistant reads the IMDb tables as the read-only role.
-      IMDB_DATABASE_URL = "postgres://imdb_reader:${urlencode(var.imdb_reader_password)}@${var.imdb_db_host}:5432/imdb"
-    })
+    knowledge = merge(
+      var.knowledge_env,
+      var.rerank_url == null ? {} : { RERANK_URL = var.rerank_url },
+      {
+        QDRANT_URL        = var.qdrant_url
+        QDRANT_COLLECTION = var.qdrant_collection
+        EMBEDDING_URL     = var.embedding_url
+        NEO4J_URL         = var.neo4j_url
+        NEO4J_DATABASE    = var.neo4j_database
+        # The knowledge agent's imdb-assistant reads the IMDb tables as the read-only role.
+        IMDB_DATABASE_URL = "postgres://imdb_reader:${urlencode(var.imdb_reader_password)}@${var.imdb_db_host}:5432/imdb"
+      },
+    )
   }
 }

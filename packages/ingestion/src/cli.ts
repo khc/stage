@@ -20,7 +20,19 @@ import { createIngestion } from "./ingestion";
 import { mapLimit } from "./map-limit";
 import { createEmbedder, type Embedder, type EmbedderConfig } from "./platform/embeddings-client";
 import { createNeo4jStore, type GraphStore, type Neo4jConfig } from "./platform/neo4j-client";
-import { createQdrantIndex, type QdrantConfig, type VectorIndex } from "./platform/qdrant-client";
+import {
+  createQdrantIndex,
+  type QdrantConfig,
+  type SearchHit,
+  type VectorIndex,
+} from "./platform/qdrant-client";
+import {
+  createReranker,
+  rerankItems,
+  resolveRerankerConfig,
+  type Reranker,
+  type RerankerConfig,
+} from "./platform/reranker-client";
 
 export type PostgresRunnerHandle =
   | PostgresSqlRunner
@@ -142,6 +154,7 @@ export type CliDeps = {
   run: Run;
   createEmbedder: (config: EmbedderConfig) => Promise<Embedder>;
   createVectorIndex: (config: QdrantConfig) => Promise<VectorIndex>;
+  createReranker?: (config: RerankerConfig) => Reranker;
   createGraphStore?: (config: Neo4jConfig) => GraphStore;
   createPostgresRunner?: (databaseUrl: string) => PostgresRunnerHandle;
   createContainerPostgresRunner?: (container: string) => PostgresRunnerHandle;
@@ -151,6 +164,7 @@ export const defaultDeps: CliDeps = {
   run: async (cmd, cwd) => await (cwd ? $`${cmd}`.cwd(cwd) : $`${cmd}`).quiet().text(),
   createEmbedder: (config) => createEmbedder(fetch, config),
   createVectorIndex: (config) => createQdrantIndex(fetch, config),
+  createReranker: (config) => createReranker(fetch, config),
   createGraphStore: (config) => createNeo4jStore(fetch, config),
   createPostgresRunner: (databaseUrl) => {
     const sql = new Bun.SQL(databaseUrl);
@@ -209,6 +223,19 @@ const embedderConfig = (config: Config): EmbedderConfig => {
     documentPrefix: config.EMBEDDING_DOCUMENT_PREFIX || undefined,
     queryPrefix: config.EMBEDDING_QUERY_PREFIX || undefined,
   };
+};
+
+const rerankerConfig = (config: Config): RerankerConfig | undefined => {
+  try {
+    return resolveRerankerConfig(config);
+  } catch (err) {
+    throw new CliError(err instanceof Error ? err.message : String(err));
+  }
+};
+
+const openReranker = (config: Config, deps: CliDeps): Reranker | undefined => {
+  const cfg = rerankerConfig(config);
+  return cfg ? (deps.createReranker ?? defaultDeps.createReranker!)(cfg) : undefined;
 };
 
 // The embedder first: its dimension is what the collection is created with.
@@ -372,6 +399,19 @@ const ingestCommand = async (
   }
 };
 
+const SEARCH_HITS = 5;
+const SEARCH_CANDIDATES = 25;
+
+const toRerankedHits = async (
+  reranker: Reranker,
+  query: string,
+  hits: SearchHit[],
+  topN?: number,
+): Promise<SearchHit[]> =>
+  (await rerankItems(reranker, query, hits, (hit) => String(hit.payload.text ?? ""), topN)).map(
+    ({ item, score }) => ({ ...item, score }),
+  );
+
 const searchCommand = async (
   query: string,
   source: string | undefined,
@@ -380,12 +420,14 @@ const searchCommand = async (
 ) => {
   if (!query) throw new CliError(USAGE);
   if (source !== undefined) sourcesOf(source);
+  const reranker = openReranker(config, deps);
   const { embedder, vectorIndex } = await open(config, deps);
-  const hits = await vectorIndex.search({
+  const rawHits = await vectorIndex.search({
     vector: await embedder.embedQuery(query),
-    k: 5,
+    k: reranker ? SEARCH_CANDIDATES : SEARCH_HITS,
     ...(source && { filter: { source } }),
   });
+  const hits = reranker ? await toRerankedHits(reranker, query, rawHits, SEARCH_HITS) : rawHits;
   for (const { score, payload } of hits) {
     const path = String(payload.section_path);
     // The stored text starts with the section path, which is printed above it.
@@ -405,6 +447,7 @@ const EVAL_RANK = 5;
 // and prints each query's best rank and the totals, so the two can be compared.
 const evalCommand = async (config: Config, deps: CliDeps) => {
   const base = embedderConfig(config);
+  const reranker = openReranker(config, deps);
   const queries = (await Bun.file(
     `${import.meta.dir}/../eval/queries.json`,
   ).json()) as JudgedQuery[];
@@ -418,18 +461,27 @@ const evalCommand = async (config: Config, deps: CliDeps) => {
   const vectorIndex = await openIndex(config, deps, embedders[0]!.dimension);
   // The variants run side by side; the output below is printed in order.
   const all = await Promise.all(
-    variants.map((_, i) =>
-      mapLimit(queries, 2, async (judged) => {
+    variants.map(async ({ label }, i) => {
+      const pairs = await mapLimit(queries, 2, async (judged) => {
         const hits = await vectorIndex.search({
           vector: await embedders[i]!.embedQuery(judged.query),
           k: EVAL_CHUNKS,
         });
-        return evaluateQuery(judged, rankDocs(hits), EVAL_RANK);
-      }),
-    ),
+        const dense = evaluateQuery(judged, rankDocs(hits), EVAL_RANK);
+        if (!reranker) return { dense, reranked: undefined };
+        // Keep all 40 candidates ranked so MRR and notFound stay comparable with dense-only.
+        const rerankedHits = await toRerankedHits(reranker, judged.query, hits);
+        return { dense, reranked: evaluateQuery(judged, rankDocs(rerankedHits), EVAL_RANK) };
+      });
+      return [
+        { label, results: pairs.map((pair) => pair.dense) },
+        ...(reranker
+          ? [{ label: `${label} + rerank`, results: pairs.map((pair) => pair.reranked!) }]
+          : []),
+      ];
+    }),
   );
-  for (const [i, { label }] of variants.entries()) {
-    const results = all[i]!;
+  for (const { label, results } of all.flat()) {
     console.log(label);
     for (const { hit, bestRank, query } of results) {
       console.log(`  ${hit ? "hit " : "miss"}  rank ${bestRank ?? "-"}  ${query}`);
