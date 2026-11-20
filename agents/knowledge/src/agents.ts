@@ -40,7 +40,7 @@ export const agentSet: AgentSet = {
       inputSchema: z
         .string()
         .describe(
-          "A question about ingested documentation or databases. For a public web lookup, start a line at the top with 'Web search: <public query>'.",
+          "A question about ingested documentation or databases. For a public web lookup, ask naturally, or put 'Web search: <public query>' on the first line to send exactly that query.",
         ),
       outputSchema: knowledgeOutput,
     },

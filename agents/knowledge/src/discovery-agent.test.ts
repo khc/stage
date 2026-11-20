@@ -157,7 +157,7 @@ test("internal discovery results cannot supply a web query", async () => {
   const runner = await setupRunner(
     new ScriptedModel([
       call("discover_assets"),
-      call("search_web", { query: "Web search: private fixture text" }),
+      call("search_web", { query: "private fixture text" }),
       answer("Please supply a public query."),
     ]),
     "test-key",
@@ -178,20 +178,59 @@ test("internal discovery results cannot supply a web query", async () => {
   expect(runner.requests).toEqual([]);
 });
 
-test("a follow-up needs a fresh public query in the same session", async () => {
+test("a message without the prefix searches with the model-written query", async () => {
+  const runner = await setupRunner(
+    new ScriptedModel([
+      call("search_web", { query: "  Jennifer Aniston residence  " }),
+      answer("Los Angeles area.", [exaResult.url]),
+    ]),
+    "test-key",
+  );
+
+  await runner.send("where is she living?");
+
+  expect(runner.requests).toEqual([
+    {
+      query: "Jennifer Aniston residence",
+      type: "auto",
+      numResults: 5,
+      contents: { highlights: true },
+    },
+  ]);
+});
+
+test("a follow-up in the same session can search without repeating the prefix", async () => {
   const runner = await setupRunner(
     new ScriptedModel([
       call("search_web"),
       answer("Run tests with `bun test`.", [exaResult.url]),
-      call("search_web"),
-      answer("Please supply a public query."),
+      call("search_web", { query: "Bun test watch mode" }),
+      answer("Use `bun test --watch`.", [exaResult.url]),
     ]),
     "test-key",
   );
   await runner.send("Web search: Bun test documentation");
-  expect(runner.requests).toHaveLength(1);
+  await runner.send("and how do I watch for changes?");
 
-  const { responses } = await runner.send("Try the earlier search again.");
+  expect(runner.requests).toEqual([
+    expect.objectContaining({ query: "Bun test documentation" }),
+    expect.objectContaining({ query: "Bun test watch mode" }),
+  ]);
+});
+
+test("internal data from an earlier turn blocks a model-written query in a later turn", async () => {
+  const runner = await setupRunner(
+    new ScriptedModel([
+      call("discover_assets"),
+      answer("Found it."),
+      call("search_web", { query: "private fixture text" }),
+      answer("Please supply a public query."),
+    ]),
+    "test-key",
+  );
+  await runner.send("Look up the internal record.");
+
+  const { responses } = await runner.send("where does she live?");
 
   expect(responses).toEqual([
     expect.objectContaining({
@@ -199,7 +238,57 @@ test("a follow-up needs a fresh public query in the same session", async () => {
       response: { error: "web_search_query_required" },
     }),
   ]);
-  expect(runner.requests).toHaveLength(1);
+  expect(runner.requests).toEqual([]);
+});
+
+test("the prefixed line is still searched after an internal tool returned data", async () => {
+  const runner = await setupRunner(
+    new ScriptedModel([
+      call("discover_assets"),
+      call("search_web", { query: "model-written text" }),
+      answer("Run tests with `bun test`.", [exaResult.url]),
+    ]),
+    "test-key",
+  );
+
+  await runner.send("Web search: Bun test documentation\nAlso check the internal record.");
+
+  expect(runner.requests).toEqual([expect.objectContaining({ query: "Bun test documentation" })]);
+});
+
+test("only one model-written query is sent per turn", async () => {
+  const runner = await setupRunner(
+    new ScriptedModel([
+      call("search_web", { query: "first query" }),
+      call("search_web", { query: "second query" }),
+      answer("Done.", [exaResult.url]),
+    ]),
+    "test-key",
+  );
+
+  const { responses } = await runner.send("where is she living?");
+
+  expect(runner.requests).toEqual([expect.objectContaining({ query: "first query" })]);
+  expect(responses.at(-1)).toEqual(
+    expect.objectContaining({ response: { error: "web_search_query_required" } }),
+  );
+});
+
+test("a message without the prefix and without a model query does not search", async () => {
+  const runner = await setupRunner(
+    new ScriptedModel([call("search_web"), answer("Please supply a public query.")]),
+    "test-key",
+  );
+
+  const { responses } = await runner.send("where is she living?");
+
+  expect(responses).toEqual([
+    expect.objectContaining({
+      name: "search_web",
+      response: { error: "web_search_query_required" },
+    }),
+  ]);
+  expect(runner.requests).toEqual([]);
 });
 
 test("the discovery runner reports missing Exa credentials without sending the query", async () => {

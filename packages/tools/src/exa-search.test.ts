@@ -47,6 +47,22 @@ test("requests Exa highlights with only the query from the caller", async () => 
   });
 });
 
+test("passes the model-supplied query to the query resolver", async () => {
+  let body: { query?: string } | undefined;
+  const search = createExaSearchTool({
+    getApiKey: () => "test-key",
+    getQuery: (_context, modelQuery) => modelQuery,
+    fetchSearch: async (url, init) => {
+      body = await new Request(url, init).json();
+      return Response.json({ results: [] });
+    },
+  });
+
+  await search.runAsync({ args: { query: "  Bun docs  " }, toolContext });
+
+  expect(body?.query).toBe("Bun docs");
+});
+
 test("bounds and normalizes results while skipping invalid URLs", async () => {
   const url = "https://example.com/docs";
   const search = createExaSearchTool({
