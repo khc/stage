@@ -5,8 +5,8 @@ sections and chunks, embedded and stored in Qdrant, and described in a catalog f
 sections and the links between them) that a graph database can load later.
 
 ```
-fetch ─▶ docs-connector ─▶ embed (OpenAI-compatible /v1/embeddings) ─▶ Qdrant   (chunks)
-                      └──────────────────────────────────────────────▶ JSONL    (catalog)
+fetch ─▶ docs-connector     ─▶ embed (OpenAI-compatible /v1/embeddings) ─▶ Qdrant       (chunks)
+      └─ postgres-connector ─┴──────────────────────────────────────────▶ JSONL / Neo4j (catalog)
 ```
 
 ## Corpora
@@ -22,15 +22,19 @@ The corpora are cloned (shallow, sparse) into `OUT_DIR/corpora/<source>` and nev
 
 ## Run
 
-Needs Qdrant and, to embed, an OpenAI-compatible embeddings server (oMLX on the host). Copy the
-`Ingestion` section of `.env.example` into `.env` and set `EMBEDDING_URL` and `EMBEDDING_MODEL`.
+Needs Qdrant and, to embed, an OpenAI-compatible embeddings server (oMLX on the host). Set
+`NEO4J_URL` (plus `NEO4J_USER` / `NEO4J_PASSWORD`) to also write the catalog graph to Neo4j.
+`ingest imdb` queries Floci's `floci-gcp-cloudsql-floci-local-imdb` container via `docker exec` by
+default (override with `--container` or `IMDB_DATABASE_URL`). Copy the `Ingestion` and
+`Neo4j graph discovery` sections of `.env.example` into `.env`.
 
 ```sh
-docker compose up -d qdrant                     # from the repo root
+docker compose up -d qdrant neo4j               # from the repo root
 bun --filter @stage/ingestion fetch all
 bun --filter @stage/ingestion ingest all --dry-run          # counts only, no server needed
 bun --filter @stage/ingestion ingest bun --limit 20         # a quick trial
 bun --filter @stage/ingestion ingest all
+bun --filter @stage/ingestion ingest imdb                   # Postgres metadata -> Neo4j & Qdrant
 bun --filter @stage/ingestion search "start an http server" --source bun
 ```
 
@@ -63,17 +67,21 @@ same bytes.
 
 | Node kind  | Id                                        | Notes                                              |
 | ---------- | ----------------------------------------- | -------------------------------------------------- |
-| `source`   | `bun`                                     | `repo`, `path`, `revision` (the commit fetched)    |
+| `source`   | `bun`, `postgres:imdb`                    | `repo`/`path`/`revision` or `engine`/`schemas`     |
 | `document` | `bun:runtime/http/server.mdx`             | `title`, `description`, `path`                     |
 | `section`  | `bun:runtime/http/server.mdx#basic-setup` | `path`, `depth`, `chunkIds`; `#_root` is the intro |
+| `schema`   | `postgres:imdb:imdb`                      | `schema`                                           |
+| `table`    | `postgres:imdb:imdb.title_basics`         | `schema`, `tableType`, `indexes`, `comment`        |
+| `column`   | `postgres:imdb:imdb.title_basics.tconst`  | `table`, `dataType`, `nullable`, `primaryKey`      |
 
-Edges: `CONTAINS` (source to document, document to its root section, section to sub-section) and
-`LINKS_TO` (document to document, from internal links). A chunk id is `<section id>:<n>`; its
-Qdrant point id is a UUIDv5 of it, and the payload holds `source`, `doc_id`, `section_id`,
-`section_path`, `chunk_index`, `chunk_id` and `text`.
+Edges: `CONTAINS` (source to document/schema, document to root section, section to sub-section,
+schema to table, table to column), `LINKS_TO` (document to document, from internal links), and
+`REFERENCES` (column to column, from declared FKs and logical IMDb joins). A chunk id is
+`<section id>:<n>`; its Qdrant point id is a UUIDv5 of it, and the payload holds `source`, `doc_id`,
+`section_id`, `section_path`, `chunk_index`, `chunk_id` and `text`.
 
 ## Tests
 
-`bun test packages/ingestion` runs offline. Two contract tests run only when their server is
-configured: Qdrant when `QDRANT_URL` is set, the embeddings endpoint when `EMBEDDING_URL` and
-`EMBEDDING_MODEL` are set.
+`bun test packages/ingestion` runs offline. Contract tests run only when their server is configured:
+Qdrant when `QDRANT_URL` is set, the embeddings endpoint when `EMBEDDING_URL` and `EMBEDDING_MODEL`
+are set, and Neo4j when `NEO4J_URL` is set.

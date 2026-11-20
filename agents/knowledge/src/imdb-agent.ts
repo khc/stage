@@ -2,6 +2,7 @@ import { FunctionTool, LlmAgent } from "@google/adk";
 import { createModel } from "@stage/agents/model";
 import { z } from "zod";
 
+import { discoverAssets, exploreAsset, findJoinPath } from "./graph";
 import { createQueryImdb, openImdb } from "./imdb";
 import { knowledgeOutput } from "./output";
 
@@ -30,7 +31,7 @@ Tables (a column marked [] is a list; null is a missing value):
 - imdb.name_basics (nconst, primary_name, birth_year, death_year, primary_profession text[], known_for_titles text[])
 - imdb.title_akas (title_id, ordering, title, region, language, types text[], attributes text[], is_original_title boolean): alternative titles; title_id is a tconst
 
-Join titles on tconst and people on nconst; there are no foreign keys. Search a title or a name with ILIKE '%...%' (indexed) or =; test a list with 'Drama' = ANY(genres). Ratings with few votes mislead, so for questions about the best or worst require num_votes >= 10000 unless the question says otherwise.
+Join titles on tconst and people on nconst; there are no foreign keys. Search a title or a name with ILIKE '%...%' (indexed) or =; test a list with 'Drama' = ANY(genres). Ratings with few votes mislead, so for questions about the best or worst require num_votes >= 10000 unless the question says otherwise. You can also call discover_assets, explore_asset, and find_join_path to inspect column types, indexes, and join paths in the discovery graph before writing SQL.
 
 Reply with a JSON object {answer, sources}: answer is Markdown with the numbers that matter; sources lists the rows you used as 'imdb › <tconst or nconst>', for example imdb › tt0111161, and is empty when there are none.`;
 
@@ -39,6 +40,6 @@ export const imdbAgent = new LlmAgent({
   model: createModel(process.env),
   description: "Answers questions about films, TV series and people from the IMDb datasets.",
   instruction,
-  tools: [queryImdb],
+  tools: [queryImdb, discoverAssets, exploreAsset, findJoinPath],
   outputSchema: knowledgeOutput,
 });

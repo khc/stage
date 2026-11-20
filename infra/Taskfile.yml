@@ -20,7 +20,7 @@ tasks:
         [ -z "$vertex" ] || export TF_VAR_use_vertexai="$vertex"
         export TF_VAR_otel_env="$(yq -p props -o=json -I=0 'with_entries(select((.key | test("^OTEL_")) and (.value != "")))' .env)"
         # bun reads .env as the ingestion CLI does; yq would keep the quotes around EMBEDDING_QUERY_PREFIX.
-        export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
+        export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX", "NEO4J_USER", "NEO4J_PASSWORD"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
         terraform -chdir=infra/envs/local apply
 
   import:

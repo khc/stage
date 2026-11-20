@@ -47,7 +47,22 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
 
+  # Graph store for packages/ingestion catalog & data discovery (HTTP Query API v2 on 7474, Bolt on 7687).
+  neo4j:
+    image: neo4j:5.26-community
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      # Neo4j allows any CORS origin (*) by default; restrict browser cross-origin reads to Neo4j Browser.
+      - NEO4J_dbms_security_http__access__control__allow__origin=http://localhost:7474
+      # Set NEO4J_PASSWORD in .env before starting (`docker compose up -d neo4j`).
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j-data:/data
+
 volumes:
   floci-gcp-data:
   mlflow-data:
   qdrant-data:
+  neo4j-data:

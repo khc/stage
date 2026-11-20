@@ -14,6 +14,7 @@ export type CatalogEdge = {
   from: string;
   to: string;
   type: "CONTAINS" | "REFERENCES" | "LINKS_TO";
+  props?: Record<string, string | number | boolean | string[]>;
 };
 
 export type Chunk = {

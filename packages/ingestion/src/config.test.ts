@@ -9,6 +9,7 @@ test("defaults point at the local Qdrant and leave the embedding server unset", 
     CHUNK_SIZE: 1000,
     CHUNK_OVERLAP: 100,
     OUT_DIR: "out/ingestion",
+    NEO4J_DATABASE: "neo4j",
   });
 });
 
@@ -57,6 +58,8 @@ test("an invalid value is reported by name, without the environment", () => {
     CHUNK_SIZE: "abc",
     QDRANT_URL: "",
     QDRANT_API_KEY: "FAKE_TEST_KEY_123",
+    NEO4J_PASSWORD: "FAKE_NEO4J_PASSWORD_789",
+    IMDB_DATABASE_URL: "postgres://user:FAKE_DB_PASS@localhost:5432/imdb",
     OTHER: "FAKE_OTHER_456",
   };
   let error: unknown;
@@ -70,6 +73,25 @@ test("an invalid value is reported by name, without the environment", () => {
   expect(text).toContain("CHUNK_SIZE");
   expect(text).toContain("QDRANT_URL");
   expect(text).not.toContain("FAKE_TEST_KEY_123");
+  expect(text).not.toContain("FAKE_NEO4J_PASSWORD_789");
+  expect(text).not.toContain("FAKE_DB_PASS");
   expect(text).not.toContain("FAKE_OTHER_456");
   expect(text).not.toContain("abc");
+});
+
+test("Neo4j and IMDB settings are decoded when present", () => {
+  const config = loadConfig({
+    NEO4J_URL: "http://localhost:7474",
+    NEO4J_DATABASE: "stage",
+    NEO4J_USER: "neo4j",
+    NEO4J_PASSWORD: "secret",
+    IMDB_DATABASE_URL: "postgres://imdb_reader:x@localhost:5432/imdb",
+  });
+  expect(config).toMatchObject({
+    NEO4J_URL: "http://localhost:7474",
+    NEO4J_DATABASE: "stage",
+    NEO4J_USER: "neo4j",
+    NEO4J_PASSWORD: "secret",
+    IMDB_DATABASE_URL: "postgres://imdb_reader:x@localhost:5432/imdb",
+  });
 });

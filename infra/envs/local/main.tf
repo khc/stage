@@ -31,6 +31,8 @@ module "stage" {
       QDRANT_URL        = var.qdrant_url
       QDRANT_COLLECTION = var.qdrant_collection
       EMBEDDING_URL     = var.embedding_url
+      NEO4J_URL         = var.neo4j_url
+      NEO4J_DATABASE    = var.neo4j_database
       # The knowledge agent's imdb-assistant reads the IMDb tables as the read-only role.
       IMDB_DATABASE_URL = "postgres://imdb_reader:${urlencode(var.imdb_reader_password)}@${var.imdb_db_host}:5432/imdb"
     })

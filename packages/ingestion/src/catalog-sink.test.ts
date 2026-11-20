@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { CatalogEdge, CatalogNode } from "./catalog";
-import { createJsonlCatalogSink } from "./catalog-sink";
+import {
+  createJsonlCatalogSink,
+  createMultiCatalogSink,
+  createNeo4jCatalogSink,
+} from "./catalog-sink";
 
 let dir: string;
 beforeEach(async () => {
@@ -84,4 +88,56 @@ test("closing leaves only the catalog file behind, and a sink that is never clos
   await abandoned.write({ nodes: [source], edges: [] });
   expect(await lines(path)).toHaveLength(3);
   expect(await readdir(dir)).toEqual(["bun.jsonl"]);
+});
+
+test("createNeo4jCatalogSink ensures schema once, upserts batches, and prunes only on close", async () => {
+  const events: string[] = [];
+  const runIds = new Set<string>();
+  const sink = createNeo4jCatalogSink(
+    {
+      ensureSchema: async () => void events.push("schema"),
+      upsertBatch: async ({ nodes, edges, runId }) => {
+        runIds.add(runId);
+        events.push(`upsert:${nodes.length}:${edges.length}`);
+      },
+      pruneSource: async (src, runId) => {
+        runIds.add(runId);
+        events.push(`prune:${src}`);
+        return 0;
+      },
+    },
+    "bun",
+  );
+  await sink.write({ nodes: [source], edges: [] });
+  await sink.write({ nodes: [doc], edges: [contains, contains] });
+  await sink.close();
+  expect(events).toEqual(["schema", "upsert:1:0", "upsert:1:0", "upsert:0:1", "prune:bun"]);
+  expect(runIds.size).toBe(1);
+
+  const abortedEvents: string[] = [];
+  const aborted = createNeo4jCatalogSink(
+    {
+      ensureSchema: async () => void abortedEvents.push("schema"),
+      upsertBatch: async () => void abortedEvents.push("upsert"),
+      pruneSource: async () => (abortedEvents.push("prune"), 0),
+    },
+    "bun",
+  );
+  await aborted.write({ nodes: [source], edges: [] });
+  await aborted.abort?.();
+  expect(abortedEvents).toEqual(["schema", "upsert"]);
+});
+
+test("createMultiCatalogSink forwards write, close, and abort to all sinks", async () => {
+  const events: string[] = [];
+  const stub = (label: string) => ({
+    write: async () => void events.push(`write:${label}`),
+    close: async () => void events.push(`close:${label}`),
+    abort: async () => void events.push(`abort:${label}`),
+  });
+  const multi = createMultiCatalogSink([stub("a"), stub("b")]);
+  await multi.write({ nodes: [source], edges: [] });
+  await multi.close();
+  await multi.abort?.();
+  expect(events).toEqual(["write:a", "write:b", "close:a", "close:b", "abort:a", "abort:b"]);
 });

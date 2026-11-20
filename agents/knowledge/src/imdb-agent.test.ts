@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { describeAgents } from "@stage/agents/spec";
 
 import { agentSet, knowledgeOutput } from "./agents";
+import { discoverAssets, exploreAsset, findJoinPath } from "./graph";
 import { imdbAgent, queryImdb } from "./imdb-agent";
 
 const schema = await Bun.file(new URL("../../../data/schemas/imdb.sql", import.meta.url)).text();
@@ -13,6 +14,9 @@ test("both agents are registered and knowledge-assistant stays the default", () 
   expect(Object.keys(agentSet.agents)).toEqual(["knowledge-assistant", "imdb-assistant"]);
   expect(agentSet.agents["imdb-assistant"]?.agent).toBe(imdbAgent);
   expect(imdbAgent.tools).toContain(queryImdb);
+  expect(imdbAgent.tools).toContain(discoverAssets);
+  expect(imdbAgent.tools).toContain(exploreAsset);
+  expect(imdbAgent.tools).toContain(findJoinPath);
   expect(imdbAgent.outputSchema).toBeDefined();
   expect(agentSet.agents["imdb-assistant"]?.outputSchema).toBe(knowledgeOutput);
 });

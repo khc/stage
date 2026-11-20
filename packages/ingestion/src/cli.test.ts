@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { main, type CliDeps } from "./cli";
+import { createDockerPostgresRunner, DEFAULT_IMDB_CONTAINER, main, type CliDeps } from "./cli";
 import type { Embedder } from "./platform/embeddings-client";
 import type { IndexPoint, SearchHit, VectorIndex } from "./platform/qdrant-client";
 
@@ -422,4 +422,129 @@ test("eval names a missing embedding setting", async () => {
   const { deps } = evalDeps({ prefix: "x", plain: "x" });
   expect(await main(["eval"], { OUT_DIR: out }, deps)).toBe(1);
   expect(errors.join("\n")).toContain("EMBEDDING_URL");
+});
+
+test("ingest writes to Neo4j as well as JSONL when NEO4J_URL is set", async () => {
+  await corpora();
+  const { deps } = setup();
+  const graphConfigs: unknown[] = [];
+  const graphEvents: string[] = [];
+  deps.createGraphStore = (config) => {
+    graphConfigs.push(config);
+    return {
+      ensureSchema: async () => void graphEvents.push("schema"),
+      upsertBatch: async ({ nodes }) => void graphEvents.push(`upsert:${nodes.length}`),
+      pruneSource: async (source) => (graphEvents.push(`prune:${source}`), 0),
+      searchAssets: async () => [],
+      getNeighbors: async () => [],
+      findJoinPath: async () => [],
+    };
+  };
+  const code = await main(
+    ["ingest", "bun"],
+    env({ NEO4J_URL: "http://localhost:7474", NEO4J_USER: "neo4j", NEO4J_PASSWORD: "secret" }),
+    deps,
+  );
+  expect(code).toBe(0);
+  expect(graphConfigs).toEqual([
+    { url: "http://localhost:7474", database: "neo4j", user: "neo4j", password: "secret" },
+  ]);
+  expect(graphEvents[0]).toBe("schema");
+  expect(graphEvents.at(-1)).toBe("prune:bun");
+  expect(await Bun.file(join(out, "catalog", "bun.jsonl")).exists()).toBe(true);
+});
+
+test("ingest imdb defaults to the Floci container, supports IMDB_DATABASE_URL, and closes runners", async () => {
+  const { deps, upserts } = setup();
+  const containers: string[] = [];
+  deps.createContainerPostgresRunner = (container) => {
+    containers.push(container);
+    return async () => [];
+  };
+  expect(await main(["ingest", "imdb"], env(), deps)).toBe(0);
+  expect(containers).toEqual([DEFAULT_IMDB_CONTAINER]);
+
+  expect(await main(["ingest", "imdb", "--container", "custom-pg"], env(), deps)).toBe(0);
+  expect(containers).toEqual([DEFAULT_IMDB_CONTAINER, "custom-pg"]);
+
+  let closed = 0;
+  deps.createPostgresRunner = () => ({
+    runSql: async (sql) => {
+      if (sql.includes("information_schema.tables")) {
+        return [
+          {
+            table_schema: "imdb",
+            table_name: "title_basics",
+            table_type: "BASE TABLE",
+            comment: null,
+          },
+        ];
+      }
+      if (sql.includes("information_schema.columns")) {
+        return [
+          {
+            table_schema: "imdb",
+            table_name: "title_basics",
+            column_name: "tconst",
+            ordinal_position: 1,
+            data_type: "text",
+            udt_name: "text",
+            is_nullable: "NO",
+            comment: null,
+          },
+        ];
+      }
+      return [];
+    },
+    close: async () => {
+      closed += 1;
+    },
+  });
+  expect(
+    await main(
+      ["ingest", "imdb"],
+      env({ IMDB_DATABASE_URL: "postgres://u:p@localhost/imdb" }),
+      deps,
+    ),
+  ).toBe(0);
+  expect(closed).toBe(1);
+  expect(upserts.flat().map((p) => p.payload.doc_id)).toEqual(["postgres:imdb:imdb.title_basics"]);
+  expect(await Bun.file(join(out, "catalog", "postgres_imdb.jsonl")).exists()).toBe(true);
+});
+
+test("createDockerPostgresRunner wraps queries in json_agg, substitutes $1 arrays, and surfaces errors", async () => {
+  expect(() => createDockerPostgresRunner("bad;name")).toThrow("invalid container name");
+  const seen: { command: string[]; input: string }[] = [];
+  const runSql = createDockerPostgresRunner("floci-pg", async (command, input) => {
+    seen.push({ command, input });
+    return { stdout: '[{"table_name":"title_basics"}]\n', stderr: "", exitCode: 0 };
+  });
+  expect(
+    await runSql("SELECT table_name FROM t WHERE schema = ANY($1)", [["imdb", "o'neil"]]),
+  ).toEqual([{ table_name: "title_basics" }]);
+  expect(seen[0]!.command).toEqual([
+    "docker",
+    "exec",
+    "-i",
+    "floci-pg",
+    "psql",
+    "-U",
+    "imdb_reader",
+    "-d",
+    "imdb",
+    "-X",
+    "-q",
+    "-tA",
+    "-v",
+    "ON_ERROR_STOP=1",
+  ]);
+  expect(seen[0]!.input).toContain("ARRAY['imdb', 'o''neil']::text[]");
+  expect(seen[0]!.input).toContain("json_agg(row_to_json(q))");
+
+  const failing = createDockerPostgresRunner("floci-pg", async () => ({
+    stdout: "",
+    stderr: "Error: No such container",
+    exitCode: 1,
+  }));
+  await expect(failing("SELECT 1")).rejects.toThrow("docker exec floci-pg failed (1)");
 });

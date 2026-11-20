@@ -11,6 +11,7 @@
     "./ids": "./src/ids.ts",
     "./ingestion": "./src/ingestion.ts",
     "./platform/embeddings-client": "./src/platform/embeddings-client.ts",
+    "./platform/neo4j-client": "./src/platform/neo4j-client.ts",
     "./platform/qdrant-client": "./src/platform/qdrant-client.ts"
   },
   "scripts": {

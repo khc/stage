@@ -3,11 +3,14 @@ import { expect, test } from "bun:test";
 import { describeAgents } from "@stage/agents/spec";
 
 import { agentSet, knowledgeAgent, searchKnowledgeBase, searchParameters } from "./agents";
+import { discoverAssets, exploreAsset } from "./graph";
 
-test("the knowledge-assistant agent is registered, is the default and has the search tool", () => {
+test("the knowledge-assistant agent is registered, is the default and has the search and graph tools", () => {
   expect(agentSet.defaultAgent).toBe("knowledge-assistant");
   expect(agentSet.agents["knowledge-assistant"]?.agent).toBe(knowledgeAgent);
   expect(knowledgeAgent.tools).toContain(searchKnowledgeBase);
+  expect(knowledgeAgent.tools).toContain(discoverAssets);
+  expect(knowledgeAgent.tools).toContain(exploreAsset);
   expect(knowledgeAgent.outputSchema).toBeDefined();
 });
 

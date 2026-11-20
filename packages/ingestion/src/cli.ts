@@ -5,33 +5,124 @@ import { parseArgs } from "node:util";
 import { $ } from "bun";
 
 import type { Connector } from "./catalog";
-import { createJsonlCatalogSink } from "./catalog-sink";
+import {
+  createJsonlCatalogSink,
+  createMultiCatalogSink,
+  createNeo4jCatalogSink,
+} from "./catalog-sink";
 import { ConfigError, loadConfig } from "./config";
 import { createDocsConnector } from "./connectors/docs-connector";
+import { imdbLogicalReferences } from "./connectors/imdb-relations";
+import { createPostgresConnector, type PostgresSqlRunner } from "./connectors/postgres-connector";
 import { corpora, corpusDir, fetchCorpus, type CorpusName, type Run } from "./corpora";
 import { evaluateQuery, rankDocs, summarize, type JudgedQuery } from "./evaluation";
 import { createIngestion } from "./ingestion";
 import { mapLimit } from "./map-limit";
 import { createEmbedder, type Embedder, type EmbedderConfig } from "./platform/embeddings-client";
+import { createNeo4jStore, type GraphStore, type Neo4jConfig } from "./platform/neo4j-client";
 import { createQdrantIndex, type QdrantConfig, type VectorIndex } from "./platform/qdrant-client";
+
+export type PostgresRunnerHandle =
+  | PostgresSqlRunner
+  | { runSql: PostgresSqlRunner; close?: () => Promise<void> };
+
+export const DEFAULT_IMDB_CONTAINER = "floci-gcp-cloudsql-floci-local-imdb";
+const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+
+export type PsqlExec = (
+  command: string[],
+  input: string,
+) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+
+const defaultPsqlExec: PsqlExec = async (command, input) => {
+  const child = Bun.spawn(command, {
+    stdin: new Blob([input]),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { stdout, stderr, exitCode };
+};
+
+const formatPgLiteral = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    const items = value.map((item) => `'${String(item).replaceAll("'", "''")}'`).join(", ");
+    return `ARRAY[${items}]::text[]`;
+  }
+  if (value === null || value === undefined) return "NULL";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return `'${String(value).replaceAll("'", "''")}'`;
+};
+
+export const createDockerPostgresRunner = (
+  container: string,
+  exec: PsqlExec = defaultPsqlExec,
+): PostgresSqlRunner => {
+  if (!CONTAINER_NAME.test(container)) {
+    throw new CliError(`invalid container name "${container}"`);
+  }
+  return async (query, params = []) => {
+    const substituted = query.replace(/\$(\d+)\b/g, (_m, index) =>
+      formatPgLiteral(params[Number(index) - 1]),
+    );
+    const wrapped = `SELECT COALESCE(json_agg(row_to_json(q)), '[]'::json)\nFROM (\n${substituted}\n) AS q;\n`;
+    const command = [
+      "docker",
+      "exec",
+      "-i",
+      container,
+      "psql",
+      "-U",
+      "imdb_reader",
+      "-d",
+      "imdb",
+      "-X",
+      "-q",
+      "-tA",
+      "-v",
+      "ON_ERROR_STOP=1",
+    ];
+    const { stdout, stderr, exitCode } = await exec(command, wrapped);
+    if (exitCode !== 0) {
+      throw new Error(`docker exec ${container} failed (${exitCode}): ${stderr.trim()}`);
+    }
+    return JSON.parse(stdout.trim() || "[]") as Record<string, unknown>[];
+  };
+};
 
 // What the commands reach outside the process with; tests pass fakes.
 export type CliDeps = {
   run: Run;
   createEmbedder: (config: EmbedderConfig) => Promise<Embedder>;
   createVectorIndex: (config: QdrantConfig) => Promise<VectorIndex>;
+  createGraphStore?: (config: Neo4jConfig) => GraphStore;
+  createPostgresRunner?: (databaseUrl: string) => PostgresRunnerHandle;
+  createContainerPostgresRunner?: (container: string) => PostgresRunnerHandle;
 };
 
 export const defaultDeps: CliDeps = {
   run: async (cmd, cwd) => await (cwd ? $`${cmd}`.cwd(cwd) : $`${cmd}`).quiet().text(),
   createEmbedder: (config) => createEmbedder(fetch, config),
   createVectorIndex: (config) => createQdrantIndex(fetch, config),
+  createGraphStore: (config) => createNeo4jStore(fetch, config),
+  createPostgresRunner: (databaseUrl) => {
+    const sql = new Bun.SQL(databaseUrl);
+    return {
+      runSql: (query, params = []) => sql.unsafe(query, params),
+      close: () => sql.close(),
+    };
+  },
+  createContainerPostgresRunner: (container) => createDockerPostgresRunner(container),
 };
 
 const USAGE = [
   "usage: ingestion <command>",
   "  fetch <bun|duckdb|all>",
-  "  ingest <bun|duckdb|all> [--dry-run] [--limit N]",
+  "  ingest <bun|duckdb|imdb|all> [--dry-run] [--limit N] [--container NAME]",
   "  search <query...> [--source bun|duckdb]",
   "  eval",
 ].join("\n");
@@ -153,34 +244,89 @@ const dryRun = async (connector: Connector): Promise<string[]> => {
   ];
 };
 
+const neo4jConfig = (config: Config): Neo4jConfig | undefined =>
+  config.NEO4J_URL
+    ? {
+        url: config.NEO4J_URL,
+        database: config.NEO4J_DATABASE,
+        user: config.NEO4J_USER || undefined,
+        password: config.NEO4J_PASSWORD || undefined,
+      }
+    : undefined;
+
+const sinkFor = (source: string, file: string, config: Config, deps: CliDeps) => {
+  const jsonl = createJsonlCatalogSink(join(config.OUT_DIR, "catalog", file));
+  const neo4j = neo4jConfig(config);
+  if (!neo4j) return jsonl;
+  const createGraph = deps.createGraphStore ?? defaultDeps.createGraphStore!;
+  return createMultiCatalogSink([jsonl, createNeo4jCatalogSink(createGraph(neo4j), source)]);
+};
+
+const imdbConnector = (
+  config: Config,
+  deps: CliDeps,
+  containerFlag?: string,
+): { connector: Connector; close?: () => Promise<void> } => {
+  const container = containerFlag || config.IMDB_CONTAINER;
+  const handle =
+    !container && config.IMDB_DATABASE_URL
+      ? (deps.createPostgresRunner ?? defaultDeps.createPostgresRunner!)(config.IMDB_DATABASE_URL)
+      : (deps.createContainerPostgresRunner ?? defaultDeps.createContainerPostgresRunner!)(
+          container || DEFAULT_IMDB_CONTAINER,
+        );
+  const runSql = typeof handle === "function" ? handle : handle.runSql;
+  const close = typeof handle === "function" ? undefined : handle.close;
+  return {
+    connector: createPostgresConnector({
+      source: "postgres:imdb",
+      schemas: ["imdb"],
+      runSql,
+      logicalReferences: imdbLogicalReferences,
+    }),
+    close,
+  };
+};
+
 const ingestCommand = async (
-  names: CorpusName[],
-  flags: { dryRun: boolean; limit: number | undefined },
+  target: string | undefined,
+  flags: { dryRun: boolean; limit: number | undefined; container: string | undefined },
   config: Config,
   deps: CliDeps,
 ) => {
-  const connectors = await Promise.all(
-    names.map((source) => connectorFor(source, config, deps, flags.limit)),
-  );
-  if (flags.dryRun) {
-    // Counting touches no server, so the sources run side by side; the lines print in order.
-    for (const line of (await Promise.all(connectors.map(dryRun))).flat()) console.log(line);
-    return;
+  const closers: (() => Promise<void>)[] = [];
+  const connectors =
+    target === "imdb"
+      ? [imdbConnector(config, deps, flags.container)].map(({ connector, close }) => {
+          if (close) closers.push(close);
+          return connector;
+        })
+      : await Promise.all(
+          sourcesOf(target).map((source) => connectorFor(source, config, deps, flags.limit)),
+        );
+  try {
+    if (flags.dryRun) {
+      // Counting touches no server, so the sources run side by side; the lines print in order.
+      for (const line of (await Promise.all(connectors.map(dryRun))).flat()) console.log(line);
+      return;
+    }
+    const { embedder, vectorIndex } = await open(config, deps);
+    // One source at a time: the embedding server and Qdrant take the documents in order.
+    // oxlint-disable eslint/no-await-in-loop
+    for (const connector of connectors) {
+      // A --limit run covers part of the corpus, so it never replaces the full catalog.
+      const slug = connector.source.replace(/[^a-zA-Z0-9_-]+/g, "_");
+      const file = `${slug}${flags.limit ? ".partial" : ""}.jsonl`;
+      const catalogSink = sinkFor(connector.source, file, config, deps);
+      const summary = await createIngestion({ catalogSink, embedder, vectorIndex }).run(connector);
+      console.log(
+        `${connector.source}: ${summary.documents} documents, ${summary.nodes} nodes, ${summary.edges} edges, ${summary.chunks} chunks, ${summary.skipped} skipped`,
+      );
+      for (const line of skippedLines(connector)) console.log(line);
+    }
+    // oxlint-enable eslint/no-await-in-loop
+  } finally {
+    await Promise.all(closers.map((close) => close()));
   }
-  const { embedder, vectorIndex } = await open(config, deps);
-  // One source at a time: the embedding server and Qdrant take the documents in order.
-  // oxlint-disable eslint/no-await-in-loop
-  for (const connector of connectors) {
-    // A --limit run covers part of the corpus, so it never replaces the full catalog.
-    const file = `${connector.source}${flags.limit ? ".partial" : ""}.jsonl`;
-    const catalogSink = createJsonlCatalogSink(join(config.OUT_DIR, "catalog", file));
-    const summary = await createIngestion({ catalogSink, embedder, vectorIndex }).run(connector);
-    console.log(
-      `${connector.source}: ${summary.documents} documents, ${summary.nodes} nodes, ${summary.edges} edges, ${summary.chunks} chunks, ${summary.skipped} skipped`,
-    );
-    for (const line of skippedLines(connector)) console.log(line);
-  }
-  // oxlint-enable eslint/no-await-in-loop
 };
 
 const searchCommand = async (
@@ -266,6 +412,7 @@ export const main = async (
         "dry-run": { type: "boolean" },
         limit: { type: "string" },
         source: { type: "string" },
+        container: { type: "string" },
       },
     });
     const config = loadConfig(env);
@@ -278,8 +425,12 @@ export const main = async (
         return 0;
       case "ingest":
         await ingestCommand(
-          sourcesOf(positionals[0]),
-          { dryRun: values["dry-run"] ?? false, limit: parseLimit(values.limit) },
+          positionals[0],
+          {
+            dryRun: values["dry-run"] ?? false,
+            limit: parseLimit(values.limit),
+            container: values.container,
+          },
           config,
           deps,
         );

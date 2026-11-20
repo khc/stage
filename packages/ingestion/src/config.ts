@@ -21,6 +21,14 @@ const fields = {
   CHUNK_OVERLAP: t.Numeric({ minimum: 0, multipleOf: 1 }),
   // Where the corpora, and the catalog files, go.
   OUT_DIR: t.String({ minLength: 1 }),
+  // Neo4j HTTP Query API v2, optional for offline fetch/dry-run and JSONL-only runs.
+  NEO4J_URL: t.Optional(t.String()),
+  NEO4J_DATABASE: t.String({ minLength: 1 }),
+  NEO4J_USER: t.Optional(t.String()),
+  NEO4J_PASSWORD: t.Optional(t.String()),
+  // PostgreSQL connection string or Floci container name for RDBMS metadata discovery (`ingest imdb`).
+  IMDB_DATABASE_URL: t.Optional(t.String()),
+  IMDB_CONTAINER: t.Optional(t.String()),
 };
 
 const defaults = {
@@ -29,6 +37,7 @@ const defaults = {
   CHUNK_SIZE: "1000",
   CHUNK_OVERLAP: "100",
   OUT_DIR: "out/ingestion",
+  NEO4J_DATABASE: "neo4j",
 };
 
 const load = createConfigLoader(fields, defaults);

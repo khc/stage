@@ -102,3 +102,15 @@ variable "imdb_db_host" {
   default     = "floci-gcp-cloudsql-floci-local-imdb"
   description = "Host of the imdb Cloud SQL instance as the job containers reach it: the name of the Postgres container Floci runs for it (the same default as --container in scripts/imdb-load.ts), on the compose network."
 }
+
+variable "neo4j_url" {
+  type        = string
+  default     = "http://host.docker.internal:7474"
+  description = "Neo4j HTTP base URL as the knowledge agent's job container reaches it."
+}
+
+variable "neo4j_database" {
+  type        = string
+  default     = "neo4j"
+  description = "Neo4j database name queried by the knowledge agent."
+}
