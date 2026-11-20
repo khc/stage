@@ -41,6 +41,9 @@ const components: Components = {
     <blockquote className="my-2 border-l-2 pl-3 text-muted-foreground italic" {...props} />
   ),
   hr: () => <hr className="my-3" />,
+  // Agent answers can echo retrieved text, so an image is shown as its alt text and never loaded:
+  // loading it would send the viewer's request to whatever URL the text names.
+  img: ({ alt }) => <span className="text-muted-foreground italic">{alt}</span>,
   code: ({ className, ...props }) => (
     <code
       className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]", className)}

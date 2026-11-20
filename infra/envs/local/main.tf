@@ -24,4 +24,13 @@ module "stage" {
     PUBSUB_EMULATOR_HOST    = var.emulator_host
     GEMINI_API_KEY          = var.gemini_api_key
   })
+
+  # Only the knowledge job gets the Qdrant and embedding settings, keys included.
+  agent_app_env = {
+    knowledge = merge(var.knowledge_env, {
+      QDRANT_URL        = var.qdrant_url
+      QDRANT_COLLECTION = var.qdrant_collection
+      EMBEDDING_URL     = var.embedding_url
+    })
+  }
 }

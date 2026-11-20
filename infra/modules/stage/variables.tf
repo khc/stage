@@ -59,6 +59,13 @@ variable "agent_env" {
   description = "Additional environment variables injected into agent jobs."
 }
 
+variable "agent_app_env" {
+  type        = map(map(string))
+  default     = {}
+  sensitive   = true
+  description = "App name (an agent_apps entry) => environment variables injected only into that app's job, on top of agent_env."
+}
+
 variable "agent_secret_env" {
   type        = map(string)
   default     = {}

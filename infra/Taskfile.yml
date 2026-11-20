@@ -10,7 +10,7 @@ tasks:
       - terraform -chdir=infra/envs/local init
 
   apply:
-    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq, and the knowledge agent's Qdrant/embedding settings with bun
     cmds:
       - |
         env_value() { yq -p props -oy ".$1 // \"\"" .env; }
@@ -19,10 +19,12 @@ tasks:
         [ -z "$model" ] || export TF_VAR_agent_model="$model"
         [ -z "$vertex" ] || export TF_VAR_use_vertexai="$vertex"
         export TF_VAR_otel_env="$(yq -p props -o=json -I=0 'with_entries(select((.key | test("^OTEL_")) and (.value != "")))' .env)"
+        # bun reads .env as the ingestion CLI does; yq would keep the quotes around EMBEDDING_QUERY_PREFIX.
+        export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
         terraform -chdir=infra/envs/local apply
 
   import:
-    desc: Import Floci topics and jobs created outside Terraform into the local state; skips what is already in state
+    desc: Import Floci topics and jobs created outside Terraform into the local state; skips what is already in state. A job in JOBS that Floci does not have yet (for example knowledge-agents before the first `task tf:apply`) cannot be imported, so apply first or set JOBS to the existing ones
     dir: infra/envs/local
     cmds:
       - |

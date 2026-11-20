@@ -1,6 +1,7 @@
 # Cloud Run Job image for one ADK agent app (agents/<APP>/src/main.ts):
 #   docker build -f docker/Dockerfile.agents --build-arg APP=generic -t stage-generic .
 #   docker build -f docker/Dockerfile.agents --build-arg APP=poet -t stage-poet .
+#   docker build -f docker/Dockerfile.agents --build-arg APP=knowledge -t stage-knowledge .
 # The HTTP service image is ./docker/Dockerfile.service.
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
@@ -15,11 +16,14 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
 COPY packages/http/package.json ./packages/http/package.json
+COPY packages/ingestion/package.json ./packages/ingestion/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
+COPY agents/knowledge/package.json ./agents/knowledge/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
 COPY apps/service/package.json ./apps/service/package.json
 RUN bun install --frozen-lockfile --production --filter "./agents/${APP}" \
+ && mkdir -p packages/ingestion/node_modules \
  && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
 
 FROM ${BUN_IMAGE} AS runtime
@@ -33,6 +37,10 @@ COPY packages/agents ./packages/agents
 COPY packages/http ./packages/http
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
 COPY --from=deps /app/packages/http/node_modules ./packages/http/node_modules
+# Only the manifest and sources: packages/ingestion also holds fetched corpora (out/).
+COPY packages/ingestion/package.json ./packages/ingestion/package.json
+COPY packages/ingestion/src ./packages/ingestion/src
+COPY --from=deps /app/packages/ingestion/node_modules ./packages/ingestion/node_modules
 # A fixed path: exec-form ENTRYPOINT cannot expand ARG, and the distroless image
 # has no shell to create a symlink. It sits two levels below /app, like
 # agents/<APP>, so the relative workspace symlinks in node_modules still resolve.

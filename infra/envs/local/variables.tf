@@ -28,7 +28,7 @@ variable "gemini_api_key" {
 
 variable "agent_apps" {
   type    = set(string)
-  default = ["generic", "poet"]
+  default = ["generic", "poet", "knowledge"]
 }
 
 variable "agent_events_topic" {
@@ -51,6 +51,31 @@ variable "otel_env" {
   default     = {}
   sensitive   = true
   description = "OTEL_* variables for the agent jobs; task tf:apply fills it from .env."
+}
+
+variable "qdrant_url" {
+  type        = string
+  default     = "http://host.docker.internal:6333"
+  description = "Qdrant as the knowledge agent's job container reaches it (the compose port published on the host)."
+}
+
+variable "qdrant_collection" {
+  type        = string
+  default     = "docs"
+  description = "Collection the knowledge agent searches; pinned so a QDRANT_COLLECTION in .env does not redirect it."
+}
+
+variable "embedding_url" {
+  type        = string
+  default     = "http://host.docker.internal:8000"
+  description = "OpenAI-compatible embeddings server (oMLX on the host) as the job container reaches it."
+}
+
+variable "knowledge_env" {
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+  description = "QDRANT_API_KEY, EMBEDDING_MODEL, EMBEDDING_API_KEY and EMBEDDING_QUERY_PREFIX for the knowledge agent; task tf:apply fills it from .env."
 }
 
 variable "use_vertexai" {

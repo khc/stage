@@ -11,6 +11,11 @@ locals {
     var.use_vertexai == null ? {} : { GOOGLE_GENAI_USE_VERTEXAI = var.use_vertexai },
   )
 
+  # agent_env for every job, plus what only that app's job needs (such as its own API keys).
+  job_env = {
+    for app in var.agent_apps : app => merge(local.agent_env, lookup(var.agent_app_env, app, {}))
+  }
+
   service_env = merge(
     {
       GCP_PROJECT           = var.project
@@ -54,10 +59,10 @@ resource "google_cloud_run_v2_job" "agents" {
         }
 
         dynamic "env" {
-          for_each = nonsensitive(keys(local.agent_env))
+          for_each = nonsensitive(keys(local.job_env[each.key]))
           content {
             name  = env.value
-            value = local.agent_env[env.value]
+            value = local.job_env[each.key][env.value]
           }
         }
 

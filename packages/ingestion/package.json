@@ -6,8 +6,12 @@
   "exports": {
     "./catalog": "./src/catalog.ts",
     "./cli": "./src/cli.ts",
+    "./config": "./src/config.ts",
+    "./corpora": "./src/corpora.ts",
     "./ids": "./src/ids.ts",
-    "./ingestion": "./src/ingestion.ts"
+    "./ingestion": "./src/ingestion.ts",
+    "./platform/embeddings-client": "./src/platform/embeddings-client.ts",
+    "./platform/qdrant-client": "./src/platform/qdrant-client.ts"
   },
   "scripts": {
     "eval": "bun --env-file=../../.env src/cli.ts eval",
