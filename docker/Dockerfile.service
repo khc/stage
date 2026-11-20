@@ -1,5 +1,5 @@
 # HTTP service image (apps/service, the Elysia service). The agent job images
-# are built from ./Dockerfile.agents.
+# are built from ./docker/Dockerfile.agents.
 # Runtime configuration is supplied via environment variables, nothing is baked in:
 # GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000 here), EXTRACT_URL,
 # PUBSUB_TOPIC and PLATFORM_EVENTS_TOPIC (optional: without them the document routes and /events

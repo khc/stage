@@ -1,0 +1,70 @@
+version: "3"
+
+# Included by the root Taskfile as `tf`, so `task tf:apply` runs `apply` below. Tasks run from the repo root;
+# PROJECT, REGION and JOBS come from the root Taskfile.
+
+tasks:
+  init:
+    desc: Initialise Terraform in infra/envs/local (run once, and after provider or module changes)
+    cmds:
+      - terraform -chdir=infra/envs/local init
+
+  apply:
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq
+    cmds:
+      - |
+        env_value() { yq -p props -oy ".$1 // \"\"" .env; }
+        export TF_VAR_gemini_api_key="$(env_value GEMINI_API_KEY)"
+        model="$(env_value AGENT_MODEL)"; vertex="$(env_value GOOGLE_GENAI_USE_VERTEXAI)"
+        [ -z "$model" ] || export TF_VAR_agent_model="$model"
+        [ -z "$vertex" ] || export TF_VAR_use_vertexai="$vertex"
+        export TF_VAR_otel_env="$(yq -p props -o=json -I=0 'with_entries(select((.key | test("^OTEL_")) and (.value != "")))' .env)"
+        terraform -chdir=infra/envs/local apply
+
+  import:
+    desc: Import Floci topics and jobs created outside Terraform into the local state; skips what is already in state
+    dir: infra/envs/local
+    cmds:
+      - |
+        export TF_VAR_gemini_api_key="$(yq -p props -oy '.GEMINI_API_KEY // ""' ../../../.env)"
+        import() { terraform state show "$1" >/dev/null 2>&1 || terraform import "$1" "$2"; }
+        for topic in agent-events platform-events; do
+          import "module.stage.google_pubsub_topic.events[\"$topic\"]" "projects/{{.PROJECT}}/topics/$topic"
+        done
+        for app in {{.JOBS}}; do
+          import "module.stage.google_cloud_run_v2_job.agents[\"$app\"]" "projects/{{.PROJECT}}/locations/{{.REGION}}/jobs/$app-agents"
+        done
+
+  create-job:
+    desc: Create the agent Cloud Run jobs in Floci (alias of tf:apply; Terraform owns them, JOBS is ignored)
+    cmds:
+      - task: apply
+
+  update-job:
+    desc: Update the agent jobs' image and environment in Floci (alias of tf:apply; JOBS is ignored)
+    cmds:
+      - task: apply
+
+  create-extract:
+    desc: Create or update the extract Cloud Run service in Floci with Terraform; prints its URL
+    cmds:
+      - task: apply
+      - terraform -chdir=infra/envs/local output -raw extract_url
+
+  create-service:
+    desc: Create or update the Elysia HTTP service (apps/service) as a Cloud Run service in Floci with Terraform; prints its URL (run build:service first)
+    cmds:
+      - task: apply
+      - terraform -chdir=infra/envs/local output -raw service_url
+
+  remove-service:
+    desc: Delete the Elysia HTTP service from Floci with Terraform
+    prompt: Remove the service from Floci?
+    cmds:
+      - terraform -chdir=infra/envs/local destroy -target='module.stage.google_cloud_run_v2_service.service[0]'
+
+  remove-extract:
+    desc: Delete the extract Cloud Run service from Floci with Terraform
+    prompt: Remove the extract service from Floci?
+    cmds:
+      - terraform -chdir=infra/envs/local destroy -target=module.stage.google_cloud_run_v2_service.extract

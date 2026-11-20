@@ -4,6 +4,6 @@
 **/.plans
 **/.sidecar
 **/*.test.ts
-Dockerfile*
+docker
 .dockerignore
 **/dist

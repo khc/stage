@@ -1,5 +1,5 @@
 # Rendered by the nginx image at start: only SERVICE_URL and the container's DNS
-# resolvers are substituted (NGINX_ENVSUBST_FILTER in Dockerfile.ui). It mirrors the
+# resolvers are substituted (NGINX_ENVSUBST_FILTER in docker/Dockerfile.ui). It mirrors the
 # Vite dev proxy in vite.config.ts. SERVICE_URL is a bare scheme://host:port, no path.
 server {
   listen 8080;
