@@ -82,7 +82,7 @@ export const createSearchKnowledgeBase = (
     const hits = reranker
       ? (
           await rerankItems(reranker, query, rawHits, (hit) => String(hit.payload.text ?? ""), HITS)
-        ).map(({ item, score }) => ({ ...item, score }))
+        ).map(({ item, score }) => ({ id: item.id, payload: item.payload, score }))
       : rawHits;
     return {
       hits: hits.map(({ score, payload }) => ({

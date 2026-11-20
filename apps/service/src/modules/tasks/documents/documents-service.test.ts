@@ -23,8 +23,8 @@ describe("documents service create", () => {
   test.each([
     [new DocumentTooLargeError(), "document_too_large"],
     [new ExtractionError("bad"), "extraction_failed"],
-  ] as const)("turns %o into the status %s", async (error, status) => {
-    const service = serviceWith({ create: async () => Promise.reject(error) });
+  ] as const)("turns %o into the status %s", async (failure, status) => {
+    const service = serviceWith({ create: async () => Promise.reject(failure) });
     expect(await service.create("t", file)).toEqual({ status });
   });
 

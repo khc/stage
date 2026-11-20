@@ -148,6 +148,7 @@ export const createQdrantIndex = async (
       const byDoc = new Map<string, Map<string, string | null>>();
       let offset: unknown;
       do {
+        // oxlint-disable-next-line no-await-in-loop -- each page needs the previous page's offset
         const { body } = await request("POST", "/points/scroll", {
           filter: toFilter({ source }),
           limit: SCROLL_LIMIT,

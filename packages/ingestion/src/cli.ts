@@ -409,7 +409,7 @@ const toRerankedHits = async (
   topN?: number,
 ): Promise<SearchHit[]> =>
   (await rerankItems(reranker, query, hits, (hit) => String(hit.payload.text ?? ""), topN)).map(
-    ({ item, score }) => ({ ...item, score }),
+    ({ item, score }) => ({ id: item.id, payload: item.payload, score }),
   );
 
 const searchCommand = async (
@@ -473,12 +473,9 @@ const evalCommand = async (config: Config, deps: CliDeps) => {
         const rerankedHits = await toRerankedHits(reranker, judged.query, hits);
         return { dense, reranked: evaluateQuery(judged, rankDocs(rerankedHits), EVAL_RANK) };
       });
-      return [
-        { label, results: pairs.map((pair) => pair.dense) },
-        ...(reranker
-          ? [{ label: `${label} + rerank`, results: pairs.map((pair) => pair.reranked!) }]
-          : []),
-      ];
+      const dense = { label, results: pairs.map((pair) => pair.dense) };
+      if (!reranker) return [dense];
+      return [dense, { label: `${label} + rerank`, results: pairs.map((pair) => pair.reranked!) }];
     }),
   );
   for (const { label, results } of all.flat()) {
