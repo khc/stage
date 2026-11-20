@@ -3,4 +3,8 @@
 *.tfstate.*
 *.tfvars
 !envs/local/terraform.tfvars
+*.tfvars.json
+backend.hcl
+*.tfplan
+tfplan
 crash.log
