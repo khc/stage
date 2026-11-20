@@ -1,5 +1,7 @@
 # stage
 
+> New here? Follow the [Getting Started guide](docs/getting-started.md) to set up `.env`, Floci, Terraform, and the local API/dashboard.
+
 Bun workspace monorepo with apps under `apps/`, agent apps under `agents/` and shared code under `packages/`:
 
 - `@stage/http` (`packages/http`): what the Elysia apps share: the request id and request span plugins, the OpenTelemetry setup (`setupTelemetry`, also used by the agent jobs), a config loader (`createConfigLoader`, `PORT` and `HOST`) and a base error handler. It depends on `elysia` and OpenTelemetry only, not on the agents' Firestore and ADK code.
