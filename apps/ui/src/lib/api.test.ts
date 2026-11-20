@@ -96,6 +96,16 @@ test("resuming a session posts sessionId and message to the run route", async ()
   expect(JSON.parse(calls[0]!.body as string)).toEqual({ sessionId: "s1", message: "answer" });
 });
 
+test("starting a session with a message posts message to the run route", async () => {
+  const { api, calls } = replying({ operation: "op-3", sessionId: "s-new" }, 202);
+  expect(await api.startSession("task-1", "hello")).toEqual({
+    operation: "op-3",
+    sessionId: "s-new",
+  });
+  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/run");
+  expect(JSON.parse(calls[0]!.body as string)).toEqual({ message: "hello" });
+});
+
 test("withEvent appends new events once and updates the session time", () => {
   const session = {
     id: "s1",

@@ -423,8 +423,27 @@ describe("POST /tasks/:taskId/run", () => {
     expect(seen).toEqual({ sessionId: "s1", message: "answer" });
   });
 
+  test("a message without sessionId starts a new session and returns its session id", async () => {
+    let seen: unknown;
+    const app = appWith({
+      run: async (_id, resume) => (
+        (seen = resume),
+        { status: "started", operation: "op-3", sessionId: "s-new" }
+      ),
+    });
+    const res = await call(
+      app,
+      `/tasks/${task.taskId.toUpperCase()}/run`,
+      json({ message: "  start from message  " }),
+    );
+    expect(res).toEqual({ status: 202, body: { operation: "op-3", sessionId: "s-new" } });
+    expect(seen).toEqual({ message: "start from message" });
+  });
+
   test.each([
     ["a blank message", { sessionId: "s1", message: "  " }],
+    ["a blank new-session message", { message: "  " }],
+    ["an empty object", {}],
     ["a missing message", { sessionId: "s1" }],
     ["an empty session id", { sessionId: "", message: "m" }],
   ])("a resume with %s is 400 invalid_resume and starts nothing", async (_name, body) => {

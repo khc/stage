@@ -218,3 +218,68 @@ test("resumes a session under the app and user it was created with", async () =>
   expect(sessionService.startRun).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
   expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: "legacy" }));
 });
+
+test("createRunAgent enforces inputSchema on a pre-created empty session, while follow-ups allow free text", async () => {
+  const taskId = crypto.randomUUID();
+  const docSnap = {
+    exists: true,
+    get: (field: string) =>
+      ({
+        sessionId: "s-pre",
+        taskId,
+        appName: "stage",
+        userId: "user",
+        state: {},
+        lastUpdateTime: 1,
+      })[field],
+  };
+  const dbWithEvents = (eventJsons: string[]) => ({
+    collection: () => ({
+      where: () => ({
+        limit: () => ({
+          get: async () => ({
+            docs: [{ get: (f: string) => (f === "appName" ? "stage" : "user") }],
+          }),
+        }),
+      }),
+      doc: () => ({
+        get: async () => docSnap,
+        collection: () => ({
+          orderBy: () => ({
+            get: async () => ({ docs: eventJsons.map((json) => ({ get: () => json })) }),
+          }),
+        }),
+      }),
+    }),
+  });
+
+  const emptyRun = createRunAgent(set, { db: dbWithEvents([]) as never, publish: undefined });
+  await expect(emptyRun("not json", taskId, "s-pre", "structured")).rejects.toThrow("must be JSON");
+
+  const resumedRun = createRunAgent(set, {
+    db: dbWithEvents([JSON.stringify(reply("previous"))]) as never,
+    publish: undefined,
+  });
+  await expect(resumedRun("free text follow-up", taskId, "s-pre", "structured")).rejects.toThrow(
+    "runTransaction is not a function",
+  );
+
+  const taskAgentReject = createTaskAgent(
+    {
+      sessionService: {
+        createSession: mock(),
+        getSession: async () => ({ id: "s-pre", taskId, events: [] }),
+        ...runs(),
+      },
+      runAsync: mock(async function* () {
+        yield reply("never");
+      }),
+    } as never,
+    undefined,
+    undefined,
+    () => {
+      throw new Error("Input must be JSON");
+    },
+  );
+  await expect(taskAgentReject("not json", taskId, "s-pre")).rejects.toThrow("must be JSON");
+});

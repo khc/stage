@@ -110,4 +110,19 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("sessions store", () => {
       await firestore.terminate();
     }
   });
+
+  test("creates a session owned by the task under the runtime owner", async () => {
+    const firestore = new Firestore();
+    const api = createSessionsStore(firestore);
+    const taskId = crypto.randomUUID();
+    const sessionId = await api.create(taskId);
+    try {
+      const created = await api.get(taskId, sessionId);
+      expect(created).toMatchObject({ id: sessionId, taskId });
+      expect(await api.list(taskId)).toHaveLength(1);
+    } finally {
+      await api.delete(taskId, sessionId);
+      await firestore.terminate();
+    }
+  });
 });

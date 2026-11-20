@@ -23,7 +23,7 @@ export type CreateTaskResult =
   | { status: "unknown_agent" | "unknown_job" };
 
 export type RunTaskResult =
-  | { status: "started"; operation: string }
+  | { status: "started"; operation: string; sessionId?: string }
   | {
       status:
         | "task_not_found"
@@ -33,7 +33,7 @@ export type RunTaskResult =
         | "message_pending";
     };
 
-export type Resume = { sessionId: string; message: string };
+export type Resume = { sessionId?: string; message: string };
 
 // Every expected outcome is a status; a failing dependency throws a DependencyError.
 export type TasksService = {
@@ -75,31 +75,56 @@ export const createTasksService = ({
     if (!isJobName(task.jobName ?? "") || (allowedJobs && !allowedJobs.has(task.jobName!)))
       return { status: "task_not_executable" };
 
+    let targetSessionId = resume?.sessionId;
+    let createdSession = false;
     if (resume) {
-      try {
-        const existing = await sessionsStore.get(taskId, resume.sessionId);
-        if (!existing) return { status: "session_not_found" };
-        if (existing.run?.status === "running") return { status: "run_in_progress" };
-        // The message waits in Firestore, so the job gets only the session id.
-        if (!(await sessionsStore.queueMessage(taskId, resume.sessionId, resume.message)))
-          return { status: "session_not_found" };
-      } catch (err) {
-        if (err instanceof RunInProgressError) return { status: "run_in_progress" };
-        if (err instanceof MessageQueuedError) return { status: "message_pending" };
-        throw new DependencyError("session_error", err);
+      if (targetSessionId) {
+        try {
+          const existing = await sessionsStore.get(taskId, targetSessionId);
+          if (!existing) return { status: "session_not_found" };
+          if (existing.run?.status === "running") return { status: "run_in_progress" };
+          // The message waits in Firestore, so the job gets only the session id.
+          if (!(await sessionsStore.queueMessage(taskId, targetSessionId, resume.message)))
+            return { status: "session_not_found" };
+        } catch (err) {
+          if (err instanceof RunInProgressError) return { status: "run_in_progress" };
+          if (err instanceof MessageQueuedError) return { status: "message_pending" };
+          throw new DependencyError("session_error", err);
+        }
+      } else {
+        targetSessionId = await guard("session_error", async () => {
+          const id = await sessionsStore.create(taskId);
+          try {
+            await sessionsStore.queueMessage(taskId, id, resume.message);
+          } catch (err) {
+            await sessionsStore.delete(taskId, id).catch(() => {});
+            throw err;
+          }
+          return id;
+        });
+        createdSession = true;
       }
     }
 
     try {
-      const operation = resume
-        ? await cloudRunJobs.run(task.jobName!, taskId, resume.sessionId)
+      const operation = targetSessionId
+        ? await cloudRunJobs.run(task.jobName!, taskId, targetSessionId)
         : await cloudRunJobs.run(task.jobName!, taskId);
-      return { status: "started", operation };
+      return {
+        status: "started",
+        operation,
+        ...(createdSession && { sessionId: targetSessionId }),
+      };
     } catch (err) {
-      if (resume)
+      if (createdSession && targetSessionId) {
+        await sessionsStore
+          .delete(taskId, targetSessionId)
+          .catch((delErr) => console.error("Failed to remove unstarted session", delErr));
+      } else if (resume?.sessionId) {
         await sessionsStore
           .clearMessage(taskId, resume.sessionId)
           .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
+      }
       throw new DependencyError("job_error", err);
     }
   },

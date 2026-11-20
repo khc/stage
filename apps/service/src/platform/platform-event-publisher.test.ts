@@ -93,6 +93,7 @@ test("the app publishes task create, run and delete events", async () => {
     agentRegistry: { list: async () => [] },
     cloudRunJobs: events.cloudRunJobs(cloudRunJobs()),
     sessionsStore: {
+      create: async () => "s1",
       list: async () => [],
       get: async () => undefined,
       delete: async () => false,

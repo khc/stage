@@ -1,5 +1,6 @@
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
+import { appName, userId } from "@stage/agents/runtime";
 import {
   FirestoreSessionService,
   runFields,
@@ -15,6 +16,7 @@ export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUp
 // A thin adapter over the session service in @stage/agents, which the agent jobs use too
 // (leases, run state, queued messages), so the service and the jobs share one implementation.
 export type SessionsStore = {
+  create: (taskId: string) => Promise<string>;
   list: (taskId: string) => Promise<SessionSummary[]>;
   get: (
     taskId: string,
@@ -61,6 +63,10 @@ export const createSessionsStore = (firestore: Firestore): SessionsStore => {
         .get()
     ).docs[0];
   return {
+    async create(taskId) {
+      const session = await sessionService.createSession({ appName, userId, taskId });
+      return session.id;
+    },
     async list(taskId) {
       const snapshot = await firestore.collection("sessions").where("taskId", "==", taskId).get();
       return snapshot.docs.map((doc) => toSessionSummary(taskId, doc));

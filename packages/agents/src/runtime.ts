@@ -62,14 +62,24 @@ const runSession = async (
 };
 
 export const createTaskAgent =
-  (runner: RunnerLike, publish?: PublishEvent, owner: Owner = defaultOwner): RunAgent =>
+  (
+    runner: RunnerLike,
+    publish?: PublishEvent,
+    owner: Owner = defaultOwner,
+    validateFirstTurn?: (message: string) => void,
+  ): RunAgent =>
   async (message, taskId, sessionId) => {
-    const session = sessionId
-      ? await resumeSession(runner.sessionService, owner, sessionId, taskId)
-      : await runner.sessionService.createSession({
-          ...owner,
-          ...(taskId !== undefined && { taskId }),
-        });
+    let session;
+    if (sessionId) {
+      session = await resumeSession(runner.sessionService, owner, sessionId, taskId);
+      if ((session.events?.length ?? 0) === 0) validateFirstTurn?.(message);
+    } else {
+      validateFirstTurn?.(message);
+      session = await runner.sessionService.createSession({
+        ...owner,
+        ...(taskId !== undefined && { taskId }),
+      });
+    }
     const key = { ...owner, sessionId: session.id };
     // ADK and MLflow read these to group traces by session.
     annotateJob({
@@ -107,17 +117,14 @@ export const createRunAgent = (
   return async (message, taskId, sessionId, agentName) => {
     const spec = agents[agentName ?? defaultAgent];
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
-    // The schema describes the task's first message; follow-up messages are free text.
-    if (!sessionId) checkInput(spec, message);
     const { agent } = spec;
     // A session created under another app name (before the rename) is resumed under its own.
     const owner = (sessionId && (await sessionService.findOwner(sessionId))) || defaultOwner;
     const runner = new Runner({ appName: owner.appName, agent, sessionService });
     const runAsync = runner.runAsync.bind(runner);
-    return createTaskAgent({ sessionService, runAsync }, publish, owner)(
-      message,
-      taskId,
-      sessionId,
-    );
+    // Turn 1 validates against `inputSchema` (even on pre-created empty sessions); follow-ups are free text.
+    return createTaskAgent({ sessionService, runAsync }, publish, owner, (text) =>
+      checkInput(spec, text),
+    )(message, taskId, sessionId);
   };
 };

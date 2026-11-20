@@ -116,6 +116,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     create: (input: { prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),
     run: (id: string) => unwrap(task(id).run.post()),
+    startSession: (taskId: string, message: string) => unwrap(task(taskId).run.post({ message })),
     resume: (taskId: string, sessionId: string, message: string) =>
       unwrap(task(taskId).run.post({ sessionId, message })),
     registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),

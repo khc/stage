@@ -75,14 +75,20 @@ export const tasksController = ({
           return status(400, { error: "invalid_request" });
         }
         let resume: Resume | undefined;
-        if (raw?.sessionId !== undefined) {
+        if (raw !== undefined) {
           if (!isResume.Check(raw)) return status(400, { success: false, error: "invalid_resume" });
-          resume = { sessionId: raw.sessionId, message: raw.message.trim() };
+          resume = {
+            ...(raw.sessionId !== undefined && { sessionId: raw.sessionId }),
+            message: raw.message.trim(),
+          };
         }
         const result = await tasksService.run(params.taskId.toLowerCase(), resume);
         switch (result.status) {
           case "started":
-            return status(202, { operation: result.operation });
+            return status(202, {
+              operation: result.operation,
+              ...(result.sessionId && { sessionId: result.sessionId }),
+            });
           case "task_not_found":
           case "session_not_found":
             return status(404, { error: result.status });
@@ -95,12 +101,12 @@ export const tasksController = ({
         // An empty body is a plain run, which Elysia would not accept with a body schema, so the
         // handler reads the body itself; a body that is not JSON is answered 400 there.
         parse: "none",
-        ...doc(tag, "Run a task, or resume one of its sessions", {
+        ...doc(tag, "Run a task, start a session with a message, or resume a session", {
           202: {
             description: "The Cloud Run execution was started.",
             schema: TasksModel.operation,
           },
-          400: "A body that is not JSON (`invalid_request`), or one with `sessionId` and no non-blank `message` (`invalid_resume`).",
+          400: "A body that is not JSON (`invalid_request`), or one without a non-blank `message` or valid `sessionId` (`invalid_resume`).",
           404: "No such task or session (`task_not_found`, `session_not_found`).",
           409: "The task cannot run now (`task_not_executable`, `run_in_progress`, `message_pending`).",
           502: errors.dependency,

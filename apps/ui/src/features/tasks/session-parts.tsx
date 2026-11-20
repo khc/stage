@@ -149,37 +149,71 @@ export function DeleteSession({
   );
 }
 
-export function ContinueSession({
+export const sessionRefetchInterval = (
+  session: Pick<Session, "run" | "events"> | undefined,
+  awaitingRun: boolean,
+): number | false => {
+  if (session?.run?.status === "running") return 5000;
+  if (awaitingRun && !session?.run) return 2000;
+  return false;
+};
+
+export const freeTextInputHint = (schema?: JsonSchema): string | undefined =>
+  schema?.type !== undefined && schema.type !== "string"
+    ? "This agent expects structured input. Use Run task instead."
+    : undefined;
+
+export function SessionComposer({
   taskId,
   sessionId,
   running = false,
+  disabled = false,
+  disabledReason,
+  onStarted,
 }: {
   taskId: string;
-  sessionId: string;
+  sessionId?: string;
   running?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
+  onStarted?: (sessionId: string) => void;
 }) {
   const client = useQueryClient();
   const [message, setMessage] = useState("");
-  const resume = useMutation({
-    mutationFn: () => api.resume(taskId, sessionId, message.trim()),
-    onSuccess: () => {
+  const send = useMutation({
+    mutationFn: () =>
+      sessionId
+        ? api.resume(taskId, sessionId, message.trim())
+        : api.startSession(taskId, message.trim()),
+    onSuccess: (result) => {
       setMessage("");
-      void client.invalidateQueries({ queryKey: ["session", taskId, sessionId] });
+      if (sessionId) {
+        void client.invalidateQueries({ queryKey: ["session", taskId, sessionId] });
+      } else {
+        void client.invalidateQueries({ queryKey: ["sessions", taskId] });
+        if (result.sessionId) onStarted?.(result.sessionId);
+      }
     },
   });
-  const canSend = !!message.trim() && !resume.isPending && !running;
+  const blocked = running || disabled;
+  const canSend = !!message.trim() && !send.isPending && !blocked;
+  const blockedMessage = running
+    ? "The agent is still running. You can reply when it finishes."
+    : disabledReason;
   return (
     <form
       className="-mx-6 flex shrink-0 flex-col gap-1 border-t px-6 pt-3 pb-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (canSend) resume.mutate();
+        if (canSend) send.mutate();
       }}
     >
       <InputGroup className="rounded-3xl border-transparent bg-muted dark:bg-muted">
         <InputGroupTextarea
           className="max-h-40 min-h-0 resize-none p-3"
-          aria-label="Message to continue the session"
+          aria-label={
+            sessionId ? "Message to continue the session" : "Message to start a new session"
+          }
           rows={2}
           value={message}
           maxLength={10_000}
@@ -200,21 +234,21 @@ export function ContinueSession({
             aria-label="Send message"
             disabled={!canSend}
           >
-            {resume.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+            {send.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
-      {resume.isError ? (
+      {send.isError ? (
         <p className="text-xs text-destructive" role="alert">
-          {resume.error.message}
+          {send.error.message}
         </p>
-      ) : resume.isSuccess ? (
+      ) : send.isSuccess ? (
         <p className="text-xs text-muted-foreground" role="status">
           Sent. New events appear when the agent responds.
         </p>
-      ) : running ? (
+      ) : blockedMessage ? (
         <p className="text-xs text-muted-foreground" role="status">
-          The agent is still running. You can reply when it finishes.
+          {blockedMessage}
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">Enter to send · Shift+Enter for a new line</p>

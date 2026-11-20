@@ -1,10 +1,17 @@
 import { expect, test } from "bun:test";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import type { AgentInfo, SessionEvent } from "@/lib/api";
 
-import { EventCard, OutputText } from "./session-parts";
+import {
+  EventCard,
+  OutputText,
+  SessionComposer,
+  freeTextInputHint,
+  sessionRefetchInterval,
+} from "./session-parts";
 
 const agents: AgentInfo[] = [
   {
@@ -101,4 +108,45 @@ test("the Output tab renders non-JSON text as Markdown unless the agent's output
   expect(rendered).toContain("<li");
   expect(plain).toContain("`bun`");
   expect(plain).not.toContain("<li");
+});
+
+test("SessionComposer renders the message textarea for starting or continuing a session", () => {
+  const client = new QueryClient();
+  const listComposer = renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <SessionComposer taskId="t1" />
+    </QueryClientProvider>,
+  );
+  const blockedComposer = renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <SessionComposer
+        taskId="t1"
+        sessionId="s1"
+        disabled
+        disabledReason="Assign a job before messaging the agent."
+      />
+    </QueryClientProvider>,
+  );
+
+  expect(listComposer).toContain("Message the agent…");
+  expect(listComposer).toContain("Message to start a new session");
+  expect(blockedComposer).toContain("Message to continue the session");
+  expect(blockedComposer).toContain("Assign a job before messaging the agent.");
+});
+
+test("sessionRefetchInterval polls running or newly started sessions and stops when settled", () => {
+  expect(sessionRefetchInterval({ events: [] }, true)).toBe(2000);
+  expect(
+    sessionRefetchInterval({ events: [], run: { status: "running", startedAt: 1 } }, false),
+  ).toBe(5000);
+  expect(
+    sessionRefetchInterval({ events: [], run: { status: "succeeded", startedAt: 1 } }, true),
+  ).toBe(false);
+  expect(sessionRefetchInterval({ events: [] }, false)).toBe(false);
+});
+
+test("freeTextInputHint blocks non-string agent schemas for new user-message sessions", () => {
+  expect(freeTextInputHint({ type: "string" })).toBeUndefined();
+  expect(freeTextInputHint(undefined)).toBeUndefined();
+  expect(freeTextInputHint({ type: "object", properties: {} })).toContain("structured input");
 });

@@ -37,7 +37,7 @@ import { api, formatTime, taskTitle, timeAgo } from "@/lib/api";
 import { useNav } from "@/lib/nav";
 
 import {
-  ContinueSession,
+  SessionComposer,
   RunBadge,
   DeleteSession,
   EventCard,
@@ -46,6 +46,8 @@ import {
   PromptPreview,
   SessionStatsBar,
   TaskDocuments,
+  freeTextInputHint,
+  sessionRefetchInterval,
   useSessionStream,
 } from "./session-parts";
 import { useRunTask } from "./use-run-task";
@@ -70,6 +72,11 @@ function TaskDetails({ taskId }: { taskId: string }) {
   const runTask = useRunTask();
   const [tab, setTab] = useState("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
+  const closeSession = () => {
+    setSessionId(null);
+    setStartingId(null);
+  };
   const task = useQuery({ queryKey: ["task", taskId], queryFn: () => api.task(taskId) });
   const sessions = useQuery({
     queryKey: ["sessions", taskId],
@@ -89,7 +96,8 @@ function TaskDetails({ taskId }: { taskId: string }) {
     queryKey: ["session", taskId, sessionId],
     queryFn: () => api.session(taskId, sessionId!),
     enabled: !!sessionId,
-    refetchInterval: (query) => (query.state.data?.run?.status === "running" ? 5000 : false),
+    refetchInterval: (query) =>
+      sessionRefetchInterval(query.state.data, !!sessionId && sessionId === startingId),
   });
   const agents = useJobAgents(task.data?.jobName);
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
@@ -100,6 +108,14 @@ function TaskDetails({ taskId }: { taskId: string }) {
   if (task.isPending) return <Loading label="Loading task…" />;
   if (task.isError) return <ErrorBox error={task.error} retry={() => void task.refetch()} />;
   const data = task.data;
+  const registeredAgents = agents.data?.agents ?? [];
+  const startInputHint = !data.jobName
+    ? "Assign a job before messaging the agent."
+    : data.agentName
+      ? freeTextInputHint(registeredAgents.find((a) => a.name === data.agentName)?.inputSchema)
+      : registeredAgents.length && registeredAgents.every((a) => freeTextInputHint(a.inputSchema))
+        ? freeTextInputHint(registeredAgents[0]?.inputSchema)
+        : undefined;
   return (
     <>
       <PaneHeader eyebrow="TASK DETAILS" icon={<FileText />} title={taskTitle(data)} id={taskId}>
@@ -152,7 +168,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
             Documents <TabCount>{documents.data?.documents.length ?? 0}</TabCount>
           </PaneTab>
         </PaneTabsList>
-        <TabsContent value="sessions" className={sessionId ? sessionBody : paneBody}>
+        <TabsContent value="sessions" className={sessionBody}>
           {sessionId ? (
             <>
               <div className="-mx-6 flex items-center gap-2 border-b px-6 pb-2">
@@ -162,7 +178,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                   className="-ml-1.5 text-primary"
                   aria-label="All sessions"
                   title="All sessions"
-                  onClick={() => setSessionId(null)}
+                  onClick={closeSession}
                 >
                   <CircleArrowLeft className="size-5" />
                 </Button>
@@ -177,7 +193,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       <DeleteSession
                         taskId={taskId}
                         sessionId={detail.data.id}
-                        onDeleted={() => setSessionId(null)}
+                        onDeleted={closeSession}
                       />
                     </span>
                   </>
@@ -246,7 +262,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       <MessageScrollerButton />
                     </MessageScroller>
                   </MessageScrollerProvider>
-                  <ContinueSession
+                  <SessionComposer
                     taskId={taskId}
                     sessionId={detail.data.id}
                     running={detail.data.run?.status === "running"}
@@ -256,7 +272,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
             </>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-2 pt-3 pb-2">
                 <div>
                   <Overline>Execution sessions</Overline>
                   <p className="text-sm text-muted-foreground">
@@ -273,37 +289,48 @@ function TaskDetails({ taskId }: { taskId: string }) {
                   <RefreshCw className={sessions.isFetching ? "animate-spin" : ""} />
                 </Button>
               </div>
-              {sessions.isPending ? (
-                <Loading label="Loading sessions…" />
-              ) : sessions.isError ? (
-                <ErrorBox error={sessions.error} retry={() => void sessions.refetch()} />
-              ) : !list.length ? (
-                <Empty icon={<Terminal />} title="The conversation starts with a run">
-                  Run this task to create a session. New sessions appear automatically when the
-                  agent starts.
-                </Empty>
-              ) : (
-                list.map((session, i) => (
-                  <button
-                    key={session.id}
-                    className="flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted"
-                    onClick={() => setSessionId(session.id)}
-                  >
-                    <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-                      <Terminal className="size-4" />
-                    </span>
-                    <span className="flex-1">
-                      <strong className="block text-sm">{timeAgo(session.lastUpdateTime)}</strong>
-                      <small className="text-muted-foreground">
-                        {formatTime(session.lastUpdateTime)} · {session.id.slice(0, 8)}
-                      </small>
-                    </span>
-                    <RunBadge run={session.run} />
-                    {i === 0 && <Badge variant="secondary">Latest</Badge>}
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </button>
-                ))
-              )}
+              <div className="-mx-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-3">
+                {sessions.isPending ? (
+                  <Loading label="Loading sessions…" />
+                ) : sessions.isError ? (
+                  <ErrorBox error={sessions.error} retry={() => void sessions.refetch()} />
+                ) : !list.length ? (
+                  <Empty icon={<Terminal />} title="The conversation starts with a run">
+                    Run this task or send a message below to start a session. New sessions appear
+                    automatically when the agent starts.
+                  </Empty>
+                ) : (
+                  list.map((session, i) => (
+                    <button
+                      key={session.id}
+                      className="flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted"
+                      onClick={() => setSessionId(session.id)}
+                    >
+                      <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <Terminal className="size-4" />
+                      </span>
+                      <span className="flex-1">
+                        <strong className="block text-sm">{timeAgo(session.lastUpdateTime)}</strong>
+                        <small className="text-muted-foreground">
+                          {formatTime(session.lastUpdateTime)} · {session.id.slice(0, 8)}
+                        </small>
+                      </span>
+                      <RunBadge run={session.run} />
+                      {i === 0 && <Badge variant="secondary">Latest</Badge>}
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </button>
+                  ))
+                )}
+              </div>
+              <SessionComposer
+                taskId={taskId}
+                disabled={!!startInputHint}
+                disabledReason={startInputHint}
+                onStarted={(newId) => {
+                  setStartingId(newId);
+                  setSessionId(newId);
+                }}
+              />
             </>
           )}
         </TabsContent>

@@ -134,6 +134,8 @@ describe("tasks service run", () => {
   ) => {
     const runJob = mock(async (..._args: unknown[]) => "op-1");
     const getTask = mock(async (_id: string) => ("task" in overrides ? overrides.task : task));
+    const create = mock(async (_t: string) => "s-new");
+    const del = mock(async (_t: string, _s: string) => true);
     const get = mock(async (_t: string, _s: string) =>
       "session" in overrides ? overrides.session : { id: "s1" },
     );
@@ -145,10 +147,10 @@ describe("tasks service run", () => {
       tasksStore: { get: getTask },
       agentRegistry: { list: async () => [] },
       cloudRunJobs: { run: runJob },
-      sessionsStore: { get, queueMessage, clearMessage },
+      sessionsStore: { create, delete: del, get, queueMessage, clearMessage },
       allowedJobs: overrides.allowedJobs,
     } as unknown as TasksServiceDeps);
-    return { service, getTask, runJob, queueMessage, clearMessage };
+    return { service, getTask, runJob, create, del, queueMessage, clearMessage };
   };
   const resume = { sessionId: "s1", message: "answer" };
   const rejection = (promise: Promise<unknown>) =>
@@ -255,5 +257,25 @@ describe("tasks service run", () => {
     );
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  test("starts a new session with a user message and removes it if the job fails to start", async () => {
+    const { service, create, queueMessage, runJob } = setupRun();
+    expect(await service.run(taskId, { message: "hello" })).toEqual({
+      status: "started",
+      operation: "op-1",
+      sessionId: "s-new",
+    });
+    expect(create).toHaveBeenCalledWith(taskId);
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "hello");
+    expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s-new");
+
+    const failing = setupRun();
+    failing.runJob.mockRejectedValue(new Error("cloud run down"));
+    expect(
+      ((await rejection(failing.service.run(taskId, { message: "hello" }))) as DependencyError)
+        .code,
+    ).toBe("job_error");
+    expect(failing.del).toHaveBeenCalledWith(taskId, "s-new");
   });
 });
