@@ -38,7 +38,8 @@ Reply with a JSON object {answer, sources}: answer is Markdown with the numbers 
 export const imdbAgent = new LlmAgent({
   name: "imdb-assistant",
   model: createModel(process.env),
-  description: "Answers questions about films, TV series and people from the IMDb datasets.",
+  description:
+    "Answers questions about films, TV series and people (cast, crew, ratings) from the IMDb datasets only; it has no web access, so it cannot answer what they do not hold, such as where a person lives.",
   instruction,
   tools: [queryImdb, discoverAssets, exploreAsset, findJoinPath],
   outputSchema: knowledgeOutput,

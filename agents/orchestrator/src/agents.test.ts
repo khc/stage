@@ -227,3 +227,9 @@ test("a delegated run that completed without a reply is an error for the model",
   ).rejects.toThrow("no reply");
   outcome = "reply";
 });
+
+test("the instruction sends facts outside an agent's data to the agent that searches the web, and tries another agent before giving up", () => {
+  const instruction = String(orchestratorAgent.instruction);
+  expect(instruction).toContain("try another agent");
+  expect(instruction).toContain("searches the public web");
+});

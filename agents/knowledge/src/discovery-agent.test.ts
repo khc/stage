@@ -307,3 +307,8 @@ test("the discovery runner reports missing Exa credentials without sending the q
   ]);
   expect(runner.requests).toEqual([]);
 });
+
+test("the discovery agent's description says it can search the public web for what internal sources lack", () => {
+  expect(discoveryAgent.description).toContain("search the public web");
+  expect(discoveryAgent.description).toContain("where a person lives");
+});

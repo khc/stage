@@ -56,3 +56,8 @@ test("the instruction treats query results as data and describes the answer", ()
 test("the query tool takes one SQL string", () => {
   expect(queryImdb.name).toBe("query_imdb");
 });
+
+test("the imdb agent's description says it reads IMDb only and cannot search the web", () => {
+  expect(imdbAgent.description).toContain("IMDb datasets only");
+  expect(imdbAgent.description).toContain("no web access");
+});

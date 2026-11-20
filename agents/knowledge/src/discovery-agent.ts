@@ -81,7 +81,8 @@ export const createDiscoveryAgent = ({
   return new LlmAgent({
     name: "discovery-assistant",
     model,
-    description: "Discovers and queries internal sources and searches the public web on request.",
+    description:
+      "Answers from the internal sources (IMDb, documentation) and can search the public web for what they lack, such as where a person lives or recent news.",
     instruction,
     tools: [
       discoverAssetsTool,
