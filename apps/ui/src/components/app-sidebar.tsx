@@ -57,11 +57,14 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" aria-label="Stage home" />}>
-              <img src="/stage.svg" alt="" className="size-8" />
-              <div className="flex flex-col gap-0.5 leading-none">
-                <span className="font-medium">Stage</span>
-                <span>v1.0</span>
+            <SidebarMenuButton
+              size="lg"
+              className="h-auto py-1.5"
+              render={<Link to="/" aria-label="Stage home" />}
+            >
+              <div className="flex flex-col gap-1 leading-none">
+                <span className="font-display text-5xl leading-none">Stage</span>
+                <span className="text-xs text-muted-foreground">v1.0</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
