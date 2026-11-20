@@ -23,7 +23,7 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.18.0
     command: >-
-      mlflow server --host 0.0.0.0 --port 5000
+      mlflow server --host 0.0.0.0 --port 5000 --workers 1
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
       --allowed-hosts localhost:5001,127.0.0.1:5001,host.docker.internal:5001,mlflow:5000
@@ -56,6 +56,10 @@ services:
     environment:
       # Neo4j allows any CORS origin (*) by default; restrict browser cross-origin reads to Neo4j Browser.
       - NEO4J_dbms_security_http__access__control__allow__origin=http://localhost:7474
+      # Bound JVM heap and page cache for local dev so Neo4j does not over-allocate VM memory.
+      - NEO4J_server_memory_heap_initial__size=256m
+      - NEO4J_server_memory_heap_max__size=512m
+      - NEO4J_server_memory_pagecache_size=256m
       # Set NEO4J_PASSWORD in .env before starting (`docker compose up -d neo4j`).
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
     volumes:
