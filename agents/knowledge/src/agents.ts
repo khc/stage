@@ -4,16 +4,12 @@ import type { AgentSet } from "@stage/agents/spec";
 import { corpora, type CorpusName } from "@stage/ingestion/corpora";
 import { z } from "zod";
 
+import { imdbAgent } from "./imdb-agent";
 import { createSearchKnowledgeBase, openKnowledgeBase } from "./knowledge-base";
+import { knowledgeOutput } from "./output";
 
-export const knowledgeOutput = z.object({
-  answer: z.string().describe("The answer as Markdown, based only on the search results."),
-  sources: z
-    .array(z.string())
-    .describe(
-      "The chunks the answer used, each as '<source> › <doc_id> › <section_path>'. Empty when nothing relevant was found.",
-    ),
-});
+// The reply of every agent of this app; it lives in output.ts so that imdb-agent.ts can use it too.
+export { knowledgeOutput };
 
 export const searchParameters = z.object({
   query: z.string().min(1).describe("What to look for, phrased as a search query."),
@@ -47,6 +43,11 @@ export const agentSet: AgentSet = {
     [knowledgeAgent.name]: {
       agent: knowledgeAgent,
       inputSchema: z.string().describe("A question about the documentation, in plain text."),
+      outputSchema: knowledgeOutput,
+    },
+    [imdbAgent.name]: {
+      agent: imdbAgent,
+      inputSchema: z.string().describe("A question about films, series or people, in plain text."),
       outputSchema: knowledgeOutput,
     },
   },

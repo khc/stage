@@ -21,6 +21,8 @@ Each environment and lifecycle layer is its own Terraform root with its own stat
 
 If the topics or jobs already exist in Floci (created by the old scripts), `task tf:import` adopts them into the state first; `apply` fails with 409 otherwise.
 
+The `imdb` Cloud SQL instance (PostgreSQL 17, `envs/local/imdb.tf`) is a Postgres container that Floci runs; it has no host port, and other containers on the compose network reach it as `floci-gcp-cloudsql-floci-local-imdb:5432`. `task tf:apply` creates the instance and two users, `imdb` (loads the data) and `imdb_reader` (read-only, used by the knowledge agent). Terraform does not create the database: `bun scripts/imdb-load.ts` creates it (owned by `imdb`) and applies `data/schemas/*.sql`, including the grants of `imdb_reader` (`--no-data` runs only those database steps). `imdb_db_password` and `imdb_reader_password` are throwaway local defaults.
+
 Floci's Cloud Run emulation rejects secret references (`valueSource`), so the jobs get the key as a plain env value; see [docs/floci-gcp.md](../docs/floci-gcp.md).
 
 `envs/local/terraform.tfvars` is committed and must never hold secrets.

@@ -89,3 +89,16 @@ variable "imdb_db_password" {
   sensitive   = true
   description = "Password of the imdb user on the local Cloud SQL instance (Floci runs a throwaway Postgres container; set TF_VAR_imdb_db_password to change it)."
 }
+
+variable "imdb_reader_password" {
+  type        = string
+  default     = "imdb-reader-local"
+  sensitive   = true
+  description = "Password of the read-only imdb_reader user, which the knowledge agent connects as (a throwaway local value; set TF_VAR_imdb_reader_password to change it)."
+}
+
+variable "imdb_db_host" {
+  type        = string
+  default     = "floci-gcp-cloudsql-floci-local-imdb"
+  description = "Host of the imdb Cloud SQL instance as the job containers reach it: the name of the Postgres container Floci runs for it (the same default as --container in scripts/imdb-load.ts), on the compose network."
+}

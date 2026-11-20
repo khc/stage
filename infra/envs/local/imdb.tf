@@ -16,6 +16,14 @@ resource "google_sql_database_instance" "imdb" {
 # fits both that call and the database call). Create the database in the instance instead:
 #   docker exec floci-gcp-cloudsql-floci-local-imdb psql -U postgres -c 'CREATE DATABASE imdb'
 
+# The knowledge agent reads the IMDb tables as this role; data/schemas/imdb-access.sql (applied by
+# scripts/imdb-load.ts) limits it to SELECT.
+resource "google_sql_user" "imdb_reader" {
+  name     = "imdb_reader"
+  instance = google_sql_database_instance.imdb.name
+  password = var.imdb_reader_password
+}
+
 resource "google_sql_user" "imdb" {
   name     = "imdb"
   instance = google_sql_database_instance.imdb.name

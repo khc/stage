@@ -2,13 +2,15 @@
 // use only) into the PostgreSQL behind the Floci Cloud SQL instance `imdb`, using the schema in
 // data/schemas/imdb.sql.
 //
-//   bun scripts/imdb-load.ts [--only title.ratings,name.basics] [--container NAME] [--user imdb]
-//                            [--db imdb] [--url https://datasets.imdbws.com]
+//   bun scripts/imdb-load.ts [--only title.ratings,name.basics | --no-data] [--no-indexes]
+//                            [--container NAME] [--user imdb] [--db imdb]
+//                            [--url https://datasets.imdbws.com]
 //
 // Each file is streamed from the download through gunzip into the stdin of `psql` and loaded in one
 // transaction per table, so nothing is kept on disk and an interrupted run leaves the table as it was. A rerun
 // replaces the data. The instance publishes no host port, so psql runs inside its container
-// (`docker exec`). The database and the schema are created when they are missing.
+// (`docker exec`). The database, the schema, the read access of imdb_reader and the indexes are
+// created when they are missing; the indexes of a table are dropped before it is reloaded.
 import { parseArgs } from "node:util";
 
 export type Dataset = {
@@ -130,6 +132,10 @@ export const loadSql = ({ table, columns, lists }: Dataset) => {
 
 export type Options = {
   only: Dataset[];
+  // Run the database steps (database, schema, access) and load no dataset.
+  noData: boolean;
+  // Do not create the indexes of data/schemas/imdb-indexes.sql after the loads.
+  noIndexes: boolean;
   container: string;
   user: string;
   db: string;
@@ -143,6 +149,8 @@ export const parseOptions = (args: string[]): Options => {
     args,
     options: {
       only: { type: "string" },
+      "no-data": { type: "boolean", default: false },
+      "no-indexes": { type: "boolean", default: false },
       container: { type: "string", default: "floci-gcp-cloudsql-floci-local-imdb" },
       user: { type: "string", default: "imdb" },
       db: { type: "string", default: "imdb" },
@@ -152,6 +160,7 @@ export const parseOptions = (args: string[]): Options => {
   for (const name of ["user", "db"] as const) {
     if (!identifier.test(values[name]!)) throw new Error(`--${name} must be a plain identifier`);
   }
+  if (values["no-data"] && values.only) throw new Error("--no-data cannot be combined with --only");
   const only = values.only
     ? values.only.split(",").map((file) => {
         const dataset = datasets.find((candidate) => candidate.file === file);
@@ -161,6 +170,8 @@ export const parseOptions = (args: string[]): Options => {
     : datasets;
   return {
     only,
+    noData: values["no-data"]!,
+    noIndexes: values["no-indexes"]!,
     container: values.container!,
     user: values.user!,
     db: values.db!,
@@ -184,6 +195,18 @@ const run = async (command: string[], input?: string | ReadableStream<Uint8Array
     throw new Error(`${command.slice(0, 2).join(" ")} failed (${code}): ${err.trim()}`);
   return out.trim();
 };
+
+const schemaFile = (name: string) =>
+  Bun.file(new URL(`../data/schemas/${name}`, import.meta.url)).text();
+
+// The named indexes of data/schemas/imdb-indexes.sql and the tables they are on.
+export const indexesOf = (sql: string) =>
+  [...sql.matchAll(/CREATE INDEX IF NOT EXISTS (\w+)\s+ON imdb\.(\w+)/g)].map(
+    ([, name, table]) => ({
+      name: name!,
+      table: table!,
+    }),
+  );
 
 const psqlCommand = ({ container }: Options, user: string, db: string, extra: string[] = []) => [
   "docker",
@@ -223,14 +246,49 @@ const ensureDatabase = async (options: Options) => {
 const ensureSchema = async (options: Options) => {
   const { user, db } = options;
   if (await query(options, user, db, "SELECT to_regclass('imdb.title_basics')")) return;
-  const schema = await Bun.file(new URL("../data/schemas/imdb.sql", import.meta.url)).text();
+  const schema = await schemaFile("imdb.sql");
   // One transaction, so a failure leaves no half-applied schema that the next run would skip.
   await run(psqlCommand(options, user, db, ["-1"]), schema);
   console.log("applied data/schemas/imdb.sql");
 };
 
+// The reader role is created by Terraform; until it exists there is nothing to grant to.
+const readerRole = "imdb_reader";
+
+const ensureAccess = async (options: Options) => {
+  const exists = await query(
+    options,
+    "postgres",
+    "postgres",
+    `SELECT 1 FROM pg_roles WHERE rolname = '${readerRole}'`,
+  );
+  if (!exists) {
+    console.log(
+      `role ${readerRole} does not exist yet (task tf:apply creates it): no access granted`,
+    );
+    return;
+  }
+  const access = await schemaFile("imdb-access.sql");
+  await run(psqlCommand(options, "postgres", options.db, ["-1"]), access);
+  console.log(`granted read access to ${readerRole}`);
+};
+
+// Creates the indexes that are missing; one statement at a time, so an interrupted run keeps the
+// ones it finished.
+const ensureIndexes = async (options: Options) => {
+  console.log("creating indexes (this takes a while on the full data)");
+  await run(psqlCommand(options, "postgres", options.db), await schemaFile("imdb-indexes.sql"));
+  console.log("indexes are in place");
+};
+
 const load = async (options: Options, dataset: Dataset) => {
   const started = performance.now();
+  // Loading into indexed tables is far slower than building the indexes afterwards.
+  for (const { name } of indexesOf(await schemaFile("imdb-indexes.sql")).filter(
+    ({ table }) => table === dataset.table,
+  )) {
+    await query(options, "postgres", options.db, `DROP INDEX IF EXISTS imdb.${name}`);
+  }
   const response = await fetch(`${options.url}/${dataset.file}.tsv.gz`);
   if (!response.ok || !response.body) {
     throw new Error(`${dataset.file}: download failed (HTTP ${response.status})`);
@@ -254,7 +312,9 @@ if (import.meta.main) {
     const options = parseOptions(process.argv.slice(2));
     await ensureDatabase(options);
     await ensureSchema(options);
-    for (const dataset of options.only) await load(options, dataset);
+    await ensureAccess(options);
+    if (!options.noData) for (const dataset of options.only) await load(options, dataset);
+    if (!options.noIndexes) await ensureIndexes(options);
   } catch (err) {
     console.error(err instanceof Error ? err.message : "Load failed");
     process.exitCode = 1;
