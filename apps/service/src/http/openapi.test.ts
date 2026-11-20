@@ -75,6 +75,7 @@ describe("OpenAPI document", () => {
       requestBody: { content: Record<string, { schema: { required: string[] } }> };
     };
     expect(create.requestBody.content["application/json"]!.schema.required).toEqual([
+      "name",
       "prompt",
       "jobName",
     ]);

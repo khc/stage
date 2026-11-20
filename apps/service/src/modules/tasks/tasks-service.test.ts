@@ -83,7 +83,7 @@ describe("tasks service delete", () => {
 });
 
 describe("tasks service create", () => {
-  const input = { prompt: "p", jobName: "my-job", agentName: "haiku" };
+  const input = { name: "Haiku task", prompt: "p", jobName: "my-job", agentName: "haiku" };
   const createWith = (registered: string[], allowedJobs?: ReadonlySet<string>) => {
     const create = mock(async (i: typeof input) => ({
       ...i,
@@ -134,7 +134,7 @@ describe("tasks service run", () => {
   ) => {
     const runJob = mock(async (..._args: unknown[]) => "op-1");
     const getTask = mock(async (_id: string) => ("task" in overrides ? overrides.task : task));
-    const create = mock(async (_t: string) => "s-new");
+    const create = mock(async (_t: string, _name?: string) => "s-new");
     const del = mock(async (_t: string, _s: string) => true);
     const get = mock(async (_t: string, _s: string) =>
       "session" in overrides ? overrides.session : { id: "s1" },
@@ -261,13 +261,13 @@ describe("tasks service run", () => {
 
   test("starts a new session with a user message and removes it if the job fails to start", async () => {
     const { service, create, queueMessage, runJob } = setupRun();
-    expect(await service.run(taskId, { message: "hello" })).toEqual({
+    expect(await service.run(taskId, { message: "  hello \n world  " })).toEqual({
       status: "started",
       operation: "op-1",
       sessionId: "s-new",
     });
-    expect(create).toHaveBeenCalledWith(taskId);
-    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "hello");
+    expect(create).toHaveBeenCalledWith(taskId, "hello world");
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "  hello \n world  ");
     expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s-new");
 
     const failing = setupRun();

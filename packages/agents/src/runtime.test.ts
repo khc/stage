@@ -28,6 +28,7 @@ test("creates a session, returns the final response text and keeps the session",
   expect(sessionService.createSession).toHaveBeenCalledWith({
     appName: "stage",
     userId: "user",
+    name: "hi",
   });
 });
 
@@ -56,6 +57,7 @@ test("passes taskId as session metadata for a job invocation", async () => {
     appName: "stage",
     userId: "user",
     taskId,
+    name: "hi",
   });
 });
 

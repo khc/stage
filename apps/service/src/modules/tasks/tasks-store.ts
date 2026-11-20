@@ -8,10 +8,10 @@ import {
 
 export type { TaskContract } from "@stage/agents/task-contract";
 
-export type NewTask = { prompt: string; jobName: string; agentName?: string };
+export type NewTask = { name: string; prompt: string; jobName: string; agentName?: string };
 
 export type TasksStore = {
-  create: (input: NewTask) => Promise<TaskContract & { jobName: string }>;
+  create: (input: NewTask) => Promise<TaskContract & { name: string; jobName: string }>;
   list: () => Promise<TaskContract[]>;
   get: GetTask;
   // False when there was no such task.
@@ -21,9 +21,10 @@ export type TasksStore = {
 export const createTasksStore = (firestore: Pick<Firestore, "collection">): TasksStore => {
   const tasks = firestore.collection("tasks");
   return {
-    async create({ prompt, jobName, agentName }) {
+    async create({ name, prompt, jobName, agentName }) {
       const contract = {
         taskId: crypto.randomUUID(),
+        name,
         prompt,
         jobName,
         documents: [],

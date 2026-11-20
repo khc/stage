@@ -10,6 +10,7 @@ import type { TasksService } from "./modules/tasks/tasks-service";
 
 const task = {
   taskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+  name: "Greeting task",
   prompt: "hi",
   jobName: "my-job",
   documents: [],
@@ -126,15 +127,21 @@ describe("GET /health", () => {
 });
 
 describe("tasks", () => {
-  test("POST /tasks creates a task and trims the prompt", async () => {
-    const res = await call(appWith(), "/tasks", json({ prompt: "  hello  ", jobName: "my-job" }));
+  test("POST /tasks creates a task and trims the name and prompt", async () => {
+    const res = await call(
+      appWith(),
+      "/tasks",
+      json({ name: "  Greeting  ", prompt: "  hello  ", jobName: "my-job" }),
+    );
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ prompt: "hello", jobName: "my-job" });
+    expect(res.body).toMatchObject({ name: "Greeting", prompt: "hello", jobName: "my-job" });
   });
 
   test("POST /tasks answers 400 unknown_agent", async () => {
     const app = appWith({ create: async () => ({ status: "unknown_agent" }) });
-    expect(await call(app, "/tasks", json({ prompt: "p", jobName: "j", agentName: "x" }))).toEqual({
+    expect(
+      await call(app, "/tasks", json({ name: "Task", prompt: "p", jobName: "j", agentName: "x" })),
+    ).toEqual({
       status: 400,
       body: { error: "unknown_agent" },
     });
@@ -153,7 +160,7 @@ describe("tasks", () => {
     const res = await call(
       appWith(),
       "/tasks",
-      json({ prompt: "x".repeat(10_001), jobName: "my-job" }),
+      json({ name: "Long", prompt: "x".repeat(10_001), jobName: "my-job" }),
     );
     expect(res.status).toBe(400);
     const body = res.body as { error: string; details: Record<string, unknown>[] };
@@ -163,10 +170,12 @@ describe("tasks", () => {
   });
 
   test.each([
-    ["a blank prompt", { prompt: "   ", jobName: "my-job" }],
-    ["a missing jobName", { prompt: "p" }],
-    ["an invalid jobName", { prompt: "p", jobName: "Bad_Name" }],
-    ["an invalid agentName", { prompt: "p", jobName: "j", agentName: "1bad" }],
+    ["a missing name", { prompt: "p", jobName: "my-job" }],
+    ["a blank name", { name: "   ", prompt: "p", jobName: "my-job" }],
+    ["a blank prompt", { name: "Task", prompt: "   ", jobName: "my-job" }],
+    ["a missing jobName", { name: "Task", prompt: "p" }],
+    ["an invalid jobName", { name: "Task", prompt: "p", jobName: "Bad_Name" }],
+    ["an invalid agentName", { name: "Task", prompt: "p", jobName: "j", agentName: "1bad" }],
   ])("POST /tasks rejects %s with 400", async (_name, body) => {
     const res = await call(appWith(), "/tasks", json(body));
     expect(res.status).toBe(400);

@@ -40,7 +40,7 @@ export function TasksPanel({ title }: { title: string }) {
   const [search, setSearch] = useState("");
   const tasks = tasksQuery.data?.tasks ?? [];
   const filtered = tasks.filter((task) =>
-    `${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`
+    `${task.name ?? ""} ${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
@@ -92,7 +92,7 @@ export function TasksPanel({ title }: { title: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-4">Task / prompt</TableHead>
+                <TableHead className="pl-4">Task</TableHead>
                 <TableHead className="hidden md:table-cell">Job</TableHead>
                 <TableHead className="hidden md:table-cell">Agent</TableHead>
                 <TableHead className="pr-4 text-right">Actions</TableHead>
@@ -113,6 +113,11 @@ export function TasksPanel({ title }: { title: string }) {
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0">
                         <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
+                        {task.name?.trim() && task.prompt.trim() !== "{}" && (
+                          <small className="line-clamp-1 hidden text-muted-foreground md:block">
+                            {task.prompt}
+                          </small>
+                        )}
                         <small className="text-muted-foreground md:hidden">
                           {task.jobName ?? "Needs job"}
                           {task.agentName ? ` · ${task.agentName}` : ""}

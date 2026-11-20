@@ -41,7 +41,7 @@ const setup = () => {
 
 test("publishes the event type, task id and JSON body", async () => {
   const { events, sent } = setup();
-  await events.tasksStore(tasksStore()).create({ prompt: "hi", jobName: "job" });
+  await events.tasksStore(tasksStore()).create({ name: "Greeting", prompt: "hi", jobName: "job" });
 
   const [message] = await sent();
   const body = JSON.parse(message!.data.toString());
@@ -85,7 +85,7 @@ test("does not wait for a publish that never settles", async () => {
 test("the app publishes task create, run and delete events", async () => {
   const { events, sent } = setup();
   const taskId = crypto.randomUUID();
-  const task = { taskId, prompt: "hi", jobName: "job", documents: [] };
+  const task = { taskId, name: "Greeting", prompt: "hi", jobName: "job", documents: [] };
   const tasksService = createTasksService({
     tasksStore: events.tasksStore(
       tasksStore({ create: async (input) => ({ ...task, ...input }), get: async () => task }),
@@ -112,7 +112,7 @@ test("the app publishes task create, run and delete events", async () => {
     new Request("http://localhost/tasks", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: "hi", jobName: "job" }),
+      body: JSON.stringify({ name: "Greeting", prompt: "hi", jobName: "job" }),
     }),
   );
   await app.handle(new Request(`http://localhost/tasks/${taskId}/run`, { method: "POST" }));

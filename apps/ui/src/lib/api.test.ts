@@ -54,11 +54,17 @@ test("document upload posts multipart form data to the task's documents route", 
 });
 
 test("task creation sends only the saved contract input", async () => {
-  const task = { taskId: "task-1", prompt: "hello", jobName: "worker" };
+  const task = { taskId: "task-1", name: "Greeting", prompt: "hello", jobName: "worker" };
   const { api, calls } = replying(task, 201);
-  expect(await api.create({ prompt: "hello", jobName: "worker" })).toEqual(task as never);
+  expect(await api.create({ name: "Greeting", prompt: "hello", jobName: "worker" })).toEqual(
+    task as never,
+  );
   expect(calls[0]).toMatchObject({ url: "http://localhost/tasks", method: "POST" });
-  expect(JSON.parse(calls[0]!.body as string)).toEqual({ prompt: "hello", jobName: "worker" });
+  expect(JSON.parse(calls[0]!.body as string)).toEqual({
+    name: "Greeting",
+    prompt: "hello",
+    jobName: "worker",
+  });
 });
 
 test("running a task submits once with no prompt or job override", async () => {
@@ -172,12 +178,12 @@ test("session stats are fetched from the encoded stats path", async () => {
 });
 
 test("task creation sends agentName only when provided", async () => {
-  const { api, calls } = replying({ taskId: "t", prompt: "p", jobName: "j" }, 201);
-  await api.create({ prompt: "p", jobName: "j", agentName: "researcher" });
-  await api.create({ prompt: "p", jobName: "j", agentName: undefined });
+  const { api, calls } = replying({ taskId: "t", name: "Task", prompt: "p", jobName: "j" }, 201);
+  await api.create({ name: "Task", prompt: "p", jobName: "j", agentName: "researcher" });
+  await api.create({ name: "Task", prompt: "p", jobName: "j", agentName: undefined });
   expect(calls.map((c) => JSON.parse(c.body as string))).toEqual([
-    { prompt: "p", jobName: "j", agentName: "researcher" },
-    { prompt: "p", jobName: "j" },
+    { name: "Task", prompt: "p", jobName: "j", agentName: "researcher" },
+    { name: "Task", prompt: "p", jobName: "j" },
   ]);
 });
 
@@ -394,7 +400,15 @@ test("schemaRows lists each property with type, required flag and description", 
   expect(schemaRows({ type: "string" })).toEqual([]);
 });
 
-test("taskTitle shows the agent name for a no-input task and the prompt otherwise", () => {
+test("taskTitle prefers the task name and falls back for legacy tasks", () => {
+  expect(
+    taskTitle({
+      taskId: "t",
+      name: "Haiku about rain",
+      prompt: "Write a haiku",
+      agentName: "haiku",
+    }),
+  ).toBe("Haiku about rain");
   expect(taskTitle({ taskId: "t", prompt: "Write a haiku", agentName: "haiku" })).toBe(
     "Write a haiku",
   );

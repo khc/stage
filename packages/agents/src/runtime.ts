@@ -3,7 +3,7 @@ import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
 import { annotateJob } from "@stage/http/otel";
 
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
-import { FirestoreSessionService } from "./session-service";
+import { FirestoreSessionService, toSessionName } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
 
 export type RunAgent = (
@@ -75,9 +75,11 @@ export const createTaskAgent =
       if ((session.events?.length ?? 0) === 0) validateFirstTurn?.(message);
     } else {
       validateFirstTurn?.(message);
+      const name = toSessionName(message);
       session = await runner.sessionService.createSession({
         ...owner,
         ...(taskId !== undefined && { taskId }),
+        ...(name !== undefined && { name }),
       });
     }
     const key = { ...owner, sessionId: session.id };

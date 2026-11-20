@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -63,6 +64,7 @@ function NewTaskForm({
   onClose: () => void;
 }) {
   const { openTask } = useNav();
+  const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [jobName, setJobName] = useState(initialJob);
   const [agentName, setAgentName] = useState("");
@@ -103,6 +105,7 @@ function NewTaskForm({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({
+      name: name.trim(),
       prompt: effectivePrompt.trim(),
       jobName,
       agentName: agentName.trim() || undefined,
@@ -115,15 +118,28 @@ function NewTaskForm({
           <Layers3 className="size-5" />
         </span>
         <DialogTitle>Create a task</DialogTitle>
-        <DialogDescription>A prompt, a worker, and room to do great work.</DialogDescription>
+        <DialogDescription>A name, a prompt, and a worker.</DialogDescription>
       </DialogHeader>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-name" className="justify-between">
+          Task name<span className="text-xs font-normal text-muted-foreground">Required</span>
+        </Label>
+        <Input
+          id="task-name"
+          placeholder="Short title for this task"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          maxLength={200}
+        />
+      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="job-name" className="justify-between">
           Cloud Run job<span className="text-xs font-normal text-muted-foreground">Required</span>
         </Label>
         <Select
           value={jobName || null}
-          items={jobOptions.map((name) => ({ value: name, label: name }))}
+          items={jobOptions.map((job) => ({ value: job, label: job }))}
           onValueChange={(next) => {
             setJobName(next ?? "");
             setAgentName("");
@@ -134,9 +150,9 @@ function NewTaskForm({
             <SelectValue placeholder={jobOptions.length ? "Choose a job" : "No jobs available"} />
           </SelectTrigger>
           <SelectContent>
-            {jobOptions.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
+            {jobOptions.map((job) => (
+              <SelectItem key={job} value={job}>
+                {job}
               </SelectItem>
             ))}
           </SelectContent>
@@ -243,13 +259,17 @@ function NewTaskForm({
         <Button
           type="submit"
           title={
-            !jobName
-              ? "Choose a job first"
-              : !effectivePrompt.trim()
-                ? "Write a prompt first"
-                : undefined
+            !name.trim()
+              ? "Enter a task name first"
+              : !jobName
+                ? "Choose a job first"
+                : !effectivePrompt.trim()
+                  ? "Write a prompt first"
+                  : undefined
           }
-          disabled={!effectivePrompt.trim() || invalid || !jobName || mutation.isPending}
+          disabled={
+            !name.trim() || !effectivePrompt.trim() || invalid || !jobName || mutation.isPending
+          }
         >
           {mutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
           Create task

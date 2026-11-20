@@ -10,18 +10,19 @@ import {
 
 export type SessionSummary = Pick<Session, "id" | "appName" | "userId" | "lastUpdateTime"> & {
   taskId: string;
+  name?: string;
   run?: RunState;
 };
 
 // A thin adapter over the session service in @stage/agents, which the agent jobs use too
 // (leases, run state, queued messages), so the service and the jobs share one implementation.
 export type SessionsStore = {
-  create: (taskId: string) => Promise<string>;
+  create: (taskId: string, name?: string) => Promise<string>;
   list: (taskId: string) => Promise<SessionSummary[]>;
   get: (
     taskId: string,
     sessionId: string,
-  ) => Promise<(Session & { taskId?: string; run?: RunState }) | undefined>;
+  ) => Promise<(Session & { taskId?: string; name?: string; run?: RunState }) | undefined>;
   // False when there was no such session in the task.
   delete: (taskId: string, sessionId: string) => Promise<boolean>;
   // Stores the next message for the job that resumes the session; false when the session is not the task's.
@@ -39,9 +40,11 @@ const toSessionSummary = (
   taskId: string,
   doc: { get: (field: string) => unknown },
 ): SessionSummary => {
+  const name = doc.get("name") as string | undefined;
   const summary: SessionSummary = {
     id: doc.get("sessionId") as string,
     taskId,
+    ...(name !== undefined && { name }),
     appName: doc.get("appName") as string,
     userId: doc.get("userId") as string,
     lastUpdateTime: doc.get("lastUpdateTime") as number,
@@ -63,8 +66,13 @@ export const createSessionsStore = (firestore: Firestore): SessionsStore => {
         .get()
     ).docs[0];
   return {
-    async create(taskId) {
-      const session = await sessionService.createSession({ appName, userId, taskId });
+    async create(taskId, name) {
+      const session = await sessionService.createSession({
+        appName,
+        userId,
+        taskId,
+        ...(name !== undefined && { name }),
+      });
       return session.id;
     },
     async list(taskId) {

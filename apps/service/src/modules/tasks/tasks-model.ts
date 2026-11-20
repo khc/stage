@@ -3,8 +3,9 @@ import { t } from "elysia";
 import { agentName, jobName } from "../agents/agents-model";
 
 export const TasksModel = {
-  // `\S` rejects a blank prompt; the controller trims it, as the Hono service did.
+  // `\S` rejects a blank name or prompt; the controller trims both.
   createBody: t.Object({
+    name: t.String({ pattern: "\\S", maxLength: 200 }),
     prompt: t.String({ pattern: "\\S", maxLength: 10_000 }),
     jobName,
     agentName: t.Optional(agentName),
@@ -19,6 +20,7 @@ export const TasksModel = {
   // Response shapes, used only to document the API.
   task: t.Object({
     taskId: t.String({ format: "uuid" }),
+    name: t.Optional(t.String()),
     prompt: t.String(),
     jobName: t.Optional(t.String()),
     agentName: t.Optional(t.String()),

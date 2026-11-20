@@ -83,10 +83,21 @@ export const runFields = (doc: { get: (field: string) => unknown }): RunFields =
   runLeaseUntil: doc.get("runLeaseUntil") as number | undefined,
 });
 
-type TaskSession = Session & { taskId?: string; run?: RunState };
-const withMeta = (session: Session, taskId?: string, run?: RunState): TaskSession =>
+const MAX_SESSION_NAME = 120;
+
+export const toSessionName = (prompt: string): string | undefined => {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (!normalized) return undefined;
+  return normalized.length > MAX_SESSION_NAME
+    ? `${normalized.slice(0, MAX_SESSION_NAME - 1).trimEnd()}…`
+    : normalized;
+};
+
+type TaskSession = Session & { taskId?: string; name?: string; run?: RunState };
+const withMeta = (session: Session, taskId?: string, run?: RunState, name?: string): TaskSession =>
   Object.assign(session, {
     ...(taskId !== undefined && { taskId }),
+    ...(name !== undefined && { name }),
     ...(run && { run }),
   });
 
@@ -118,7 +129,9 @@ export class FirestoreSessionService extends BaseSessionService {
     state,
     sessionId,
     taskId,
-  }: CreateSessionRequest & { taskId?: string }): Promise<TaskSession> {
+    name,
+  }: CreateSessionRequest & { taskId?: string; name?: string }): Promise<TaskSession> {
+    const cleanName = name ? toSessionName(name) : undefined;
     const session = withMeta(
       createSession({
         id: sessionId?.trim() || crypto.randomUUID(),
@@ -129,11 +142,14 @@ export class FirestoreSessionService extends BaseSessionService {
         lastUpdateTime: Date.now(),
       }),
       taskId,
+      undefined,
+      cleanName,
     );
 
     await this.ref({ appName, userId, sessionId: session.id }).set({
       sessionId: session.id,
       ...(taskId !== undefined && { taskId }),
+      ...(cleanName !== undefined && { name: cleanName }),
       appName,
       userId,
       state: session.state,
@@ -170,6 +186,7 @@ export class FirestoreSessionService extends BaseSessionService {
       }),
       snapshot.get("taskId"),
       runState(runFields(snapshot)),
+      snapshot.get("name"),
     );
   }
 
@@ -195,6 +212,8 @@ export class FirestoreSessionService extends BaseSessionService {
           lastUpdateTime: doc.get("lastUpdateTime"),
         }),
         doc.get("taskId"),
+        undefined,
+        doc.get("name"),
       ),
     );
 
@@ -375,7 +394,10 @@ export class FirestoreSessionService extends BaseSessionService {
       timestamp: appended.timestamp,
       json: JSON.stringify(appended),
     };
-    const sessionData = { state: trimTempState(session.state), lastUpdateTime: session.lastUpdateTime };
+    const sessionData = {
+      state: trimTempState(session.state),
+      lastUpdateTime: session.lastUpdateTime,
+    };
     const held = this.leased.get(session.id);
     if (held) {
       // While a run holds the session, a write counts only if it still owns it.

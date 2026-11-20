@@ -29,7 +29,11 @@ export const tasksController = ({
     .post(
       "",
       async ({ body, status }) => {
-        const result = await tasksService.create({ ...body, prompt: body.prompt.trim() });
+        const result = await tasksService.create({
+          ...body,
+          name: body.name.trim(),
+          prompt: body.prompt.trim(),
+        });
         if (result.status !== "created") return status(400, { error: result.status });
         return status(201, result.task);
       },

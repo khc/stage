@@ -184,7 +184,9 @@ function TaskDetails({ taskId }: { taskId: string }) {
                 </Button>
                 {detail.data && (
                   <>
-                    <h3 className="text-lg font-semibold">Session activity</h3>
+                    <h3 className="min-w-0 truncate text-lg font-semibold">
+                      {detail.data.name ?? "Session activity"}
+                    </h3>
                     <span className="text-sm text-muted-foreground">
                       {detail.data.events.length} events
                     </span>
@@ -309,9 +311,12 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
                         <Terminal className="size-4" />
                       </span>
-                      <span className="flex-1">
-                        <strong className="block text-sm">{timeAgo(session.lastUpdateTime)}</strong>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block truncate text-sm">
+                          {session.name ?? timeAgo(session.lastUpdateTime)}
+                        </strong>
                         <small className="text-muted-foreground">
+                          {session.name ? `${timeAgo(session.lastUpdateTime)} · ` : ""}
                           {formatTime(session.lastUpdateTime)} · {session.id.slice(0, 8)}
                         </small>
                       </span>

@@ -33,17 +33,25 @@ const fakeDb = (stored: Record<string, Record<string, unknown>> = {}) => {
 };
 
 describe("task store", () => {
-  test("creates a UUID-keyed contract and keeps the prompt as given", async () => {
+  test("creates a UUID-keyed contract and keeps the name and prompt as given", async () => {
     const { firestore, collection, doc, create } = fakeDb();
     const contract = await createTasksStore(firestore).create({
+      name: "  Greeting  ",
       prompt: "  hi  ",
       jobName: "my-job",
     });
     expect(contract.taskId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
+    expect(contract.name).toBe("  Greeting  ");
     expect(contract.prompt).toBe("  hi  ");
-    expect(Object.keys(contract).toSorted()).toEqual(["documents", "jobName", "prompt", "taskId"]);
+    expect(Object.keys(contract).toSorted()).toEqual([
+      "documents",
+      "jobName",
+      "name",
+      "prompt",
+      "taskId",
+    ]);
     expect(collection).toHaveBeenCalledWith("tasks");
     expect(doc).toHaveBeenCalledWith(contract.taskId);
     expect(create).toHaveBeenCalledWith(contract);
@@ -52,6 +60,7 @@ describe("task store", () => {
   test("includes agentName only when given", async () => {
     const { firestore } = fakeDb();
     const contract = await createTasksStore(firestore).create({
+      name: "Haiku task",
       prompt: "p",
       jobName: "j",
       agentName: "haiku",
@@ -62,9 +71,9 @@ describe("task store", () => {
   test("propagates a failed create", async () => {
     const { firestore, create } = fakeDb();
     create.mockRejectedValueOnce(new Error("write failed"));
-    await expect(createTasksStore(firestore).create({ prompt: "p", jobName: "j" })).rejects.toThrow(
-      "write failed",
-    );
+    await expect(
+      createTasksStore(firestore).create({ name: "Task", prompt: "p", jobName: "j" }),
+    ).rejects.toThrow("write failed");
   });
 
   test("delete returns false when there is no such task and true after deleting one", async () => {

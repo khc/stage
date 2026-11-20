@@ -1,5 +1,9 @@
 import type { AgentRegistry } from "@stage/agents/agent-registry";
-import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
+import {
+  MessageQueuedError,
+  RunInProgressError,
+  toSessionName,
+} from "@stage/agents/session-service";
 
 import { DependencyError, guard } from "../../errors";
 import type { CloudRunJobs } from "../../platform/cloud-run-jobs-client";
@@ -93,7 +97,7 @@ export const createTasksService = ({
         }
       } else {
         targetSessionId = await guard("session_error", async () => {
-          const id = await sessionsStore.create(taskId);
+          const id = await sessionsStore.create(taskId, toSessionName(resume.message));
           try {
             await sessionsStore.queueMessage(taskId, id, resume.message);
           } catch (err) {

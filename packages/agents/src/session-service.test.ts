@@ -9,6 +9,7 @@ import {
   RunInProgressError,
   RunLostError,
   runState,
+  toSessionName,
 } from "./session-service";
 
 const db = new Firestore();
@@ -38,6 +39,17 @@ const reply = (text: string, extra: Parameters<typeof createEvent>[0] = {}) =>
   });
 const texts = (events: { content?: { parts?: { text?: string }[] } }[]) =>
   events.map((e) => e.content?.parts?.[0]?.text);
+
+test("toSessionName normalizes whitespace, truncates long prompts, and skips blank prompts", () => {
+  expect(toSessionName("   ")).toBeUndefined();
+  expect(toSessionName("  Who directed\n  The Shawshank Redemption?  ")).toBe(
+    "Who directed The Shawshank Redemption?",
+  );
+  const long = "a".repeat(130);
+  const name = toSessionName(long);
+  expect(name).toHaveLength(120);
+  expect(name?.endsWith("…")).toBe(true);
+});
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("FirestoreSessionService", () => {
   test("persists a session across service instances and drops temp state", async () => {

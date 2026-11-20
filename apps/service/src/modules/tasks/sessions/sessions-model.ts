@@ -10,6 +10,7 @@ export const SessionsModel = {
   summary: t.Object({
     id: t.String(),
     taskId: t.String(),
+    name: t.Optional(t.String()),
     appName: t.String(),
     userId: t.String(),
     lastUpdateTime: t.Number(),

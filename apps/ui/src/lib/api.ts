@@ -113,7 +113,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     tasks: () => unwrap(client.tasks.get()),
     jobs: () => unwrap(client.jobs.get()),
     task: (id: string) => unwrap(task(id).get()),
-    create: (input: { prompt: string; jobName: string; agentName?: string }) =>
+    create: (input: { name: string; prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),
     run: (id: string) => unwrap(task(id).run.post()),
     startSession: (taskId: string, message: string) => unwrap(task(taskId).run.post({ message })),
@@ -214,9 +214,10 @@ export const schemaRows = (schema?: JsonSchema) =>
     required: !!schema?.required?.includes(name),
     description: value.description,
   }));
-// A task's heading: its prompt, or for agents that take no input (prompt {})
-// the agent's name.
+// A task's heading: its explicit name, otherwise its prompt or agent name for legacy tasks.
 export const taskTitle = (task: Task) => {
+  const title = task.name?.trim();
+  if (title) return title;
   if (task.prompt.trim() !== "{}") return task.prompt;
   const name = task.agentName?.replaceAll("_", " ");
   return name ? name[0]!.toUpperCase() + name.slice(1) : "Untitled task";
