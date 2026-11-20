@@ -146,6 +146,10 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
         ),
       );
       expect(names).toEqual(["generic-agents__assistant"]);
+      // The first step must hand the request to an agent: the model may not answer or decline itself.
+      expect<string | undefined>(request.config?.toolConfig?.functionCallingConfig?.mode).toBe(
+        "ANY",
+      );
       return {
         content: {
           role: "model",
@@ -160,7 +164,9 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
         },
       };
     },
-    ({ contents }) => {
+    ({ contents, config }) => {
+      // Once an agent has answered, the model is free to write the final answer.
+      expect<string | undefined>(config?.toolConfig?.functionCallingConfig?.mode).not.toBe("ANY");
       expect(JSON.stringify(contents.at(-1))).toContain("an old pond");
       return { content: { role: "model", parts: [{ text: "Here is a haiku: an old pond" }] } };
     },
@@ -228,8 +234,49 @@ test("a delegated run that completed without a reply is an error for the model",
   outcome = "reply";
 });
 
-test("the instruction sends facts outside an agent's data to the agent that searches the web, and tries another agent before giving up", () => {
+test("the instruction sends facts outside an agent's data to the agent that searches the web, and tries one other agent before giving up", () => {
   const instruction = String(orchestratorAgent.instruction);
-  expect(instruction).toContain("try another agent");
+  expect(instruction).toContain("try one other agent");
   expect(instruction).toContain("searches the public web");
+});
+
+test("the orchestrator only routes: it does not answer from its own knowledge or decline a request itself", () => {
+  const instruction = String(orchestratorAgent.instruction);
+  expect(instruction).toContain("You only route");
+  expect(instruction).toContain("do not decline");
+  expect(instruction).toContain("try one other agent");
+});
+
+test("with no other agent to call, the model is not forced to call one", async () => {
+  const toolset = new RemoteAgentsToolset({
+    registry: () => ({
+      listAll: async () => [{ jobName: "orchestrator-agents", name: "orchestrator" }],
+    }),
+    env: { GATEWAY_URL: "http://127.0.0.1:9", JOB_NAME: "orchestrator-agents" },
+  });
+  let mode: string | undefined = "unset";
+  const model = new ScriptedModel([
+    (request) => {
+      mode = request.config?.toolConfig?.functionCallingConfig?.mode;
+      return { content: { role: "model", parts: [{ text: "No agent fits." }] } };
+    },
+  ]);
+  const runner = new Runner({
+    agent: createOrchestratorAgent({ model, toolset }),
+    appName: "orchestrator-test",
+    sessionService: new InMemorySessionService(),
+  });
+  const session = await runner.sessionService.createSession({
+    appName: "orchestrator-test",
+    userId: "u",
+  });
+  const events = [];
+  for await (const event of runner.runAsync({
+    userId: "u",
+    sessionId: session.id,
+    newMessage: { role: "user", parts: [{ text: "hello" }] },
+  }))
+    events.push(event);
+  expect(events.length).toBeGreaterThan(0);
+  expect(mode).toBeUndefined();
 });
