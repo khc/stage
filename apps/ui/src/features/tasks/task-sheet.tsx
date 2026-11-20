@@ -13,6 +13,7 @@ import {
   Upload,
   Workflow,
   ChevronRight,
+  CornerDownRight,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -35,6 +36,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { api, formatTime, taskTitle, timeAgo } from "@/lib/api";
 import { useNav } from "@/lib/nav";
+import { useTasks } from "@/lib/queries";
 
 import {
   SessionComposer,
@@ -50,6 +52,7 @@ import {
   sessionRefetchInterval,
   useSessionStream,
 } from "./session-parts";
+import { countDescendants } from "./task-tree";
 import { useRunTask } from "./use-run-task";
 
 // The open session fills the pane: the thread scrolls and the composer stays below it.
@@ -68,7 +71,7 @@ export function TaskSheet({ taskId }: { taskId?: string }) {
 
 function TaskDetails({ taskId }: { taskId: string }) {
   const client = useQueryClient();
-  const { closeTask } = useNav();
+  const { closeTask, openTask } = useNav();
   const runTask = useRunTask();
   const [tab, setTab] = useState("sessions");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -100,6 +103,9 @@ function TaskDetails({ taskId }: { taskId: string }) {
       sessionRefetchInterval(query.state.data, !!sessionId && sessionId === startingId),
   });
   const agents = useJobAgents(task.data?.jobName);
+  // The delete question names the sub-tasks, so it waits for the task list.
+  const tasksQuery = useTasks();
+  const allTasks = tasksQuery.data?.tasks ?? [];
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
   const list = (sessions.data?.sessions ?? []).toSorted(
     (a, b) => b.lastUpdateTime - a.lastUpdateTime,
@@ -108,6 +114,8 @@ function TaskDetails({ taskId }: { taskId: string }) {
   if (task.isPending) return <Loading label="Loading task…" />;
   if (task.isError) return <ErrorBox error={task.error} retry={() => void task.refetch()} />;
   const data = task.data;
+  const parent = allTasks.find((candidate) => candidate.taskId === data.parentTaskId);
+  const subTasks = countDescendants(allTasks, taskId);
   const registeredAgents = agents.data?.agents ?? [];
   const startInputHint = !data.jobName
     ? "Assign a job before messaging the agent."
@@ -127,6 +135,22 @@ function TaskDetails({ taskId }: { taskId: string }) {
           <Workflow />
           {data.agentName ?? "Default agent"}
         </Badge>
+        {data.parentTaskId && (
+          <Button
+            variant="outline"
+            size="sm"
+            title="The task that delegated this one"
+            onClick={() => void openTask(data.parentTaskId!)}
+          >
+            <CornerDownRight />
+            Sub-task of {parent ? taskTitle(parent) : data.parentTaskId.slice(0, 8)}
+          </Button>
+        )}
+        {subTasks > 0 && (
+          <Badge variant="secondary" title="Tasks that this one delegated, and theirs">
+            {subTasks} sub-task{subTasks === 1 ? "" : "s"}
+          </Badge>
+        )}
         <span className="ml-auto flex items-center gap-1">
           <Button
             onClick={() => runTask.mutate(taskId)}
@@ -138,7 +162,8 @@ function TaskDetails({ taskId }: { taskId: string }) {
           <ConfirmDelete
             variant="outline"
             label="Delete task"
-            question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}?`}
+            disabled={!tasksQuery.isSuccess}
+            question={`Delete this task${list.length ? ` and its ${list.length} session${list.length === 1 ? "" : "s"}` : ""}${subTasks ? `${list.length ? "," : ""} and its ${subTasks} sub-task${subTasks === 1 ? "" : "s"} with their sessions` : ""}?`}
             remove={() => api.deleteTask(taskId)}
             onDeleted={() => {
               client.removeQueries({ queryKey: ["task", taskId] });

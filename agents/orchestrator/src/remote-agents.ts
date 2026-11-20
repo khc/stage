@@ -9,6 +9,7 @@ import {
 } from "@google/adk";
 import { RemoteA2AAgent, type RemoteA2AAgentConfig } from "@google/adk/a2a";
 import type { AgentRegistry, JsonSchema } from "@stage/agents/agent-registry";
+import { A2A_PARENT_KEY, parentRefSchema } from "@stage/agents/parent-ref";
 import { agentNameSchema } from "@stage/agents/spec";
 import { z } from "zod";
 
@@ -76,7 +77,7 @@ export class RemoteAgentsToolset extends BaseToolset {
   async getTools(context?: ReadonlyContext): Promise<BaseTool[]> {
     const invocationId = context?.invocationId;
     if (this.cached && this.cached.invocationId === invocationId) return this.cached.tools;
-    const tools = this.load();
+    const tools = this.load(context?.sessionId);
     this.cached = { invocationId, tools };
     tools.catch(() => {
       if (this.cached?.tools === tools) this.cached = undefined;
@@ -87,13 +88,23 @@ export class RemoteAgentsToolset extends BaseToolset {
   // The tools hold no connections: each call opens its own request to the gateway.
   async close(): Promise<void> {}
 
-  private async load(): Promise<BaseTool[]> {
+  private async load(sessionId: string | undefined): Promise<BaseTool[]> {
     const { registry, env, remoteAgent = (config) => new RemoteA2AAgent(config) } = this.deps;
     const gatewayUrl = env.GATEWAY_URL?.replace(/\/+$/, "");
     if (!gatewayUrl) throw new Error("GATEWAY_URL is required to reach the other agents");
     // ADK refuses an agent card on plaintext http unless the host is loopback; only a local run opts in.
     const resolveAgentCardOptions =
       env.GATEWAY_ALLOW_INSECURE === "true" ? { allowInsecureRpc: true } : undefined;
+    // Every request names the task and the session of this run, so the gateway can record the task
+    // it creates as a sub-task. A job runs under TASK_ID; without a valid one nothing is sent.
+    const parent = parentRefSchema.safeParse({ taskId: env.TASK_ID, sessionId });
+    const beforeRequestCallbacks = parent.success
+      ? [
+          (_ctx: unknown, params: { message: { metadata?: Record<string, unknown> } }) => {
+            params.message.metadata = { ...params.message.metadata, [A2A_PARENT_KEY]: parent.data };
+          },
+        ]
+      : undefined;
     const agents = await registry().listAll();
     return agents
       .filter(
@@ -108,6 +119,7 @@ export class RemoteAgentsToolset extends BaseToolset {
           agentCard: `${gatewayUrl}/a2a/${jobName}/${name}/`,
           messageSendConfig: { blocking: true },
           ...(resolveAgentCardOptions && { resolveAgentCardOptions }),
+          ...(beforeRequestCallbacks && { beforeRequestCallbacks }),
         });
         return new FunctionTool({
           name: agent.name,

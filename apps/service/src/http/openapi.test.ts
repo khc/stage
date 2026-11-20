@@ -96,3 +96,10 @@ describe("Scalar reference", () => {
     expect(res.headers.get("content-type")).toContain("text/html");
   });
 });
+
+describe("DELETE /tasks/{taskId}", () => {
+  test("says in its summary that sub-tasks go with the task", async () => {
+    const { paths } = await spec();
+    expect(paths["/tasks/{taskId}"]?.delete?.summary).toContain("sub-tasks");
+  });
+});

@@ -20,12 +20,15 @@ export function ConfirmDelete({
   remove,
   onDeleted,
   variant = "ghost",
+  disabled = false,
 }: {
   label: string;
   question: string;
   remove: () => Promise<unknown>;
   onDeleted: () => void;
   variant?: "ghost" | "outline";
+  // For when the question cannot be answered yet, for instance while the numbers in it are loading.
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const mutation = useMutation({
@@ -42,6 +45,7 @@ export function ConfirmDelete({
         size="icon"
         aria-label={label}
         title={label}
+        disabled={disabled}
         onClick={() => setOpen(true)}
       >
         <Trash2 />

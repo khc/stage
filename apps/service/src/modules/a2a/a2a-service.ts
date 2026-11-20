@@ -8,6 +8,7 @@ import {
   type RequestContext,
 } from "@a2a-js/sdk/server";
 import { isFinalResponse, stringifyContent } from "@google/adk";
+import { A2A_PARENT_KEY, parentRefSchema, type ParentRef } from "@stage/agents/parent-ref";
 import { promptSchema } from "@stage/agents/task-contract";
 
 import { guard } from "../../errors";
@@ -26,8 +27,8 @@ import { createBoundedTaskStore } from "./a2a-task-store";
 
 export type A2aServiceDeps = {
   agentsService: Pick<AgentsService, "agentCard">;
-  tasksService: Pick<TasksService, "create" | "run">;
-  sessionsStore: Pick<SessionsStore, "get">;
+  tasksService: Pick<TasksService, "create" | "run" | "get">;
+  sessionsStore: Pick<SessionsStore, "get" | "list">;
   // The jobs that are served; undefined serves any.
   allowedJobs?: ReadonlySet<string>;
 };
@@ -92,6 +93,25 @@ export const createA2aService = (
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   }: A2aConfig = {},
 ): A2aService => {
+  // The task and session an agent says it is calling from. The claim comes from an unauthenticated caller,
+  // so it counts only for a task that exists and a session that is still running; otherwise the task is
+  // created without a parent.
+  const parentOf = async (metadata: Message["metadata"]): Promise<ParentRef | undefined> => {
+    if (!metadata || !(A2A_PARENT_KEY in metadata)) return undefined;
+    const ref = parentRefSchema.safeParse(metadata[A2A_PARENT_KEY]);
+    if (ref.success) {
+      // The summaries carry the run state without the session's events, which can be long.
+      const [task, sessions] = await Promise.all([
+        tasksService.get(ref.data.taskId),
+        sessionsStore.list(ref.data.taskId),
+      ]);
+      const session = sessions.find(({ id }) => id === ref.data.sessionId);
+      if (task && session?.run?.status === "running") return ref.data;
+    }
+    console.warn("A2A parent reference ignored");
+    return undefined;
+  };
+
   let inFlight = 0;
   // One bounded store for every agent: the gateway needs a task only while it answers.
   const taskStore = createBoundedTaskStore(A2A_TASKS_KEPT);
@@ -140,11 +160,13 @@ export const createA2aService = (
 
       inFlight++;
       try {
+        const parent = await parentOf(userMessage.metadata);
         const created = await tasksService.create({
           name: `a2a: ${message.slice(0, 60)}`,
           prompt: message,
           jobName,
           agentName,
+          ...(parent && { parentTaskId: parent.taskId, parentSessionId: parent.sessionId }),
         });
         if (created.status !== "created")
           return finish("failed", `Cannot run the agent: ${created.status}.`);

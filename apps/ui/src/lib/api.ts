@@ -54,6 +54,7 @@ export class ApiError extends Error {
 }
 const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
+  too_many_subtasks: "This task has more than 500 sub-tasks, so it cannot be deleted in one go.",
   task_not_executable: "This task needs a valid job name before it can run.",
   session_not_found: "This session could not be found for this task.",
   message_pending: "Your previous message is still being delivered. Try again in a minute.",

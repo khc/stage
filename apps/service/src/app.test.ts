@@ -99,8 +99,10 @@ const a2aService = () =>
       tasksService: {
         create: async (input) => ({ status: "created", task: { ...task, ...input } }),
         run: async () => ({ status: "started", operation: "op-1", sessionId: "s1" }),
+        get: async () => undefined,
       },
       sessionsStore: {
+        list: async () => [],
         get: async () =>
           ({
             run: { status: "succeeded" },
@@ -171,6 +173,34 @@ describe("tasks", () => {
     );
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name: "Greeting", prompt: "hello", jobName: "my-job" });
+  });
+
+  test("POST /tasks cannot set a parent: only the A2A gateway does", async () => {
+    let received: Record<string, unknown> | undefined;
+    const app = appWith({
+      create: async (input) => {
+        received = input as never;
+        return { status: "created", task: { ...task, ...input } };
+      },
+    });
+    await call(
+      app,
+      "/tasks",
+      json({
+        name: "Task",
+        prompt: "p",
+        jobName: "j",
+        parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+        parentSessionId: "s-1",
+      }),
+    );
+    expect(received).toEqual({ name: "Task", prompt: "p", jobName: "j" });
+  });
+
+  test("GET /tasks returns the parent of a delegated task", async () => {
+    const delegated = { ...task, parentTaskId: task.taskId, parentSessionId: "s-1" };
+    const res = await call(appWith({ list: async () => [delegated] }), "/tasks");
+    expect(res.body).toEqual({ tasks: [delegated] });
   });
 
   test("POST /tasks answers 400 unknown_agent", async () => {
@@ -326,6 +356,14 @@ describe("sessions of a task", () => {
 });
 
 describe("DELETE /tasks/:taskId", () => {
+  test("a task with too many sub-tasks answers 409 too_many_subtasks", async () => {
+    const app = appWith({ delete: async () => "too_many_subtasks" });
+    expect(await call(app, `/tasks/${task.taskId}`, { method: "DELETE" })).toEqual({
+      status: 409,
+      body: { error: "too_many_subtasks" },
+    });
+  });
+
   test("answers 204 without a body, then 404 task_not_found", async () => {
     const ok = await appWith().handle(
       new Request(`http://localhost/tasks/${task.taskId}`, { method: "DELETE" }),

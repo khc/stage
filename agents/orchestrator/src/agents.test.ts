@@ -135,7 +135,11 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
         },
       ],
     }),
-    env: { GATEWAY_URL: `http://127.0.0.1:${gateway.port}`, JOB_NAME: "orchestrator-agents" },
+    env: {
+      GATEWAY_URL: `http://127.0.0.1:${gateway.port}`,
+      JOB_NAME: "orchestrator-agents",
+      TASK_ID: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+    },
   });
   const model = new ScriptedModel([
     (request) => {
@@ -201,6 +205,10 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
   expect(fetched).toContain("GET /a2a/generic-agents/assistant/.well-known/agent-card.json");
   expect(fetched).toContain("POST /a2a/generic-agents/assistant");
   expect(JSON.stringify(sent)).toContain("what is a haiku?");
+  // The request names the task and the session of this run as the parent of the delegated task.
+  expect((sent[0] as { message: { metadata: unknown } }).message.metadata).toMatchObject({
+    "stage:parent": { taskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10", sessionId: session.id },
+  });
 });
 
 const toolFor = async () => {

@@ -15,6 +15,18 @@ const fakeDb = (stored: Record<string, Record<string, unknown>> = {}) => {
   }));
   const collection = mock((_name: string) => ({
     doc,
+    where: (field: string, _op: string, value: unknown) => ({
+      get: async () => ({
+        docs: Object.entries(stored)
+          .filter(([, data]) => data[field] === value)
+          .map(([id, data]) => ({
+            exists: true,
+            id,
+            data: () => data,
+            get: (field: string) => data[field],
+          })),
+      }),
+    }),
     get: async () => ({
       docs: Object.entries(stored).map(([id, data]): Doc => ({
         exists: true,
@@ -66,6 +78,47 @@ describe("task store", () => {
       agentName: "haiku",
     });
     expect(contract.agentName).toBe("haiku");
+  });
+
+  test("stores the parent task and session of a delegated task", async () => {
+    const { firestore, create } = fakeDb();
+    const contract = await createTasksStore(firestore).create({
+      name: "a2a: hi",
+      prompt: "hi",
+      jobName: "j",
+      parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+      parentSessionId: "s-1",
+    });
+    expect(contract).toMatchObject({
+      parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+      parentSessionId: "s-1",
+    });
+    expect(create).toHaveBeenCalledWith(contract);
+  });
+
+  test("writes no parent unless both the task and the session are given", async () => {
+    const { firestore } = fakeDb();
+    const contract = await createTasksStore(firestore).create({
+      name: "t",
+      prompt: "p",
+      jobName: "j",
+      parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+    });
+    expect(Object.hasOwn(contract, "parentTaskId")).toBe(false);
+    expect(Object.hasOwn(contract, "parentSessionId")).toBe(false);
+  });
+
+  test("lists the children of a task by its parentTaskId", async () => {
+    const { firestore, collection } = fakeDb({
+      child1: { prompt: "a", parentTaskId: "parent", parentSessionId: "s-1" },
+      child2: { prompt: "b", parentTaskId: "parent", parentSessionId: "s-2" },
+      other: { prompt: "c", parentTaskId: "elsewhere", parentSessionId: "s-3" },
+      loner: { prompt: "d" },
+    });
+    const children = await createTasksStore(firestore).listChildren("parent");
+    expect(children.map((task) => task.taskId)).toEqual(["child1", "child2"]);
+    expect(children[0]).toMatchObject({ parentTaskId: "parent", parentSessionId: "s-1" });
+    expect(collection).toHaveBeenCalledWith("tasks");
   });
 
   test("propagates a failed create", async () => {

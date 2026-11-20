@@ -1,6 +1,8 @@
 import {
   Box,
+  ChevronDown,
   ChevronRight,
+  CornerDownRight,
   FileText,
   Layers3,
   Loader2,
@@ -30,6 +32,7 @@ import { useNav } from "@/lib/nav";
 import { usePlatformLive } from "@/lib/platform-events";
 import { useTasks } from "@/lib/queries";
 
+import { buildTaskTree, indentLevel } from "./task-tree";
 import { useRunTask } from "./use-run-task";
 
 export function TasksPanel({ title }: { title: string }) {
@@ -39,11 +42,15 @@ export function TasksPanel({ title }: { title: string }) {
   const live = usePlatformLive();
   const [search, setSearch] = useState("");
   const tasks = tasksQuery.data?.tasks ?? [];
-  const filtered = tasks.filter((task) =>
-    `${task.name ?? ""} ${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  // Sub-tasks sit under the task that caused them; a chevron collapses them.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (taskId: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
+  const rows = buildTaskTree(tasks, search, collapsed);
   return (
     <Card className="gap-0">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2 pb-4">
@@ -84,7 +91,7 @@ export function TasksPanel({ title }: { title: string }) {
           >
             Save a prompt and choose a job to get started.
           </Empty>
-        ) : !filtered.length ? (
+        ) : !rows.length ? (
           <Empty icon={<Search />} title="No matching tasks">
             Try another prompt, job name, or task ID.
           </Empty>
@@ -99,31 +106,58 @@ export function TasksPanel({ title }: { title: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((task) => (
+              {rows.map(({ task, depth, hasChildren }) => (
                 <TableRow
                   key={task.taskId}
                   className="cursor-pointer"
                   onClick={() => void openTask(task.taskId)}
                 >
-                  <TableCell className="max-w-xs pl-4">
-                    <button
-                      className="flex items-center gap-2 text-left"
-                      onClick={() => void openTask(task.taskId)}
-                    >
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0">
-                        <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
-                        {task.name?.trim() && task.prompt.trim() !== "{}" && (
-                          <small className="line-clamp-1 hidden text-muted-foreground md:block">
-                            {task.prompt}
-                          </small>
+                  <TableCell
+                    className="max-w-xs pl-4"
+                    style={{ paddingLeft: 16 + indentLevel(depth) * 20 }}
+                  >
+                    <div className="flex items-center gap-1">
+                      {hasChildren ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 shrink-0"
+                          aria-label={
+                            collapsed.has(task.taskId) ? "Show sub-tasks" : "Hide sub-tasks"
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(task.taskId);
+                          }}
+                        >
+                          {collapsed.has(task.taskId) ? <ChevronRight /> : <ChevronDown />}
+                        </Button>
+                      ) : (
+                        <span className="size-6 shrink-0" />
+                      )}
+                      <button
+                        className="flex items-center gap-2 text-left"
+                        onClick={() => void openTask(task.taskId)}
+                      >
+                        {depth > 0 ? (
+                          <CornerDownRight className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <FileText className="size-4 shrink-0 text-muted-foreground" />
                         )}
-                        <small className="text-muted-foreground md:hidden">
-                          {task.jobName ?? "Needs job"}
-                          {task.agentName ? ` · ${task.agentName}` : ""}
-                        </small>
-                      </span>
-                    </button>
+                        <span className="min-w-0">
+                          <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
+                          {task.name?.trim() && task.prompt.trim() !== "{}" && (
+                            <small className="line-clamp-1 hidden text-muted-foreground md:block">
+                              {task.prompt}
+                            </small>
+                          )}
+                          <small className="text-muted-foreground md:hidden">
+                            {task.jobName ?? "Needs job"}
+                            {task.agentName ? ` · ${task.agentName}` : ""}
+                          </small>
+                        </span>
+                      </button>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Badge variant={task.jobName ? "outline" : "destructive"} className="font-mono">
@@ -176,7 +210,7 @@ export function TasksPanel({ title }: { title: string }) {
       <CardFooter className="justify-between text-xs text-muted-foreground">
         <span>
           {tasksQuery.data
-            ? `${filtered.length} task${filtered.length === 1 ? "" : "s"}`
+            ? `${rows.length} task${rows.length === 1 ? "" : "s"}`
             : "Task workspace"}
         </span>
         <span className="flex items-center gap-1">

@@ -14,6 +14,7 @@ import {
 const tasksStore = (overrides: Partial<TasksStore> = {}): TasksStore => ({
   create: async (i) => ({ taskId: "t1", documents: [], ...i }) as never,
   list: async () => [],
+  listChildren: async () => [],
   get: async () => undefined,
   delete: async () => true,
   ...overrides,

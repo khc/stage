@@ -90,6 +90,11 @@ test("non-JSON server failures produce a readable error", async () => {
   await expect(api.tasks()).rejects.toThrow("Request failed (503)");
 });
 
+test("a task with too many sub-tasks is explained when its delete is refused", async () => {
+  const { api } = replying({ error: "too_many_subtasks" }, 409);
+  await expect(api.deleteTask("task-1")).rejects.toThrow("more than 500 sub-tasks");
+});
+
 test("private upstream error details are not displayed", async () => {
   const { api } = replying({ error: "job_error", detail: "private credential details" }, 502);
   await expect(api.run("task-1")).rejects.toThrow("Cloud Run could not complete the request");

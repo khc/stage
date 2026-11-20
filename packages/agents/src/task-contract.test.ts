@@ -83,3 +83,22 @@ test("promptSchema trims, rejects blank text and caps the length at 10 000 chara
   expect(promptSchema.safeParse("a".repeat(10_000)).success).toBe(true);
   expect(promptSchema.safeParse("a".repeat(10_001)).success).toBe(false);
 });
+
+test("carries the parent task and session of a delegated task, and omits them otherwise", async () => {
+  const stored: Record<string, unknown> = {
+    prompt: "hello",
+    parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+    parentSessionId: "s-1",
+  };
+  const { db } = reader(async () => ({
+    id: "a",
+    exists: true,
+    get: (key: string) => stored[key],
+  }));
+  expect(await createGetTask(db)("a")).toEqual({
+    taskId: "a",
+    prompt: "hello",
+    parentTaskId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+    parentSessionId: "s-1",
+  });
+});

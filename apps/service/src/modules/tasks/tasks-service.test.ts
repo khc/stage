@@ -25,6 +25,7 @@ const setupDelete = (found = true) => {
       get: async () =>
         found ? { taskId, prompt: "p", documents: [{ documentId: "d1" }] } : undefined,
       delete: deleteTask,
+      listChildren: async () => [],
     },
     agentRegistry: { list: async () => [] },
     cloudRunJobs: { run: async () => "op" },
@@ -73,7 +74,11 @@ describe("tasks service delete", () => {
   test("works without a documents store", async () => {
     const { service } = setupDelete();
     const withoutDocuments = createTasksService({
-      tasksStore: { get: async () => ({ taskId, prompt: "p" }), delete: async () => true },
+      tasksStore: {
+        get: async () => ({ taskId, prompt: "p" }),
+        listChildren: async () => [],
+        delete: async () => true,
+      },
       agentRegistry: { list: async () => [] },
       sessionsStore: { list: async () => [], delete: async () => true },
     } as unknown as TasksServiceDeps);
@@ -277,5 +282,104 @@ describe("tasks service run", () => {
         .code,
     ).toBe("job_error");
     expect(failing.del).toHaveBeenCalledWith(taskId, "s-new");
+  });
+});
+
+// A tree of tasks: parent -> child -> grandchild, each with a session and a document of its own.
+const setupTree = (children: Record<string, string[]>) => {
+  const order: string[] = [];
+  const known = new Set(Object.keys(children));
+  const sessionsDelete = mock(async (id: string, _session: string) => {
+    order.push(`session of ${id}`);
+    return true;
+  });
+  const deleteTask = mock(async (id: string) => {
+    order.push(`task ${id}`);
+    return true;
+  });
+  const release = mock(async (ids: string[]) => {
+    order.push(`documents ${ids.join(",")}`);
+  });
+  const service = createTasksService({
+    tasksStore: {
+      get: async (id: string) =>
+        known.has(id)
+          ? { taskId: id, prompt: "p", documents: [{ documentId: `d-${id}` }] }
+          : undefined,
+      listChildren: async (id: string) =>
+        (children[id] ?? []).map((child) => ({
+          taskId: child,
+          prompt: "p",
+          documents: [{ documentId: `d-${child}` }],
+        })),
+      delete: deleteTask,
+    },
+    agentRegistry: { list: async () => [] },
+    cloudRunJobs: { run: async () => "op" },
+    sessionsStore: {
+      list: async (id: string) => [{ id: `s-${id}` }],
+      delete: (id: string, session: string) => sessionsDelete(id, session),
+    },
+    documentsStore: { release },
+  } as unknown as TasksServiceDeps);
+  return { service, order, deleteTask, sessionsDelete };
+};
+
+describe("tasks service delete with sub-tasks", () => {
+  test("deletes the sub-tasks and theirs first, each with its sessions, then the task", async () => {
+    const { service, order } = setupTree({
+      parent: ["child"],
+      child: ["grandchild"],
+      grandchild: [],
+    });
+    expect(await service.delete("parent")).toBe("deleted");
+    expect(order).toEqual([
+      "session of grandchild",
+      "task grandchild",
+      "documents d-grandchild",
+      "session of child",
+      "task child",
+      "documents d-child",
+      "session of parent",
+      "task parent",
+      "documents d-parent",
+    ]);
+  });
+
+  test("a failure while deleting a sub-task leaves the task and the shallower tasks in place", async () => {
+    const { service, sessionsDelete, deleteTask } = setupTree({ parent: ["child"], child: [] });
+    sessionsDelete.mockRejectedValue(new Error("firestore down"));
+    const err = await service.delete("parent").then(
+      () => undefined,
+      (e) => e,
+    );
+    expect(err).toBeInstanceOf(DependencyError);
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  test("a parent reference that loops back does not loop the delete", async () => {
+    const { service, deleteTask } = setupTree({ parent: ["child"], child: ["parent"] });
+    expect(await service.delete("parent")).toBe("deleted");
+    expect(deleteTask.mock.calls.map(([id]) => id)).toEqual(["child", "parent"]);
+  });
+});
+
+describe("tasks service delete cap", () => {
+  test("refuses to delete a task with more than 500 sub-tasks, and deletes nothing", async () => {
+    const children: Record<string, string[]> = {
+      parent: Array.from({ length: 501 }, (_, i) => `child-${i}`),
+    };
+    const { service, deleteTask, sessionsDelete } = setupTree(children);
+    expect(await service.delete("parent")).toBe("too_many_subtasks");
+    expect(deleteTask).not.toHaveBeenCalled();
+    expect(sessionsDelete).not.toHaveBeenCalled();
+  });
+
+  test("deletes a task with exactly 500 sub-tasks", async () => {
+    const { service, deleteTask } = setupTree({
+      parent: Array.from({ length: 500 }, (_, i) => `child-${i}`),
+    });
+    expect(await service.delete("parent")).toBe("deleted");
+    expect(deleteTask).toHaveBeenCalledTimes(501);
   });
 });

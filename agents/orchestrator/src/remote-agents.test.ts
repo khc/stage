@@ -24,7 +24,8 @@ const setup = (env: Record<string, string | undefined> = {}) => {
   });
   return { toolset, listAll, configs };
 };
-const context = (invocationId: string) => ({ invocationId }) as ReadonlyContext;
+const context = (invocationId: string, sessionId?: string) =>
+  ({ invocationId, ...(sessionId && { sessionId }) }) as ReadonlyContext;
 
 test("offers every registered agent except those of its own job, as function tools", async () => {
   const tools = await setup().toolset.getTools(context("i1"));
@@ -136,4 +137,32 @@ test("skips registry entries whose names could not be part of an endpoint path",
   });
   const tools = await toolset.getTools(context("i1"));
   expect(tools.map((tool) => tool.name)).toEqual(["poet-agents__haiku"]);
+});
+
+const taskId = "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10";
+
+test("names the orchestrator's task and session in every request to another agent", async () => {
+  const { toolset, configs } = setup({ TASK_ID: taskId });
+  await toolset.getTools(context("i1", "s-1"));
+  expect(configs.every((config) => config.beforeRequestCallbacks?.length === 1)).toBe(true);
+
+  // The callback adds the reference to the outgoing A2A message and keeps what ADK put there.
+  const params: { message: { metadata: Record<string, unknown> } } = {
+    message: { metadata: { existing: 1 } },
+  };
+  await configs[0]!.beforeRequestCallbacks![0]!({} as never, params as never);
+  expect(params.message.metadata).toEqual({
+    existing: 1,
+    "stage:parent": { taskId, sessionId: "s-1" },
+  });
+});
+
+test.each([
+  ["no TASK_ID", {}, "s-1"],
+  ["a TASK_ID that is not a UUID", { TASK_ID: "nope" }, "s-1"],
+  ["no session id", { TASK_ID: taskId }, undefined],
+])("sends no parent reference with %s", async (_case, env, sessionId) => {
+  const { toolset, configs } = setup(env as Record<string, string>);
+  await toolset.getTools(context("i1", sessionId));
+  expect(configs.every((config) => config.beforeRequestCallbacks === undefined)).toBe(true);
 });

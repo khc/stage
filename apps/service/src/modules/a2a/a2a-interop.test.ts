@@ -28,8 +28,10 @@ const gateway = new Elysia()
           tasksService: {
             create: async (input) => ({ status: "created", task: { taskId: "t-1", ...input } }),
             run: async () => ({ status: "started", operation: "op", sessionId: "s-1" }),
+            get: async () => undefined,
           },
           sessionsStore: {
+            list: async () => [],
             get: async () =>
               ({
                 run,

@@ -24,6 +24,9 @@ export const TasksModel = {
     prompt: t.String(),
     jobName: t.Optional(t.String()),
     agentName: t.Optional(t.String()),
+    // Set on a task that an agent delegated: the task and the session that caused it.
+    parentTaskId: t.Optional(t.String({ format: "uuid" })),
+    parentSessionId: t.Optional(t.String()),
     documents: t.Optional(t.Array(t.Object({ documentId: t.String() }))),
   }),
   operation: t.Object({ operation: t.String(), sessionId: t.Optional(t.String()) }),

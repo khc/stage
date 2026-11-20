@@ -17,6 +17,8 @@ const setup = ({
   createResult,
   runResult,
   getSession,
+  parentSession = { run: { status: "running" } },
+  parentExists = true,
 }: {
   sessions?: unknown[];
   allowedJobs?: ReadonlySet<string>;
@@ -25,6 +27,8 @@ const setup = ({
   createResult?: unknown;
   runResult?: unknown;
   getSession?: () => Promise<unknown>;
+  parentSession?: unknown;
+  parentExists?: boolean;
 } = {}) => {
   let time = 0;
   const queue = [...sessions];
@@ -47,9 +51,23 @@ const setup = ({
             ? toAgentCard(jobName, { name: "haiku", description: "Haiku" })
             : undefined,
       },
-      tasksService: { create, run } as never,
+      tasksService: {
+        create,
+        run,
+        get: async (id: string) =>
+          id === parentTaskId && parentExists ? { taskId: id, prompt: "p" } : undefined,
+      } as never,
       sessionsStore: {
-        get: getSession ?? (async () => (queue.length > 1 ? queue.shift() : queue[0])),
+        // The parent is checked from the session summaries: its events are never read.
+        list: async (taskId: string) =>
+          taskId === parentTaskId && parentSession
+            ? [{ id: "parent-session", ...(parentSession as object) }]
+            : [],
+        get: async (taskId: string, sessionId: string) => {
+          if (taskId === parentTaskId && sessionId === "parent-session")
+            throw new Error("the parent session's events must not be read");
+          return getSession ? getSession() : queue.length > 1 ? queue.shift() : queue[0];
+        },
       } as never,
       ...(allowedJobs && { allowedJobs }),
     },
@@ -68,12 +86,19 @@ const setup = ({
 };
 
 const base = "http://service.test";
-const send = (parts: unknown[], blocking = true) => ({
+const parentTaskId = "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10";
+const send = (parts: unknown[], blocking = true, metadata?: Record<string, unknown>) => ({
   jsonrpc: "2.0",
   id: 1,
   method: "message/send",
   params: {
-    message: { kind: "message", messageId: "m-1", role: "user", parts },
+    message: {
+      kind: "message",
+      messageId: "m-1",
+      role: "user",
+      parts,
+      ...(metadata && { metadata }),
+    },
     configuration: { blocking },
   },
 });
@@ -277,5 +302,51 @@ describe("a2a service", () => {
     const response = await call(service, send(text("hi")));
     expect(response.result?.status.state).toBe("failed");
     expect(response.result?.status.message?.parts[0]?.text).toContain("no final response");
+  });
+
+  describe("the parent of a delegated task", () => {
+    const parent = (ref: unknown) => ({ "stage:parent": ref });
+    const claim = { taskId: parentTaskId, sessionId: "parent-session" };
+
+    test("a running parent session makes the task a sub-task of it", async () => {
+      const { service, create } = setup();
+      await call(service, send(text("hi"), true, parent(claim)));
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ parentTaskId, parentSessionId: "parent-session" }),
+      );
+    });
+
+    test.each([
+      ["a parent task that does not exist", { parentExists: false }, parent(claim)],
+      [
+        "a parent session that is not running",
+        { parentSession: { run: { status: "succeeded" } } },
+        parent(claim),
+      ],
+      ["a parent session that does not exist", { parentSession: null }, parent(claim)],
+      ["a task id that is not a UUID", {}, parent({ taskId: "nope", sessionId: "parent-session" })],
+      ["a reference of the wrong shape", {}, parent("x")],
+    ])(
+      "%s is ignored: the task is created without a parent",
+      async (_case, overrides, metadata) => {
+        const spy = spyOn(console, "warn").mockImplementation(() => {});
+        const { service, create } = setup(overrides as never);
+        await call(service, send(text("hi"), true, metadata));
+        const input = create.mock.calls[0]![0] as Record<string, unknown>;
+        expect(Object.hasOwn(input, "parentTaskId")).toBe(false);
+        expect(Object.hasOwn(input, "parentSessionId")).toBe(false);
+        expect(spy).toHaveBeenCalled();
+        spy.mockRestore();
+      },
+    );
+
+    test("a message with no reference creates a task without a parent, and logs nothing", async () => {
+      const spy = spyOn(console, "warn").mockImplementation(() => {});
+      const { service, create } = setup();
+      await call(service, send(text("hi")));
+      expect(Object.hasOwn(create.mock.calls[0]![0] as object, "parentTaskId")).toBe(false);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
   });
 });

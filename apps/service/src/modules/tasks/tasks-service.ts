@@ -37,6 +37,9 @@ export type RunTaskResult =
         | "message_pending";
     };
 
+// A task with more sub-tasks than this is not deleted in one request.
+export const MAX_SUBTASKS = 500;
+
 export type Resume = { sessionId?: string; message: string };
 
 // Every expected outcome is a status; a failing dependency throws a DependencyError.
@@ -50,7 +53,7 @@ export type TasksService = {
   // session in Firestore and the job gets only the session id.
   run: (taskId: string, resume?: Resume) => Promise<RunTaskResult>;
   // Deletes the task with its sessions, then releases the documents nobody else uses.
-  delete: (taskId: string) => Promise<"deleted" | "not_found">;
+  delete: (taskId: string) => Promise<"deleted" | "not_found" | "too_many_subtasks">;
 };
 
 export const createTasksService = ({
@@ -137,13 +140,27 @@ export const createTasksService = ({
     guard("task_error", async () => {
       const task = await tasksStore.get(taskId);
       if (!task) return "not_found";
-      // Sessions go first, so a failure leaves the task in place to retry.
-      for (const { id } of await sessionsStore.list(taskId)) await sessionsStore.delete(taskId, id);
-      await tasksStore.delete(taskId);
-      // A failure here is only logged, since the task is already gone.
-      await documentsStore
-        ?.release((task.documents ?? []).map((document) => document.documentId))
-        .catch((err) => console.error(err));
+      // The task and its sub-tasks, and theirs, breadth first; the seen set stops a parent loop.
+      const found = [task];
+      const seen = new Set([taskId]);
+      for (const { taskId: id } of found)
+        for (const child of await tasksStore.listChildren(id))
+          if (!seen.has(child.taskId)) {
+            if (found.length > MAX_SUBTASKS) return "too_many_subtasks";
+            seen.add(child.taskId);
+            found.push(child);
+          }
+      // Deepest first, so a failure leaves the task and the shallower ones in place to retry.
+      for (const { taskId: id, documents } of found.toReversed()) {
+        // Sessions go first, so a failure leaves the task in place to retry.
+        for (const { id: sessionId } of await sessionsStore.list(id))
+          await sessionsStore.delete(id, sessionId);
+        await tasksStore.delete(id);
+        // A failure here is only logged, since the task is already gone.
+        await documentsStore
+          ?.release((documents ?? []).map((document) => document.documentId))
+          .catch((err) => console.error(err));
+      }
       return "deleted";
     }),
 });

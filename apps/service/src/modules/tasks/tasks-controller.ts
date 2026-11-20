@@ -29,10 +29,13 @@ export const tasksController = ({
     .post(
       "",
       async ({ body, status }) => {
+        // Named one by one: only the A2A gateway sets a parent, whatever else the body carries.
+        const { name, prompt, jobName, agentName } = body;
         const result = await tasksService.create({
-          ...body,
-          name: body.name.trim(),
-          prompt: body.prompt.trim(),
+          name: name.trim(),
+          prompt: prompt.trim(),
+          jobName,
+          ...(agentName !== undefined && { agentName }),
         });
         if (result.status !== "created") return status(400, { error: result.status });
         return status(201, result.task);
@@ -119,15 +122,22 @@ export const tasksController = ({
     )
     .delete(
       "/:taskId",
-      async ({ params, status }) =>
-        (await tasksService.delete(params.taskId.toLowerCase())) === "deleted"
-          ? status(204, undefined)
-          : status(404, { error: "task_not_found" }),
+      async ({ params, status }) => {
+        const result = await tasksService.delete(params.taskId.toLowerCase());
+        if (result === "deleted") return status(204, undefined);
+        if (result === "too_many_subtasks") return status(409, { error: "too_many_subtasks" });
+        return status(404, { error: "task_not_found" });
+      },
       {
         params: TasksModel.params,
-        ...doc(tag, "Delete a task with its sessions", {
-          204: "Deleted; its unused documents are released.",
+        ...doc(tag, "Delete a task with its sub-tasks and sessions", {
+          204: "Deleted with its sub-tasks, and theirs; their unused documents are released.",
           404: errors.taskNotFound,
+          409: {
+            description:
+              "The task has more than 500 sub-tasks and nothing was deleted (`too_many_subtasks`).",
+            schema: errors.invalid.schema,
+          },
           502: errors.dependency,
         }),
       },
