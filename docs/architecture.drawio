@@ -1,99 +1,288 @@
-<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+<mxfile host="app.diagrams.net" agent="Antigravity" version="24.0.0">
   <diagram id="stage-architecture" name="Stage architecture">
-    <mxGraphModel dx="1480" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="0">
+    <mxGraphModel dx="1800" dy="1360" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1360" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" value="&lt;b&gt;Stage: current architecture&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;Bun workspace: apps/ui, apps/service, apps/extract-service, packages/http, packages/agents, agents/generic, agents/poet&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=top;fontSize=16;" vertex="1" parent="1">
-          <mxGeometry x="40" y="20" width="600" height="50" as="geometry" />
+        <!-- Header -->
+        <mxCell id="title" value="&lt;b style=&quot;font-size: 18px; color: #0F172A&quot;&gt;Stage — System Architecture&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #475569&quot;&gt;Bun monorepo separated by architectural planes · apps/{ui,service,extract-service} · packages/{http,agents,ingestion} · agents/{generic,poet,knowledge}&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Inter,Helvetica,Arial;" vertex="1" parent="1">
+          <mxGeometry x="30" y="14" width="980" height="50" as="geometry" />
         </mxCell>
 
-        <mxCell id="ui" value="&lt;b&gt;apps/ui&lt;/b&gt;&lt;br&gt;React + Vite :5173&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;tasks, jobs, sessions, run badge&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
-          <mxGeometry x="40" y="300" width="220" height="110" as="geometry" />
+        <!-- Legend -->
+        <mxCell id="legend-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="16" width="730" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-1" value="&lt;font style=&quot;color:#2563EB&quot;&gt;&lt;b&gt;━━&lt;/b&gt;&lt;/font&gt; HTTP / API" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontFamily=Inter,Helvetica,Arial;fontColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="24" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-2" value="&lt;font style=&quot;color:#D97706&quot;&gt;&lt;b&gt;━━&lt;/b&gt;&lt;/font&gt; Pub/Sub Events" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontFamily=Inter,Helvetica,Arial;fontColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="24" width="135" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-3" value="&lt;font style=&quot;color:#16A34A&quot;&gt;&lt;b&gt;━━&lt;/b&gt;&lt;/font&gt; State / Stores" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontFamily=Inter,Helvetica,Arial;fontColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="24" width="125" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-4" value="&lt;font style=&quot;color:#9333EA&quot;&gt;&lt;b&gt;━━&lt;/b&gt;&lt;/font&gt; AI / Embeddings" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontFamily=Inter,Helvetica,Arial;fontColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="1455" y="24" width="135" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-5" value="&lt;font style=&quot;color:#64748B&quot;&gt;&lt;b&gt;╌╌&lt;/b&gt;&lt;/font&gt; OTLP / Infra" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontFamily=Inter,Helvetica,Arial;fontColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="24" width="150" height="30" as="geometry" />
         </mxCell>
 
-        <mxCell id="service" value="&lt;b&gt;apps/service&lt;/b&gt;&lt;br&gt;Elysia API :3000&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;REST: /tasks, /jobs, /sessions, /run&lt;br&gt;SSE: /events, .../messages&lt;br&gt;queues resume message, checks run state&lt;br&gt;agent cards: /jobs/:job/agents/:a/card&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="340" y="250" width="260" height="210" as="geometry" />
+        <!-- Cross-cutting Left: Observability Plane -->
+        <mxCell id="plane-obs" value="&lt;b style=&quot;color:#334155&quot;&gt;OBSERVABILITY PLANE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.5;verticalAlign=top;align=center;spacingTop=10;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="30" y="130" width="185" height="1190" as="geometry" />
+        </mxCell>
+        <mxCell id="mlflow" value="&lt;b style=&quot;color:#0F172A&quot;&gt;MLflow&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#64748B;font-size:11px&quot;&gt;localhost:5001&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;OTLP/HTTP trace store&lt;br&gt;(/v1/traces)&lt;br&gt;&lt;br&gt;ADK agent, LLM &amp; tool spans&lt;br&gt;+ HTTP request spans&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="45" y="425" width="155" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="otel" value="&lt;b style=&quot;color:#0F172A&quot;&gt;@stage/http/otel&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#475569&quot;&gt;bun --preload telemetry-init&lt;br&gt;propagates traceparent&lt;br&gt;&amp; x-request-id&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#94A3B8;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="45" y="640" width="155" height="105" as="geometry" />
         </mxCell>
 
-        <mxCell id="extract" value="&lt;b&gt;apps/extract-service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;document file to text&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="340" y="560" width="260" height="70" as="geometry" />
+        <!-- Cross-cutting Right: Operations & IaC Plane -->
+        <mxCell id="plane-ops" value="&lt;b style=&quot;color:#334155&quot;&gt;OPERATIONS &amp; IaC PLANE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.5;verticalAlign=top;align=center;spacingTop=10;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1495" y="130" width="275" height="1190" as="geometry" />
+        </mxCell>
+        <mxCell id="terraform" value="&lt;b style=&quot;color:#0F172A&quot;&gt;Terraform (infra/)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#475569&quot;&gt;task tf:init · task tf:apply&lt;br&gt;&lt;br&gt;• infra/envs/local (Floci)&lt;br&gt;• infra/envs/gcp/{dev,prod}&lt;br&gt;• modules/{stage,gcp-*}&lt;br&gt;&lt;br&gt;Provisions topics, jobs,&lt;br&gt;extract, service &amp; Cloud SQL&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1515" y="425" width="235" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="taskfile" value="&lt;b style=&quot;color:#0F172A&quot;&gt;Taskfile &amp; Scripts&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#475569&quot;&gt;• task build:{agents,extract-service,service,ui}&lt;br&gt;• task register-agents&lt;br&gt;• task load-imdb (scripts/imdb-load.ts)&lt;br&gt;• task list-jobs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1515" y="1040" width="235" height="150" as="geometry" />
         </mxCell>
 
-        <mxCell id="floci" value="&lt;b&gt;Floci GCP&lt;/b&gt; (local emulator :4588)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;the same services on real Google Cloud in production&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#666666;verticalAlign=top;align=left;spacingLeft=10;" vertex="1" parent="1">
-          <mxGeometry x="680" y="30" width="380" height="760" as="geometry" />
+        <!-- Plane 1: Presentation & API Plane -->
+        <mxCell id="plane-api" value="&lt;b style=&quot;color:#1E40AF&quot;&gt;PRESENTATION &amp; API PLANE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#93C5FD;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=8;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="280" y="130" width="1135" height="205" as="geometry" />
+        </mxCell>
+        <mxCell id="ui" value="&lt;b style=&quot;color:#4C1D95&quot;&gt;apps/ui&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#6D28D9;font-size:11px&quot;&gt;React + Vite :5173 (nginx :8080)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;Tasks, jobs, sessions, documents,&lt;br&gt;JSON Schema forms, live SSE updates&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8B5CF6;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="180" width="225" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="service" value="&lt;b style=&quot;color:#1E3A8A&quot;&gt;apps/service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#2563EB;font-size:11px&quot;&gt;Elysia API :3000 (@stage/http)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;REST: /tasks, /jobs, /sessions, /documents, /health&lt;br&gt;SSE: /events, /tasks/:id/sessions/:sid/messages&lt;br&gt;Agent Cards: /jobs/:job/agents/:a/card · Docs: /docs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="615" y="175" width="395" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="extract" value="&lt;b style=&quot;color:#1E3A8A&quot;&gt;apps/extract-service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#2563EB;font-size:11px&quot;&gt;Elysia :8080 (@stage/http)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;POST /extract — document to text (@xberg)&lt;br&gt;Deployed as Cloud Run service: extract&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="180" width="295" height="130" as="geometry" />
         </mxCell>
 
-        <mxCell id="pubsub" value="&lt;b&gt;Pub/Sub&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="700" y="80" width="340" height="130" as="geometry" />
+        <!-- Plane 2: Control & Messaging Plane -->
+        <mxCell id="plane-control" value="&lt;b style=&quot;color:#166534&quot;&gt;CONTROL &amp; MESSAGING PLANE&lt;/b&gt; &lt;font style=&quot;color:#475569&quot;&gt;(Floci GCP :4588 / Google Cloud)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#86EFAC;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=8;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="280" y="405" width="1135" height="215" as="geometry" />
         </mxCell>
-        <mxCell id="topic-agent" value="agent-events (PUBSUB_TOPIC)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;ADK events: text, tool calls, user message&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
-          <mxGeometry x="715" y="105" width="310" height="45" as="geometry" />
+        <mxCell id="pubsub" value="&lt;b style=&quot;color:#92400E&quot;&gt;Pub/Sub&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=1.5;verticalAlign=top;spacingTop=6;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="450" width="505" height="150" as="geometry" />
         </mxCell>
-        <mxCell id="topic-platform" value="platform events (PLATFORM_EVENTS_TOPIC)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;task.created, task.run_requested, document.*&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
-          <mxGeometry x="715" y="157" width="310" height="45" as="geometry" />
+        <mxCell id="topic-agent" value="&lt;b&gt;agent-events&lt;/b&gt; (PUBSUB_TOPIC)&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#475569&quot;&gt;ADK events: model text, tool calls, user messages&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FBBF24;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="320" y="485" width="465" height="44" as="geometry" />
         </mxCell>
-
-        <mxCell id="firestore" value="&lt;b&gt;Firestore&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;tasks (prompt, jobName, agentName, documents)&lt;br&gt;sessions + events (taskId, run state, lease,&lt;br&gt;pendingMessage)&lt;br&gt;documents (extracted text)&lt;br&gt;agents (registry: schemas per job)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="700" y="260" width="340" height="170" as="geometry" />
-        </mxCell>
-
-        <mxCell id="jobs" value="&lt;b&gt;Cloud Run Jobs&lt;/b&gt; (one image per agent app)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;env per run: TASK_ID, SESSION_ID when resuming&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="700" y="470" width="340" height="300" as="geometry" />
-        </mxCell>
-        <mxCell id="job-generic" value="&lt;b&gt;generic-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;assistant&lt;br&gt;document_analyser&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
-          <mxGeometry x="715" y="525" width="150" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="job-poet" value="&lt;b&gt;poet-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;haiku&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
-          <mxGeometry x="875" y="525" width="150" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="runtime" value="&lt;b&gt;packages/agents&lt;/b&gt; (shared runtime)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;reads task and queued message, takes the run lease,&lt;br&gt;ADK Runner, FirestoreSessionService (events, heartbeat),&lt;br&gt;event publisher, agent registry (register mode)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
-          <mxGeometry x="715" y="620" width="310" height="135" as="geometry" />
+        <mxCell id="topic-platform" value="&lt;b&gt;platform-events&lt;/b&gt; (PLATFORM_EVENTS_TOPIC)&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#475569&quot;&gt;task.created · task.deleted · task.run_requested · document.* · job.registration_requested&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FBBF24;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="320" y="540" width="465" height="44" as="geometry" />
         </mxCell>
 
-        <mxCell id="gemini" value="&lt;b&gt;Gemini&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;Gemini API or Vertex AI&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
-          <mxGeometry x="1150" y="610" width="220" height="70" as="geometry" />
+        <mxCell id="firestore" value="&lt;b style=&quot;color:#14532D&quot;&gt;Firestore&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;• &lt;b&gt;tasks&lt;/b&gt;: prompt, jobName, agentName, documentIds&lt;br&gt;• &lt;b&gt;sessions + events&lt;/b&gt;: taskId, run state, lease, pendingMessage, token usage&lt;br&gt;• &lt;b&gt;documents&lt;/b&gt;: extracted text&lt;br&gt;• &lt;b&gt;agents&lt;/b&gt;: registry (input/output JSON Schemas per job)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;strokeWidth=1.5;align=left;spacingLeft=14;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="845" y="450" width="550" height="150" as="geometry" />
         </mxCell>
 
-        <mxCell id="tooling" value="&lt;b&gt;Taskfile and scripts&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;rebuild, tf:apply (Terraform, infra/),&lt;br&gt;register-agents (direct to Firestore)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
-          <mxGeometry x="1150" y="285" width="230" height="80" as="geometry" />
+        <!-- Plane 3: Execution & AI Plane -->
+        <mxCell id="plane-exec" value="&lt;b style=&quot;color:#9F1239&quot;&gt;EXECUTION &amp; AI PLANE&lt;/b&gt; &lt;font style=&quot;color:#475569&quot;&gt;(Cloud Run Jobs + Model Inference)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FDA4AF;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=8;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="280" y="690" width="1135" height="305" as="geometry" />
+        </mxCell>
+        <mxCell id="jobs" value="&lt;b style=&quot;color:#881337&quot;&gt;Cloud Run Jobs&lt;/b&gt; &lt;font style=&quot;font-size:11px;color:#64748B&quot;&gt;(one image per agent app, max_retries=0 · env: TASK_ID, optional SESSION_ID)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F43F5E;strokeWidth=1.5;verticalAlign=top;spacingTop=8;fontFamily=Inter,Helvetica,Arial;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="735" width="770" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="job-generic" value="&lt;b style=&quot;color:#9F1239&quot;&gt;generic-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;assistant&lt;br&gt;document_analyser&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="320" y="775" width="230" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="job-poet" value="&lt;b style=&quot;color:#9F1239&quot;&gt;poet-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;haiku-poet&lt;br&gt;limerick-poet&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="570" y="775" width="230" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="job-knowledge" value="&lt;b style=&quot;color:#9F1239&quot;&gt;knowledge-agents&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;knowledge-assistant&lt;br&gt;imdb-assistant · discovery-assistant&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#FB7185;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="820" y="775" width="230" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="runtime" value="&lt;b style=&quot;color:#0F172A&quot;&gt;packages/agents&lt;/b&gt; &lt;font style=&quot;color:#64748B&quot;&gt;(shared runtime)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;Reads task contract &amp; queued resume message · Acquires run lease · Runs ADK Runner + FirestoreSessionService (events, heartbeat)&lt;br&gt;Publishes ADK events · Supports register mode for schema registry · Exports OTEL spans on exit&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="320" y="870" width="730" height="88" as="geometry" />
         </mxCell>
 
-        <mxCell id="e-ui-svc" value="REST + SSE" style="endArrow=classic;startArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ui" target="service">
+        <mxCell id="gemini" value="&lt;b style=&quot;color:#581C87&quot;&gt;Gemini&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#7E22CE;font-size:11px&quot;&gt;LLM Inference&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;Gemini API or Vertex AI&lt;br&gt;(Express mode / ADC)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A855F7;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="775" width="235" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Plane 4: Data, Knowledge & Ingestion Plane -->
+        <mxCell id="plane-data" value="&lt;b style=&quot;color:#0F766E&quot;&gt;DATA, KNOWLEDGE &amp; INGESTION PLANE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#5EEAD4;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=8;fontSize=11;fontFamily=Inter,Helvetica,Arial;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1065" width="1135" height="255" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudsql" value="&lt;b style=&quot;color:#1E3A8A&quot;&gt;Cloud SQL: Postgres 17&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#2563EB;font-size:11px&quot;&gt;imdb database (Floci)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;title_*, name_basics&lt;br&gt;imdb_reader (SELECT, 10s, 50 rows)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1110" width="275" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="embeddings" value="&lt;b style=&quot;color:#854D0E&quot;&gt;Embeddings Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#CA8A04;font-size:11px&quot;&gt;oMLX :8000 (host)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;OpenAI-compatible /v1/embeddings&lt;br&gt;(e.g. Qwen3-Embedding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EAB308;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="595" y="1110" width="245" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="qdrant" value="&lt;b style=&quot;color:#14532D&quot;&gt;Qdrant&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#16A34A;font-size:11px&quot;&gt;localhost:6333&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;docs collection&lt;br&gt;chunk vectors &amp; metadata&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="860" y="1110" width="250" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="neo4j" value="&lt;b style=&quot;color:#064E3B&quot;&gt;Neo4j&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color:#059669;font-size:11px&quot;&gt;localhost:7474 / :7687&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;discovery graph&lt;br&gt;(CONTAINS, LINKS_TO, REFERENCES)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="1110" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ingestion" value="&lt;b style=&quot;color:#312E81&quot;&gt;packages/ingestion (CLI)&lt;/b&gt; &lt;font style=&quot;font-size:11px;color:#334155&quot;&gt;— fetch (Bun &amp; DuckDB docs) -&amp;gt; normalize &amp; chunk -&amp;gt; embed -&amp;gt; Qdrant · write catalog JSONL &amp; Neo4j graph · ingest imdb -&amp;gt; Neo4j &amp; Qdrant · search &amp; eval (recall@5, MRR)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2FF;strokeColor=#6366F1;strokeWidth=1.5;fontFamily=Inter,Helvetica,Arial;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1245" width="1095" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: HTTP / API (Blue) -->
+        <mxCell id="e-ui-svc" value="REST + SSE" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#EFF6FF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ui" target="service">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-ext" value="extract text" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="service" target="extract">
+        <mxCell id="e-svc-ext" value="POST /extract" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#EFF6FF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="service" target="extract">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-fs" value="tasks, documents, sessions, registry" style="endArrow=classic;startArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="service" target="firestore">
+        <mxCell id="e-svc-jobs" value="runJob (Cloud Run API)" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#2563EB;strokeWidth=1.5;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.06;exitY=1;entryX=0;entryY=0.3;" edge="1" parent="1" source="service" target="jobs">
+          <mxGeometry x="-0.55" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="639" y="365" />
+              <mxPoint x="256" y="365" />
+              <mxPoint x="256" y="807" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Edges: Pub/Sub Events (Amber) -->
+        <mxCell id="e-svc-ps" value="publish platform events,&lt;br&gt;subscribe both topics" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#D97706;strokeWidth=1.5;fontColor=#92400E;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.28;exitY=1;entryX=0.84;entryY=0;" edge="1" parent="1" source="service" target="pubsub">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-ps" value="publish ADK events" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#D97706;strokeWidth=1.5;fontColor=#92400E;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.48;exitY=0;entryX=0.73;entryY=1;" edge="1" parent="1" source="jobs" target="pubsub">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Edges: State & Stores (Green) -->
+        <mxCell id="e-svc-fs" value="tasks, documents, sessions, registry" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.8;exitY=1;entryX=0.15;entryY=0;" edge="1" parent="1" source="service" target="firestore">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-fs" value="task, queued message,&lt;br&gt;events, run lease" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.88;exitY=0;entryX=0.25;entryY=1;" edge="1" parent="1" source="jobs" target="firestore">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-sql" value="query_imdb (SELECT)" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.32;exitY=1;entryX=0.89;entryY=0;" edge="1" parent="1" source="jobs" target="cloudsql">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-qdrant" value="search chunks" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.89;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="jobs" target="qdrant">
+          <mxGeometry x="-0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-neo4j" value="discover / explore" style="endArrow=classic;startArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.97;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="jobs" target="neo4j">
+          <mxGeometry x="0.22" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1047" y="1028" />
+              <mxPoint x="1263" y="1028" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Ingestion -> Stores -->
+        <mxCell id="e-ing-sql" value="ingest imdb" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#F0FDFA;exitX=0.12;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="ingestion" target="cloudsql">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-ps" value="publish platform events,&lt;br&gt;subscribe to both topics" style="endArrow=classic;startArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.12;entryX=0;entryY=0.5;" edge="1" parent="1" source="service" target="pubsub">
+        <mxCell id="e-ing-emb" value="embed chunks" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#F0FDFA;exitX=0.38;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="ingestion" target="embeddings">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-jobs" value="runJob (Cloud Run API)" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.88;entryX=0;entryY=0.5;" edge="1" parent="1" source="service" target="jobs">
+        <mxCell id="e-ing-qdrant" value="upsert vectors" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#F0FDFA;exitX=0.62;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="ingestion" target="qdrant">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-jobs-fs" value="task, queued message;&lt;br&gt;events, run state" style="endArrow=classic;startArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="jobs" target="firestore">
+        <mxCell id="e-ing-neo4j" value="write catalog" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#14532D;fontSize=11;labelBackgroundColor=#F0FDFA;exitX=0.88;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="ingestion" target="neo4j">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-jobs-ps" value="publish agent events" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.15;entryX=1;entryY=0.5;" edge="1" parent="1" source="jobs" target="topic-agent">
+
+        <!-- Edges: AI / Embeddings (Purple) -->
+        <mxCell id="e-jobs-gem" value="model calls" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#FFF1F2;exitX=1;exitY=0.48;entryX=0;entryY=0.5;" edge="1" parent="1" source="jobs" target="gemini">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-jobs-emb" value="embed query" style="endArrow=classic;html=1;rounded=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9333EA;strokeWidth=1.5;fontColor=#581C87;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.54;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="jobs" target="embeddings">
+          <mxGeometry x="0.05" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Edges: Observability (Dashed Slate, routed in top corridor ABOVE plane titles) -->
+        <mxCell id="e-svc-mlflow" value="OTLP" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.2;exitY=0;entryX=1;entryY=0.45;" edge="1" parent="1" source="service" target="mlflow">
+          <mxGeometry x="-0.25" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="694" y="110" />
+              <mxPoint x="228" y="110" />
+              <mxPoint x="228" y="508" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-ext-mlflow" value="OTLP" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;entryX=1;entryY=0.22;" edge="1" parent="1" source="extract" target="mlflow">
+          <mxGeometry x="-0.55" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1248" y="90" />
+              <mxPoint x="242" y="90" />
+              <mxPoint x="242" y="466" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jobs-mlflow" value="OTLP traces" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.72;entryX=1;entryY=0.75;" edge="1" parent="1" source="jobs" target="mlflow">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="242" y="908" />
+              <mxPoint x="242" y="564" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Edges: Operations & IaC (Dashed Slate, dedicated parallel lanes) -->
+        <mxCell id="e-tf-ext" value="deploy extract" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.14;entryX=1;entryY=0.5;" edge="1" parent="1" source="terraform" target="extract">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1100" y="515" />
-              <mxPoint x="1100" y="128" />
+              <mxPoint x="1442" y="451" />
+              <mxPoint x="1442" y="245" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-jobs-gem" value="model calls" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.7;entryX=0;entryY=0.5;" edge="1" parent="1" source="jobs" target="gemini">
+        <mxCell id="e-tf-fs" value="Firestore (GCP only)" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.46;entryX=1;entryY=0.4;" edge="1" parent="1" source="terraform" target="firestore">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-tool-fs" value="register agents" style="endArrow=classic;html=1;dashed=1;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="tooling" target="firestore">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-tf-jobs" value="deploy jobs" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.82;entryX=1;entryY=0.06;" edge="1" parent="1" source="terraform" target="jobs">
+          <mxGeometry x="0.3" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1458" y="577" />
+              <mxPoint x="1458" y="750" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-tool-jobs" value="build images,&lt;br&gt;update jobs" style="endArrow=classic;html=1;dashed=1;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;entryX=1;entryY=0.1;" edge="1" parent="1" source="tooling" target="jobs">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-task-fs" value="register-agents" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.22;entryX=1;entryY=0.74;" edge="1" parent="1" source="taskfile" target="firestore">
+          <mxGeometry x="-0.55" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1474" y="1073" />
+              <mxPoint x="1474" y="561" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-task-sql" value="task load-imdb" style="endArrow=classic;html=1;rounded=1;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=1.5;fontColor=#475569;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.8;entryX=0;entryY=0.5;" edge="1" parent="1" source="taskfile" target="cloudsql">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1455" y="1160" />
+              <mxPoint x="1455" y="1338" />
+              <mxPoint x="262" y="1338" />
+              <mxPoint x="262" y="1160" />
+            </Array>
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>
