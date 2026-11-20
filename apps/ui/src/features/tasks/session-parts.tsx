@@ -34,6 +34,7 @@ import {
   parseJsonObject,
   streamMessages,
   withEvent,
+  type AgentInfo,
   type DocumentSummary,
   type JsonSchema,
   type RunState,
@@ -236,15 +237,20 @@ export function PromptPreview({ text }: { text: string }) {
 
 const isMarkdown = (schema?: JsonSchema) => /markdown/i.test(schema?.description ?? "");
 
-function OutputText({ text, schema }: { text: string; schema?: JsonSchema }) {
+// An agent that declares its output a plain string (and not Markdown) is shown as written. Any
+// other agent text that is not a JSON object, such as a chat reply that skips the output schema,
+// is Markdown: models write it that way.
+const isPlainText = (schema?: JsonSchema) => schema?.type === "string" && !isMarkdown(schema);
+
+export function OutputText({ text, schema }: { text: string; schema?: JsonSchema }) {
   const fields = parseJsonObject(text);
   if (!fields)
-    return isMarkdown(schema) ? (
+    return isPlainText(schema) ? (
+      <Preview>{text}</Preview>
+    ) : (
       <Preview wrap={false}>
         <Markdown>{text}</Markdown>
       </Preview>
-    ) : (
-      <Preview>{text}</Preview>
     );
   return (
     <dl className="flex flex-col gap-3">
@@ -272,6 +278,16 @@ function OutputText({ text, schema }: { text: string; schema?: JsonSchema }) {
   );
 }
 
+// The agents of a job image, which tell how their output is laid out (for example which
+// fields are Markdown).
+export const useJobAgents = (jobName?: string) =>
+  useQuery({
+    queryKey: ["agents", jobName],
+    queryFn: () => api.agents(jobName!),
+    enabled: !!jobName,
+    retry: false,
+  });
+
 export function LastOutput({
   taskId,
   latest,
@@ -288,13 +304,7 @@ export function LastOutput({
   onOpen: (sessionId: string) => void;
 }) {
   const sessionId = latest?.id ?? null;
-  const agents = useQuery({
-    queryKey: ["agents", jobName],
-    queryFn: () => api.agents(jobName!),
-    enabled: !!jobName,
-    retry: false,
-  });
-  const agent = agents.data?.agents.find((candidate) => candidate.name === agentName);
+  const agents = useJobAgents(jobName);
   const session = useQuery({
     queryKey: ["session", taskId, sessionId],
     queryFn: () => api.session(taskId, sessionId!),
@@ -311,6 +321,10 @@ export function LastOutput({
   if (session.isError)
     return <ErrorBox error={session.error} retry={() => void session.refetch()} />;
   const output = lastOutput(session.data!.events);
+  // A task that names no agent runs the job's default one, which is the author of its events.
+  const agent = agents.data?.agents.find(
+    (candidate) => candidate.name === (agentName ?? output?.author),
+  );
   return (
     <>
       <div className="flex items-center justify-between">
@@ -438,9 +452,19 @@ function ToolEvent({
   );
 }
 
-export function EventCard({ event, index }: { event: SessionEvent; index: number }) {
+export function EventCard({
+  event,
+  index,
+  agents,
+}: {
+  event: SessionEvent;
+  index: number;
+  agents?: AgentInfo[];
+}) {
   const parts = event.content?.parts ?? [];
+  const outputSchema = agents?.find((agent) => agent.name === event.author)?.outputSchema;
   const isUser = event.author === "user";
+  const textAsMarkdown = !isUser && !isPlainText(outputSchema);
   const align = isUser ? "end" : "start";
   return (
     <Message align={align}>
@@ -465,19 +489,23 @@ export function EventCard({ event, index }: { event: SessionEvent; index: number
               <div key={i} className="flex flex-col gap-1">
                 {part.text != null &&
                   (part.thought || !parseJsonObject(part.text) ? (
-                    <div
-                      className={cn(
-                        "text-[13px] leading-relaxed whitespace-pre-wrap",
-                        part.thought && "text-muted-foreground italic",
-                      )}
-                    >
-                      {part.thought && (
-                        <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
-                      )}
-                      {part.text}
-                    </div>
+                    textAsMarkdown && !part.thought ? (
+                      <Markdown className="text-[13px]">{part.text}</Markdown>
+                    ) : (
+                      <div
+                        className={cn(
+                          "text-[13px] leading-relaxed whitespace-pre-wrap",
+                          part.thought && "text-muted-foreground italic",
+                        )}
+                      >
+                        {part.thought && (
+                          <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
+                        )}
+                        {part.text}
+                      </div>
+                    )
                   ) : (
-                    <OutputText text={part.text} />
+                    <OutputText text={part.text} schema={outputSchema} />
                   ))}
                 {part.functionCall && (
                   <ToolEvent

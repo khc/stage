@@ -42,6 +42,7 @@ import {
   DeleteSession,
   EventCard,
   LastOutput,
+  useJobAgents,
   PromptPreview,
   SessionStatsBar,
   TaskDocuments,
@@ -90,6 +91,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
     enabled: !!sessionId,
     refetchInterval: (query) => (query.state.data?.run?.status === "running" ? 5000 : false),
   });
+  const agents = useJobAgents(task.data?.jobName);
   useSessionStream(taskId, tab === "sessions" ? sessionId : null);
   const list = (sessions.data?.sessions ?? []).toSorted(
     (a, b) => b.lastUpdateTime - a.lastUpdateTime,
@@ -231,7 +233,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                                 messageId={event.id ?? String(i)}
                                 scrollAnchor={event.author === "user"}
                               >
-                                <EventCard event={event} index={i} />
+                                <EventCard event={event} index={i} agents={agents.data?.agents} />
                               </MessageScrollerItem>
                             ))
                           ) : (

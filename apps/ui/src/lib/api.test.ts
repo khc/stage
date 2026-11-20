@@ -203,7 +203,7 @@ test("lastOutput returns the newest visible agent text, skipping tools, thoughts
     },
     text("hidden thought", { thought: true }),
   ];
-  expect(lastOutput(events)).toEqual({ text: "newest answer", timestamp: 7 });
+  expect(lastOutput(events)).toEqual({ text: "newest answer", timestamp: 7, author: "assistant" });
   expect(lastOutput([])).toBeUndefined();
   expect(lastOutput([events[0]!])).toBeUndefined();
 });

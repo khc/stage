@@ -188,7 +188,7 @@ export const lastOutput = (events: SessionEvent[]) => {
       .map((p) => p.text)
       .join("")
       .trim();
-    if (text) return { text, timestamp: event.timestamp };
+    if (text) return { text, timestamp: event.timestamp, author: event.author };
   }
 };
 // A short human description of a JSON Schema: its own description for plain
