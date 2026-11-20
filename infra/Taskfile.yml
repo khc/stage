@@ -10,7 +10,7 @@ tasks:
       - terraform -chdir=infra/envs/local init
 
   apply:
-    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq, and the knowledge agent's Qdrant/embedding settings with bun
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq, and the knowledge job's Qdrant, embedding, Neo4j and Exa settings with bun
     cmds:
       - |
         env_value() { yq -p props -oy ".$1 // \"\"" .env; }
@@ -20,7 +20,7 @@ tasks:
         [ -z "$vertex" ] || export TF_VAR_use_vertexai="$vertex"
         export TF_VAR_otel_env="$(yq -p props -o=json -I=0 'with_entries(select((.key | test("^OTEL_")) and (.value != "")))' .env)"
         # bun reads .env as the ingestion CLI does; yq would keep the quotes around EMBEDDING_QUERY_PREFIX.
-        export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX", "RERANK_MODEL", "RERANK_API_KEY", "NEO4J_USER", "NEO4J_PASSWORD"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
+        export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX", "RERANK_MODEL", "RERANK_API_KEY", "NEO4J_USER", "NEO4J_PASSWORD", "EXA_API_KEY"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
         terraform -chdir=infra/envs/local apply
 
   import:

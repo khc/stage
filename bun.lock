@@ -35,6 +35,7 @@
         "@google/adk": "^2.5.0",
         "@stage/agents": "workspace:*",
         "@stage/ingestion": "workspace:*",
+        "@stage/tools": "workspace:*",
         "zod": "^4.6.7",
       },
       "devDependencies": {
@@ -164,6 +165,17 @@
         "remark-parse": "^11.0.0",
         "remark-stringify": "^11.0.0",
         "unified": "^11.0.5",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
+    "packages/tools": {
+      "name": "@stage/tools",
+      "version": "0.1.0",
+      "dependencies": {
+        "@google/adk": "^2.5.0",
+        "zod": "^4.6.7",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
@@ -529,6 +541,8 @@
     "@stage/poet-agents": ["@stage/poet-agents@workspace:agents/poet"],
 
     "@stage/service": ["@stage/service@workspace:apps/service"],
+
+    "@stage/tools": ["@stage/tools@workspace:packages/tools"],
 
     "@stage/ui": ["@stage/ui@workspace:apps/ui"],
 

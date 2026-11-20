@@ -39,7 +39,9 @@ export const agentSet: AgentSet = {
       agent: discoveryAgent,
       inputSchema: z
         .string()
-        .describe("A question across any ingested documentation or database, in plain text."),
+        .describe(
+          "A question about ingested documentation or databases. For a public web lookup, start a line at the top with 'Web search: <public query>'.",
+        ),
       outputSchema: knowledgeOutput,
     },
   },

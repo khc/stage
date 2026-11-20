@@ -81,7 +81,7 @@ variable "knowledge_env" {
   type        = map(string)
   default     = {}
   sensitive   = true
-  description = "QDRANT_API_KEY, EMBEDDING_MODEL, EMBEDDING_API_KEY, EMBEDDING_QUERY_PREFIX, RERANK_MODEL, RERANK_API_KEY, NEO4J_USER and NEO4J_PASSWORD for the knowledge agent; task tf:apply fills it from .env."
+  description = "QDRANT_API_KEY, EMBEDDING_MODEL, EMBEDDING_API_KEY, EMBEDDING_QUERY_PREFIX, RERANK_MODEL, RERANK_API_KEY, NEO4J_USER, NEO4J_PASSWORD and EXA_API_KEY for the knowledge job. task tf:apply fills it from .env."
 }
 
 variable "use_vertexai" {

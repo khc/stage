@@ -6,6 +6,6 @@ export const knowledgeOutput = z.object({
   sources: z
     .array(z.string())
     .describe(
-      "The chunks the answer used, each as '<source> › <doc_id> › <section_path>'. Empty when nothing relevant was found.",
+      "Sources used in the answer, such as '<source> › <doc_id> › <section_path>', 'imdb › <tconst or nconst>', or exact public URLs for web results. Empty when nothing relevant was found.",
     ),
 });

@@ -9,6 +9,7 @@ COPY package.json bun.lock ./
 COPY packages/agents/package.json ./packages/agents/package.json
 COPY packages/http/package.json ./packages/http/package.json
 COPY packages/ingestion/package.json ./packages/ingestion/package.json
+COPY packages/tools/package.json ./packages/tools/package.json
 COPY agents/generic/package.json ./agents/generic/package.json
 COPY agents/poet/package.json ./agents/poet/package.json
 COPY agents/knowledge/package.json ./agents/knowledge/package.json
