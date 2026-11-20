@@ -1,4 +1,4 @@
-import { ArrowUp, FileText, Loader2, Paperclip, Sparkles, X } from "lucide-react";
+import { ArrowUp, FileText, Loader2, Paperclip, X } from "lucide-react";
 import { useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -185,7 +185,7 @@ export function AssistantComposer({
                 }
                 className="h-8 w-auto max-w-60 gap-1.5 rounded-full border-border/60 bg-muted/50 px-3 text-xs font-medium shadow-none"
               >
-                <Sparkles className="size-3 text-primary" />
+                <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
                 <SelectValue placeholder="No agents available" />
               </SelectTrigger>
               <SelectContent align="start">

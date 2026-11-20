@@ -16,6 +16,7 @@ test("AssistantThread welcome state highlights the orchestrator default and star
   );
 
   expect(html).toContain("How can I help today?");
+  expect(html).toContain('src="/stage.png"');
   expect(html).toContain("orchestrator (orchestrator)");
   expect(html).toContain("Summarize what agents and tools are available");
 });

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Sparkles } from "lucide-react";
+import { BookOpen, Layers3, LayoutDashboard, Server } from "lucide-react";
 import type * as React from "react";
 
 import {
@@ -19,9 +19,9 @@ import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const workspace = [
-  { to: "/", label: "Overview" },
-  { to: "/tasks", label: "Tasks" },
-  { to: "/jobs", label: "Jobs" },
+  { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/tasks", label: "Tasks", icon: Layers3 },
+  { to: "/jobs", label: "Jobs", icon: Server },
 ] as const;
 
 export function useHealthLabel() {
@@ -75,13 +75,17 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup className="pb-0">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={pathname === "/assistant" || pathname.startsWith("/assistant/")}
-                render={<Link to="/assistant" />}
-              >
-                <Sparkles />
-                <span>Assistant</span>
-              </SidebarMenuButton>
+              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={pathname === "/assistant" || pathname.startsWith("/assistant/")}
+                    render={<Link to="/assistant" />}
+                  >
+                    <img src="/stage.png" alt="" className="size-4 shrink-0 rounded-[4px]" />
+                    <span>Assistant</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </SidebarMenuSub>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
@@ -96,7 +100,8 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                       isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
                       render={<Link to={item.to} />}
                     >
-                      {item.label}
+                      <item.icon />
+                      <span>{item.label}</span>
                       {item.to === "/tasks" && tasks.data && (
                         <span className="ml-auto text-xs text-muted-foreground">
                           {tasks.data.tasks.length}
@@ -114,7 +119,8 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuSubButton
                     render={<a href="/docs" target="_blank" rel="noreferrer" />}
                   >
-                    API reference
+                    <BookOpen />
+                    <span>API reference</span>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
               </SidebarMenuSub>

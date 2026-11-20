@@ -45,5 +45,10 @@ test("AppSidebar renders the Assistant link on top of the left side panel before
   expect(workspaceIdx).toBeGreaterThan(assistantIdx);
   expect(overviewIdx).toBeGreaterThan(workspaceIdx);
   expect(html).toContain('href="/assistant"');
+  expect(html).toContain('src="/stage.png"');
+  expect(html).toMatch(/<a[^>]*href="\/"[^>]*>.*?<svg.*?Overview/);
+  expect(html).toMatch(/<a[^>]*href="\/tasks"[^>]*>.*?<svg.*?Tasks/);
+  expect(html).toMatch(/<a[^>]*href="\/jobs"[^>]*>.*?<svg.*?Jobs/);
+  expect(html).toMatch(/<a[^>]*href="\/docs"[^>]*>.*?<svg.*?API reference/);
   expect(html).toMatch(/data-active=""[^>]*href="\/assistant"|href="\/assistant"[^>]*data-active=""/);
 });

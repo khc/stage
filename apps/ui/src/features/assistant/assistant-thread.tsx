@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  CircleAlert,
-  Loader2,
-  Sparkles,
-  Wrench,
-  Workflow,
-} from "lucide-react";
+import { ChevronDown, CircleAlert, Loader2, Wrench, Workflow } from "lucide-react";
 
 import { JsonView } from "@/components/json-view";
 import { Markdown } from "@/components/markdown";
@@ -55,8 +48,8 @@ function ActivityDisclosure({
         : `Reasoning (${turn.thoughts.length})`;
 
   return (
-    <Collapsible className="w-fit max-w-full rounded-xl border bg-muted/30 px-3 py-1.5 text-xs">
-      <CollapsibleTrigger className="group flex items-center gap-2 font-medium text-muted-foreground hover:text-foreground">
+    <Collapsible className="w-fit max-w-full rounded-xl border bg-muted/30 text-xs">
+      <CollapsibleTrigger className="group flex h-[30px] items-center gap-2 px-3 font-medium text-muted-foreground hover:text-foreground">
         {hasPendingTool || (active && !turn.textSegments.length) ? (
           <Loader2 className="size-3.5 animate-spin text-primary" />
         ) : (
@@ -65,7 +58,7 @@ function ActivityDisclosure({
         <span>{label}</span>
         <ChevronDown className="size-3.5 transition-transform group-data-panel-open:rotate-180" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 flex flex-col gap-2.5 border-t pt-2.5">
+      <CollapsibleContent className="flex flex-col gap-2.5 border-t px-3 py-2.5">
         {turn.thoughts.map((thought, i) => (
           <p key={`thought-${i}`} className="leading-relaxed whitespace-pre-wrap text-muted-foreground italic">
             {thought}
@@ -133,9 +126,11 @@ export function AssistantThread({
       <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
         <div className="flex w-full max-w-2xl flex-col items-center gap-6 text-center">
           <div className="flex flex-col items-center gap-3">
-            <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent text-primary ring-1 ring-primary/20">
-              <Sparkles className="size-6" />
-            </span>
+            <img
+              src="/stage.png"
+              alt="Stage Assistant"
+              className="size-12 rounded-2xl shadow-sm"
+            />
             <h2 className="font-display text-5xl tracking-tight sm:text-6xl">
               How can I help today?
             </h2>
@@ -207,12 +202,12 @@ export function AssistantThread({
               return (
                 <MessageScrollerItem key={turn.id} messageId={turn.id}>
                   <Message align="start" className="items-start gap-3">
-                    <span
+                    <img
+                      src="/stage.png"
+                      alt=""
                       aria-hidden
-                      className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15"
-                    >
-                      <Sparkles className="size-4" />
-                    </span>
+                      className="size-8 shrink-0 rounded-xl shadow-xs"
+                    />
                     <MessageContent className="gap-3">
                       <ActivityDisclosure turn={turn} active={isLast && isRunning} />
                       {turn.textSegments.map((segment, segIdx) =>

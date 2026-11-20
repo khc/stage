@@ -1,13 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  ExternalLink,
-  MessageSquare,
-  PanelLeft,
-  Plus,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { ExternalLink, MessageSquare, PanelLeft, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -227,7 +220,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
-              <Sparkles className="size-4 text-primary" />
+              <img src="/stage.png" alt="" aria-hidden className="size-4 rounded-[4px]" />
               Conversations
             </SheetTitle>
           </SheetHeader>
@@ -271,7 +264,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           </span>
           {activeLabel && (
             <Badge variant="secondary" className="hidden font-mono text-[11px] sm:inline-flex">
-              <Sparkles className="size-3 text-primary" />
+              <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
               {activeLabel}
             </Badge>
           )}
