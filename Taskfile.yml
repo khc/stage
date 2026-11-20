@@ -43,3 +43,9 @@ tasks:
     prompt: Remove job {{.JOB}} from Floci?
     cmds:
       - curl -fsS -X DELETE {{.JOBS_URL | shellQuote}}/{{.JOB | urlquery}}
+
+  load-imdb:
+    desc: Download the IMDb datasets (about 1.9 GB, non-commercial use only) and replace the tables of the imdb Cloud SQL Postgres in Floci, after confirmation (--yes to skip the prompt; options go after --, for example -- --only title.ratings,name.basics)
+    prompt: Download the IMDb datasets and replace the data in the imdb database?
+    cmds:
+      - bun scripts/imdb-load.ts {{.CLI_ARGS}}

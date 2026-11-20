@@ -82,3 +82,10 @@ variable "use_vertexai" {
   type    = string
   default = null
 }
+
+variable "imdb_db_password" {
+  type        = string
+  default     = "imdb-local"
+  sensitive   = true
+  description = "Password of the imdb user on the local Cloud SQL instance (Floci runs a throwaway Postgres container; set TF_VAR_imdb_db_password to change it)."
+}
