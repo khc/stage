@@ -2,7 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 
 import {
   BaseLlm,
-  InMemoryRunner,
+  InMemorySessionService,
+  Runner,
   getFunctionResponses,
   isFinalResponse,
   stringifyContent,
@@ -31,6 +32,23 @@ test("the instruction picks agents by description, treats replies as data and ha
   expect(instruction).not.toContain("haiku");
 });
 
+// Stands in for the platform's Firestore session service: every session it is asked to create or open.
+class RecordingSessions extends InMemorySessionService {
+  readonly apps: string[] = [];
+
+  override async createSession(request: Parameters<InMemorySessionService["createSession"]>[0]) {
+    this.apps.push(request.appName);
+    return super.createSession(request);
+  }
+
+  override async getOrCreateSession(
+    request: Parameters<InMemorySessionService["getOrCreateSession"]>[0],
+  ) {
+    this.apps.push(request.appName);
+    return super.getOrCreateSession(request);
+  }
+}
+
 class ScriptedModel extends BaseLlm {
   constructor(private readonly steps: Array<LlmResponse | ((request: LlmRequest) => LlmResponse)>) {
     super({ model: "gemini-2.5-flash" });
@@ -48,6 +66,8 @@ class ScriptedModel extends BaseLlm {
 }
 
 // A gateway that serves one agent: the Agent Card and a completed task with a fixed reply.
+// What the gateway answers to a message: a reply, a failed task, or a task that completed with nothing.
+let outcome: "reply" | "failed" | "empty" = "reply";
 const fetched: string[] = [];
 const sent: unknown[] = [];
 const gateway = Bun.serve({
@@ -71,16 +91,32 @@ const gateway = Bun.serve({
       });
     const rpc = (await request.json()) as { id: unknown; params: unknown };
     sent.push(rpc.params);
+    const task = {
+      kind: "task",
+      id: "t-1",
+      contextId: "c-1",
+      status: { state: "completed" },
+    };
+    if (outcome === "failed")
+      task.status = {
+        state: "failed",
+        message: {
+          kind: "message",
+          messageId: "m-1",
+          role: "agent",
+          parts: [{ kind: "text", text: "The agent run failed." }],
+        },
+      } as never;
     return Response.json({
       jsonrpc: "2.0",
       id: rpc.id,
-      result: {
-        kind: "task",
-        id: "t-1",
-        contextId: "c-1",
-        status: { state: "completed" },
-        artifacts: [{ artifactId: "a-1", parts: [{ kind: "text", text: "an old pond" }] }],
-      },
+      result:
+        outcome === "reply"
+          ? {
+              ...task,
+              artifacts: [{ artifactId: "a-1", parts: [{ kind: "text", text: "an old pond" }] }],
+            }
+          : task,
     });
   },
 });
@@ -129,9 +165,11 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
       return { content: { role: "model", parts: [{ text: "Here is a haiku: an old pond" }] } };
     },
   ]);
-  const runner = new InMemoryRunner({
+  const sessions = new RecordingSessions();
+  const runner = new Runner({
     agent: createOrchestratorAgent({ model, toolset }),
     appName: "orchestrator-test",
+    sessionService: sessions,
   });
   const session = await runner.sessionService.createSession({
     appName: "orchestrator-test",
@@ -150,8 +188,42 @@ test("calls the agent its model chose over A2A and answers from its reply", asyn
   }
 
   expect(reply).toBe("Here is a haiku: an old pond");
+  // The remote agent runs in its own session: on the platform, the orchestrator's session is held by
+  // its run, and a second session under the same id breaks the lease.
+  expect(sessions.apps.every((app) => app === "orchestrator-test")).toBe(true);
   expect(responses).toEqual(["generic-agents__assistant"]);
   expect(fetched).toContain("GET /a2a/generic-agents/assistant/.well-known/agent-card.json");
   expect(fetched).toContain("POST /a2a/generic-agents/assistant");
   expect(JSON.stringify(sent)).toContain("what is a haiku?");
+});
+
+const toolFor = async () => {
+  const toolset = new RemoteAgentsToolset({
+    registry: () => ({
+      listAll: async () => [
+        { jobName: "generic-agents", name: "assistant", inputSchema: { type: "string" } },
+      ],
+    }),
+    env: { GATEWAY_URL: `http://127.0.0.1:${gateway.port}` },
+  });
+  const [tool] = await toolset.getTools({ invocationId: "i" } as never);
+  return tool!;
+};
+
+test("a delegated run that failed is an error for the model, not an empty reply", async () => {
+  outcome = "failed";
+  const tool = await toolFor();
+  await expect(
+    tool.runAsync({ args: { request: "hi" }, toolContext: undefined as never }),
+  ).rejects.toThrow("The agent run failed.");
+  outcome = "reply";
+});
+
+test("a delegated run that completed without a reply is an error for the model", async () => {
+  outcome = "empty";
+  const tool = await toolFor();
+  await expect(
+    tool.runAsync({ args: { request: "hi" }, toolContext: undefined as never }),
+  ).rejects.toThrow("no reply");
+  outcome = "reply";
 });

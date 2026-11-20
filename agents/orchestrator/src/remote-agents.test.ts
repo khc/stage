@@ -1,6 +1,7 @@
 import { expect, mock, test } from "bun:test";
 
-import { AgentTool, type ReadonlyContext } from "@google/adk";
+import { FunctionTool, type ReadonlyContext } from "@google/adk";
+import { RemoteA2AAgent, type RemoteA2AAgentConfig } from "@google/adk/a2a";
 
 import { RemoteAgentsToolset } from "./remote-agents";
 
@@ -12,41 +13,46 @@ const registered = [
 ];
 const setup = (env: Record<string, string | undefined> = {}) => {
   const listAll = mock(async () => registered);
+  const configs: RemoteA2AAgentConfig[] = [];
   const toolset = new RemoteAgentsToolset({
     registry: () => ({ listAll }),
     env: { GATEWAY_URL: "http://gateway.test:3000/", JOB_NAME: "orchestrator-agents", ...env },
+    remoteAgent: (config) => {
+      configs.push(config);
+      return new RemoteA2AAgent(config);
+    },
   });
-  return { toolset, listAll };
+  return { toolset, listAll, configs };
 };
 const context = (invocationId: string) => ({ invocationId }) as ReadonlyContext;
-// The RemoteA2AAgent inside a tool and the config it was built with.
-const remote = (tool: unknown) =>
-  (tool as { agent: { a2aConfig: { agentCard: string; resolveAgentCardOptions?: unknown } } })
-    .agent;
 
-test("offers every registered agent except those of its own job, as AgentTool wrappers", async () => {
+test("offers every registered agent except those of its own job, as function tools", async () => {
   const tools = await setup().toolset.getTools(context("i1"));
   expect(tools.map((tool) => tool.name)).toEqual([
     "generic-agents__assistant",
     "poet-agents__haiku-poet",
   ]);
-  expect(tools.every((tool) => tool instanceof AgentTool)).toBe(true);
+  expect(tools.every((tool) => tool instanceof FunctionTool)).toBe(true);
 });
 
 test("points each agent at the gateway endpoint of its job and agent", async () => {
-  const tools = await setup().toolset.getTools(context("i1"));
-  expect(remote(tools[1]).a2aConfig.agentCard).toBe(
+  const { toolset, configs } = setup();
+  await toolset.getTools(context("i1"));
+  expect(configs.map((config) => config.agentCard)).toEqual([
+    "http://gateway.test:3000/a2a/generic-agents/assistant/",
     "http://gateway.test:3000/a2a/poet-agents/haiku-poet/",
-  );
+  ]);
 });
 
 test('accepts a plaintext http gateway only when GATEWAY_ALLOW_INSECURE is "true"', async () => {
-  const strict = await setup().toolset.getTools(context("i1"));
-  expect(remote(strict[0]).a2aConfig.resolveAgentCardOptions).toBeUndefined();
-  const relaxed = await setup({ GATEWAY_ALLOW_INSECURE: "true" }).toolset.getTools(context("i1"));
-  expect(remote(relaxed[0]).a2aConfig.resolveAgentCardOptions).toEqual({ allowInsecureRpc: true });
-  const other = await setup({ GATEWAY_ALLOW_INSECURE: "yes" }).toolset.getTools(context("i1"));
-  expect(remote(other[0]).a2aConfig.resolveAgentCardOptions).toBeUndefined();
+  const optionsFor = async (env: Record<string, string>) => {
+    const { toolset, configs } = setup(env);
+    await toolset.getTools(context("i1"));
+    return configs[0]?.resolveAgentCardOptions;
+  };
+  expect(await optionsFor({})).toBeUndefined();
+  expect(await optionsFor({ GATEWAY_ALLOW_INSECURE: "true" })).toEqual({ allowInsecureRpc: true });
+  expect(await optionsFor({ GATEWAY_ALLOW_INSECURE: "yes" })).toBeUndefined();
 });
 
 test("reads the registry once per invocation, not once per model request", async () => {
@@ -110,9 +116,7 @@ test("tells the model to send JSON for an agent with a structured input, and ski
     "generic-agents__assistant",
     "poet-agents__haiku",
   ]);
-  const declarations = tools.map(
-    (tool) => (tool as unknown as { agent: { description: string } }).agent.description,
-  );
+  const declarations = tools.map((tool) => tool.description);
   expect(declarations[0]).not.toContain("JSON");
   expect(declarations[1]).toContain("Writes haiku");
   expect(declarations[1]).toContain("JSON");
