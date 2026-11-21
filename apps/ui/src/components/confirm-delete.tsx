@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 // A trash button that asks for confirmation before running `remove`.
 export function ConfirmDelete({
@@ -73,7 +74,7 @@ export function ConfirmDelete({
               disabled={mutation.isPending}
               onClick={() => mutation.mutate()}
             >
-              {mutation.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              {mutation.isPending ? <Spinner /> : <Trash2 />}
               Delete
             </Button>
           </AlertDialogFooter>

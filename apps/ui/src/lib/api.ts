@@ -71,6 +71,9 @@ const messages: Record<string, string> = {
   not_supported: "Document upload is not configured on the server.",
   unknown_job: "This job is not allowed. Choose one of the jobs listed.",
   unknown_agent: "This job has no such registered agent.",
+  provider_not_found: "This provider could not be found.",
+  provider_error: "Providers could not be loaded or saved. Try again in a moment.",
+  invalid_base_url: "Base URL must be a valid http:// or https:// address.",
   invalid_request: "The request could not be read. Check the entered values and try again.",
   invalid_resume: "A reply needs a session and a message that is not blank.",
   cross_site_request: "The service refused a request that came from another site.",
@@ -109,10 +112,35 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
   const session = (taskId: string, sessionId: string) =>
     task(taskId).sessions({ sessionId: enc(sessionId) });
   const job = (jobName: string) => client.jobs({ jobName: enc(jobName) });
+  const provider = (providerId: string) => client.providers({ providerId: enc(providerId) });
   return {
     health: () => unwrap(client.health.get()),
     tasks: () => unwrap(client.tasks.get()),
     jobs: () => unwrap(client.jobs.get()),
+    providers: () => unwrap(client.providers.get()),
+    provider: (id: string) => unwrap(provider(id).get()),
+    createProvider: (input: {
+      name: string;
+      kind: "google" | "openai";
+      apiKey?: string;
+      baseUrl?: string;
+      defaultModel?: string;
+      models?: string[];
+      enabled?: boolean;
+    }) => unwrap(client.providers.post(input)),
+    updateProvider: (
+      id: string,
+      input: {
+        name?: string;
+        kind?: "google" | "openai";
+        apiKey?: string | null;
+        baseUrl?: string | null;
+        defaultModel?: string | null;
+        models?: string[] | null;
+        enabled?: boolean;
+      },
+    ) => unwrap(provider(id).patch(input)),
+    deleteProvider: (id: string) => unwrapVoid(provider(id).delete()),
     task: (id: string) => unwrap(task(id).get()),
     create: (input: { name: string; prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),
@@ -149,6 +177,8 @@ export type DocumentSummary = Awaited<ReturnType<Api["documents"]>>["documents"]
 export type SessionSummary = Awaited<ReturnType<Api["sessions"]>>["sessions"][number];
 export type RunState = NonNullable<SessionSummary["run"]>;
 export type Job = Awaited<ReturnType<Api["jobs"]>>["jobs"][number];
+export type Provider = Awaited<ReturnType<Api["providers"]>>["providers"][number];
+export type ProviderKind = Provider["kind"];
 export type SessionStats = Awaited<ReturnType<Api["stats"]>>;
 
 // Opens the session message stream (SSE); the server replays stored events

@@ -2,7 +2,13 @@ import { expect, test } from "bun:test";
 
 import type { Task } from "@/lib/api";
 
-import { buildTaskForest, countDescendants, taskMatches, type TaskNode } from "./task-tree";
+import {
+  buildTaskForest,
+  countDescendants,
+  rowMatches,
+  taskMatches,
+  type TaskNode,
+} from "./task-tree";
 
 const task = (id: string, parent?: string, name = id): Task =>
   ({
@@ -59,4 +65,43 @@ test("a very deep chain of sub-tasks neither overflows the stack nor is lost", (
   const chain = Array.from({ length: 5_000 }, (_, i) => task(`t${i}`, i ? `t${i - 1}` : undefined));
   expect(buildTaskForest(chain)).toHaveLength(1);
   expect(countDescendants(chain, "t0")).toBe(4_999);
+});
+
+// A row of the forest, with its parent chain, as the table hands it to the search.
+const rowOf = (nodes: TaskNode[], id: string) => {
+  const find = (
+    list: TaskNode[],
+    parent?: ReturnType<typeof makeRow>,
+  ): ReturnType<typeof makeRow> | undefined => {
+    for (const node of list) {
+      const row = makeRow(node, parent);
+      if (node.taskId === id) return row;
+      const found = find(node.subTasks, row);
+      if (found) return found;
+    }
+  };
+  return find(nodes)!;
+};
+type Row = { original: Task; getParentRow: () => Row | undefined };
+const makeRow = (original: Task, parent?: Row): Row => ({ original, getParentRow: () => parent });
+
+test("a sub-task matches a search when its parent does, so a matching parent keeps its sub-tasks", () => {
+  const forest = buildTaskForest([task("a", undefined, "Orchestrator"), task("a1", "a", "Haiku")]);
+  expect(rowMatches(rowOf(forest, "a1"), "orchestrator")).toBe(true);
+  expect(rowMatches(rowOf(forest, "a"), "orchestrator")).toBe(true);
+});
+
+test("a parent does not match because of its sub-task, and an unrelated task does not match", () => {
+  const forest = buildTaskForest([
+    task("a", undefined, "Orchestrator"),
+    task("a1", "a", "Haiku"),
+    task("b", undefined, "Other"),
+  ]);
+  expect(rowMatches(rowOf(forest, "a"), "haiku")).toBe(false);
+  expect(rowMatches(rowOf(forest, "b"), "orchestrator")).toBe(false);
+});
+
+test("a task without a job does not match the word undefined", () => {
+  const noJob = { taskId: "x", name: "X", prompt: "p" } as Task;
+  expect(taskMatches(noJob, "undefined")).toBe(false);
 });

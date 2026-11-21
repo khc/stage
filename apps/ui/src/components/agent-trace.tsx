@@ -109,7 +109,15 @@ const plainText = (value: unknown): string | undefined => {
   return values.length === 1 && typeof values[0] === "string" ? values[0] : undefined;
 };
 
-function Section({ label, value, markdown }: { label: string; value: unknown; markdown?: boolean }) {
+function Section({
+  label,
+  value,
+  markdown,
+}: {
+  label: string;
+  value: unknown;
+  markdown?: boolean;
+}) {
   const text = plainText(value);
   return (
     <div className="flex flex-col gap-1.5">

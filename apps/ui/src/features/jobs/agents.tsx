@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { api, schemaRows, schemaSummary, type AgentInfo, type JsonSchema } from "@/lib/api";
 
 const REGISTRATION_POLL_MS = 30_000;
@@ -52,7 +53,7 @@ export function RegisterAgentsButton({
       disabled={disabled || register.isPending}
       onClick={() => register.mutate()}
     >
-      {register.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+      {register.isPending ? <Spinner /> : <RefreshCw />}
       Register agents
     </Button>
   );

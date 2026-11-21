@@ -40,10 +40,14 @@ export const isLive = () => live;
 // Query default: poll only while the event stream is not delivering updates.
 export const pollUnlessLive = () => (live ? false : POLL_MS);
 export const usePlatformLive = () =>
-  useSyncExternalStore((listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }, isLive);
+  useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    isLive,
+    () => false,
+  );
 
 // Opens the platform event stream. Events published while disconnected are
 // lost, so every (re)connect refreshes all queries. The browser reconnects on

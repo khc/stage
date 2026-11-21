@@ -23,10 +23,9 @@ export default defineConfig(({ mode }) => {
     resolve: { alias: { "@": resolve(import.meta.dirname, "./src") } },
     server: {
       proxy: Object.fromEntries(
-        ["/tasks", "/jobs", "/health", "/events", "/docs", "/openapi.json"].map((path) => [
-          path,
-          proxy,
-        ]),
+        ["/tasks", "/jobs", "/providers", "/health", "/events", "/docs", "/openapi.json"].map(
+          (path) => [path, proxy],
+        ),
       ),
     },
   };

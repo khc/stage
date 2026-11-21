@@ -32,7 +32,7 @@ server {
     rewrite ^ /index.html break;
   }
 
-  location ~ ^/(tasks|jobs|health|events|docs|openapi\.json)(/|$) {
+  location ~ ^/(tasks|jobs|providers|health|events|docs|openapi\.json)(/|$) {
     include /etc/nginx/api-proxy.conf;
     proxy_buffering off; # the /events streams
     add_header X-Content-Type-Options nosniff always;

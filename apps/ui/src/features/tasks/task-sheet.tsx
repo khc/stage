@@ -5,7 +5,6 @@ import {
   Clock3,
   Database,
   FileText,
-  Loader2,
   Play,
   RefreshCw,
   Sparkles,
@@ -33,6 +32,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { Sheet } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { api, formatTime, taskTitle, timeAgo } from "@/lib/api";
 import { useNav } from "@/lib/nav";
@@ -156,7 +156,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
             onClick={() => runTask.mutate(taskId)}
             disabled={!data.jobName || runTask.isPending}
           >
-            {runTask.isPending ? <Loader2 className="animate-spin" /> : <Play />}
+            {runTask.isPending ? <Spinner /> : <Play />}
             Run task
           </Button>
           <ConfirmDelete

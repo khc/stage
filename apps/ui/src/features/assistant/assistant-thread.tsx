@@ -1,7 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { CircleAlert, Workflow } from "lucide-react";
 
-import { ReasoningTrace, SubagentTrace, ToolTrace, Trace, WorkingLine } from "@/components/agent-trace";
+import {
+  ReasoningTrace,
+  SubagentTrace,
+  ToolTrace,
+  Trace,
+  WorkingLine,
+} from "@/components/agent-trace";
 import { Markdown } from "@/components/markdown";
 import { CopyButton } from "@/components/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,7 +35,12 @@ import { OutputText } from "@/features/tasks/session-parts";
 import { parseJsonObject, type AgentInfo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-import { parseDelegation, turnCopyText, type AssistantTarget, type ChatTurn } from "./assistant-model";
+import {
+  parseDelegation,
+  turnCopyText,
+  type AssistantTarget,
+  type ChatTurn,
+} from "./assistant-model";
 
 const STARTER_PROMPTS = [
   "Summarize what agents and tools are available in this workspace.",

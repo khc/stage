@@ -8,6 +8,7 @@ import { DependencyError } from "./errors";
 import { createA2aService } from "./modules/a2a/a2a-service";
 import type { AgentsService } from "./modules/agents/agents-service";
 import type { EventsService } from "./modules/events/events-service";
+import type { ProvidersService } from "./modules/providers/providers-service";
 import type { DocumentsService } from "./modules/tasks/documents/documents-service";
 import type { SessionsService } from "./modules/tasks/sessions/sessions-service";
 import type { TasksService } from "./modules/tasks/tasks-service";
@@ -86,6 +87,44 @@ const agentsService = (overrides: Partial<AgentsService> = {}): AgentsService =>
   register: async () => "operations/op-1",
   ...overrides,
 });
+const provider = {
+  providerId: "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11",
+  name: "OpenAI",
+  kind: "openai" as const,
+  enabled: true,
+  hasApiKey: true,
+  apiKeyHint: "••••1234",
+  createdAt: 1,
+  updatedAt: 1,
+};
+const providersService = (overrides: Partial<ProvidersService> = {}): ProvidersService => ({
+  list: async () => [provider],
+  get: async (id) => (id === provider.providerId ? provider : undefined),
+  create: async (input) => ({
+    status: "created",
+    provider: {
+      ...provider,
+      name: input.name,
+      kind: input.kind,
+      enabled: input.enabled ?? true,
+      hasApiKey: input.apiKey !== undefined,
+    },
+  }),
+  update: async (id, patch) =>
+    id === provider.providerId
+      ? {
+          status: "updated",
+          provider: {
+            ...provider,
+            ...(patch.name !== undefined && { name: patch.name }),
+            ...(patch.kind !== undefined && { kind: patch.kind }),
+            ...(patch.enabled !== undefined && { enabled: patch.enabled }),
+          },
+        }
+      : { status: "not_found" },
+  delete: async (id) => id === provider.providerId,
+  ...overrides,
+});
 // The real A2A service over fakes: a haiku agent in poet-agents whose run succeeds at once.
 const a2aService = () =>
   createA2aService(
@@ -121,7 +160,12 @@ const appWith = (
   overrides: Partial<TasksService> = {},
   sessionOverrides: Partial<SessionsService> = {},
   documents: Partial<DocumentsService> | null = {},
-  extras: { agents?: Partial<AgentsService>; events?: EventsService; publicUrl?: string } = {},
+  extras: {
+    agents?: Partial<AgentsService>;
+    providers?: Partial<ProvidersService>;
+    events?: EventsService;
+    publicUrl?: string;
+  } = {},
 ) => {
   const deps: AppDeps = {
     healthService: { check: () => ({ status: "ok" }) },
@@ -129,6 +173,7 @@ const appWith = (
     sessionsService: sessionsService(sessionOverrides),
     ...(documents && { documentsService: documentsService(documents) }),
     agentsService: agentsService(extras.agents),
+    providersService: providersService(extras.providers),
     a2aService: a2aService(),
     ...(extras.publicUrl && { publicUrl: extras.publicUrl }),
     ...(extras.events && { eventsService: extras.events }),
@@ -157,6 +202,7 @@ describe("GET /health", () => {
       tasksService: tasksService(),
       sessionsService: sessionsService(),
       agentsService: agentsService(),
+      providersService: providersService(),
       a2aService: a2aService(),
     });
     expect(await call(app, "/health")).toEqual({ status: 502, body: { error: "internal_error" } });
@@ -849,5 +895,100 @@ describe("A2A gateway", () => {
       body: "{}",
     });
     expect(res).toEqual({ status: 413, body: { error: "payload_too_large" } });
+  });
+});
+
+describe("providers", () => {
+  test("GET /providers lists configured providers", async () => {
+    expect(await call(appWith(), "/providers")).toEqual({
+      status: 200,
+      body: { providers: [provider] },
+    });
+  });
+
+  test("GET /providers/:providerId returns 200, 404 when missing, and 400 on invalid UUID", async () => {
+    expect(await call(appWith(), `/providers/${provider.providerId.toUpperCase()}`)).toEqual({
+      status: 200,
+      body: provider,
+    });
+    expect(await call(appWith(), `/providers/${task.taskId}`)).toEqual({
+      status: 404,
+      body: { error: "provider_not_found" },
+    });
+    expect((await call(appWith(), "/providers/not-a-uuid")).status).toBe(400);
+  });
+
+  test("POST /providers creates a provider or maps invalid_base_url to 400", async () => {
+    const created = await call(
+      appWith(),
+      "/providers",
+      json({ name: "Google", kind: "google", apiKey: "AIza-1234" }),
+    );
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ name: "Google", kind: "google", hasApiKey: true });
+
+    const invalid = await call(
+      appWith({}, {}, {}, { providers: { create: async () => ({ status: "invalid_base_url" }) } }),
+      "/providers",
+      json({ name: "Bad", kind: "openai", baseUrl: "ftp://bad" }),
+    );
+    expect(invalid).toEqual({ status: 400, body: { error: "invalid_base_url" } });
+    expect((await call(appWith(), "/providers", json({ name: "  ", kind: "openai" }))).status).toBe(
+      400,
+    );
+  });
+
+  test("PATCH /providers/:providerId returns 200, 400 on invalid_base_url, and 404 when missing", async () => {
+    const patch = (body: unknown) => ({
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    expect(await call(appWith(), `/providers/${provider.providerId}`, patch({ name: "Renamed" }))).toEqual({
+      status: 200,
+      body: { ...provider, name: "Renamed" },
+    });
+    expect(await call(appWith(), `/providers/${task.taskId}`, patch({ name: "Missing" }))).toEqual({
+      status: 404,
+      body: { error: "provider_not_found" },
+    });
+    expect(
+      await call(
+        appWith({}, {}, {}, { providers: { update: async () => ({ status: "invalid_base_url" }) } }),
+        `/providers/${provider.providerId}`,
+        patch({ baseUrl: "not-a-url" }),
+      ),
+    ).toEqual({ status: 400, body: { error: "invalid_base_url" } });
+  });
+
+  test("DELETE /providers/:providerId returns 204 or 404 when missing", async () => {
+    const res = await appWith().handle(
+      new Request(`http://localhost/providers/${provider.providerId}`, { method: "DELETE" }),
+    );
+    expect(res.status).toBe(204);
+    expect(
+      await call(appWith(), `/providers/${task.taskId}`, { method: "DELETE" }),
+    ).toEqual({ status: 404, body: { error: "provider_not_found" } });
+  });
+
+  test("maps DependencyError('provider_error') to 502", async () => {
+    const spy = spyOn(console, "error").mockImplementation(() => {});
+    const res = await call(
+      appWith(
+        {},
+        {},
+        {},
+        {
+          providers: {
+            list: async () => {
+              throw new DependencyError("provider_error", new Error("firestore down"));
+            },
+          },
+        },
+      ),
+      "/providers",
+    );
+    expect(res).toEqual({ status: 502, body: { error: "provider_error" } });
+    spy.mockRestore();
   });
 });

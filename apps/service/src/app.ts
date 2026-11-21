@@ -9,6 +9,8 @@ import { a2aController } from "./modules/a2a/a2a-controller";
 import type { A2aService } from "./modules/a2a/a2a-service";
 import { agentsController } from "./modules/agents/agents-controller";
 import type { AgentsService } from "./modules/agents/agents-service";
+import { providersController } from "./modules/providers/providers-controller";
+import type { ProvidersService } from "./modules/providers/providers-service";
 import { eventsController } from "./modules/events/events-controller";
 import type { EventsService } from "./modules/events/events-service";
 import { healthController } from "./modules/health/health-controller";
@@ -26,6 +28,7 @@ export type AppDeps = {
   // Undefined when EXTRACT_URL is not set: the document routes answer 501.
   documentsService?: DocumentsService;
   agentsService: AgentsService;
+  providersService: ProvidersService;
   a2aService: A2aService;
   // The base URL the A2A Agent Cards advertise; without it, the origin of each request.
   publicUrl?: string;
@@ -46,6 +49,7 @@ export const createApp = (deps: AppDeps) =>
     .use(openapiDocs())
     .use(healthController(deps.healthService))
     .use(agentsController(deps.agentsService))
+    .use(providersController(deps.providersService))
     .use(a2aController(deps.a2aService, deps.publicUrl))
     .use(eventsController(deps.eventsService))
     .use(tasksController(deps));

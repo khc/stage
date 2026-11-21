@@ -5,6 +5,8 @@ import { createApp, type AppDeps } from "./app";
 import { loadConfig, parseAllowedJobs } from "./config";
 import { createA2aService } from "./modules/a2a/a2a-service";
 import { createAgentsService } from "./modules/agents/agents-service";
+import { createProvidersService } from "./modules/providers/providers-service";
+import { createProvidersStore } from "./modules/providers/providers-store";
 import { createEventsService } from "./modules/events/events-service";
 import { createHealthService } from "./modules/health/health-service";
 import { MAX_UPLOAD_BYTES } from "./modules/tasks/documents/documents-model";
@@ -80,6 +82,9 @@ const tasksService = createTasksService({
   allowedJobs,
 });
 const agentsService = createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs });
+const providersService = createProvidersService({
+  providersStore: createProvidersStore(firestore),
+});
 
 const appDeps: AppDeps = {
   healthService: createHealthService(),
@@ -90,6 +95,7 @@ const appDeps: AppDeps = {
   }),
   documentsService: documentsStore && createDocumentsService({ documentsStore }),
   agentsService,
+  providersService,
   a2aService: createA2aService(
     { agentsService, tasksService, sessionsStore, allowedJobs },
     { ...(config.A2A_TIMEOUT_MS && { timeoutMs: config.A2A_TIMEOUT_MS }) },

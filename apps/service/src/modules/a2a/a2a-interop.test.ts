@@ -17,6 +17,7 @@ const gateway = new Elysia()
       tasksService: {} as never,
       sessionsService: {} as never,
       agentsService: {} as never,
+      providersService: {} as never,
       a2aService: createA2aService(
         {
           agentsService: {

@@ -2,14 +2,9 @@ import { createColumnHelper, useTable } from "@tanstack/react-table";
 import { Box, ChevronRight, Plus, RefreshCw, Search, Server, Workflow } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { CopyButton, Empty, ErrorBox, Loading } from "@/components/states";
-import {
-  ariaSort,
-  features,
-  SortHeader,
-  type DataTableFeatures,
-} from "@/components/data-table";
+import { ariaSort, features, SortHeader, type DataTableFeatures } from "@/components/data-table";
 import { SearchInput } from "@/components/search-input";
+import { CopyButton, Empty, ErrorBox, Loading } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,7 +156,8 @@ export function JobsTable() {
   const tasks = tasksQuery.data?.tasks;
   const data = useMemo<JobRow[]>(() => {
     const counts = new Map<string, number>();
-    for (const task of tasks ?? []) if (task.jobName) counts.set(task.jobName, (counts.get(task.jobName) ?? 0) + 1);
+    for (const task of tasks ?? [])
+      if (task.jobName) counts.set(task.jobName, (counts.get(task.jobName) ?? 0) + 1);
     return (jobs ?? []).map((job) => {
       const name = shortJobName(job);
       return { job, name, location: jobLocation(job) ?? "Cloud Run", tasks: counts.get(name) ?? 0 };

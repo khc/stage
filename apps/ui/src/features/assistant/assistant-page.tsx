@@ -14,8 +14,8 @@ import { useNav } from "@/lib/nav";
 import { useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-import { childTaskCountMap, groupChatTurns, rootChatTasks } from "./assistant-model";
 import { AssistantComposer } from "./assistant-composer";
+import { childTaskCountMap, groupChatTurns, rootChatTasks } from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 import { useAssistantChat } from "./use-assistant-chat";
 
@@ -140,7 +140,9 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const allTasks = tasksQuery.data?.tasks ?? [];
   const rootTasks = useMemo(() => rootChatTasks(allTasks), [allTasks]);
   const childCounts = useMemo(() => childTaskCountMap(allTasks), [allTasks]);
-  const agents = chat.activeTarget ? chat.targets.agentsByJob[chat.activeTarget.jobName] : undefined;
+  const agents = chat.activeTarget
+    ? chat.targets.agentsByJob[chat.activeTarget.jobName]
+    : undefined;
 
   const events = chat.sessionQuery.data?.events ?? [];
   const turns = useMemo(() => groupChatTurns(events), [events]);
@@ -195,7 +197,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     chat.sendMutation.error ??
     chat.uploadMutation.error ??
     chat.removeDocumentMutation.error ??
-    (chatId ? chat.taskQuery.error ?? chat.sessionQuery.error : null);
+    (chatId ? (chat.taskQuery.error ?? chat.sessionQuery.error) : null);
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">

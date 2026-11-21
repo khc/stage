@@ -1,5 +1,5 @@
-import { createColumnHelper, useTable, type ExpandedState } from "@tanstack/react-table";
 import { Link } from "@tanstack/react-router";
+import { createColumnHelper, useTable, type ExpandedState } from "@tanstack/react-table";
 import {
   Box,
   ChevronDown,

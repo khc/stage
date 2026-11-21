@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen, Layers3, LayoutDashboard, Server } from "lucide-react";
+import { BookOpen, KeyRound, Layers3, LayoutDashboard, Server } from "lucide-react";
 import type * as React from "react";
 
 import {
@@ -26,6 +26,8 @@ const workspace = [
   { to: "/tasks", label: "Tasks", icon: Layers3 },
   { to: "/jobs", label: "Jobs", icon: Server },
 ] as const;
+
+const settings = [{ to: "/settings/providers", label: "Providers", icon: KeyRound }] as const;
 
 export function useHealthLabel() {
   const health = useHealth();
@@ -100,9 +102,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuSubItem key={item.to}>
                     <SidebarMenuSubButton
                       className={navItem}
-                      isActive={
-                        item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)
-                      }
+                      isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
                       render={<Link to={item.to} />}
                     >
                       <item.icon />
@@ -112,6 +112,23 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                           {tasks.data.tasks.length}
                         </span>
                       )}
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <span className="block px-2 py-1.5 text-sm font-medium">Settings</span>
+              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                {settings.map((item) => (
+                  <SidebarMenuSubItem key={item.to}>
+                    <SidebarMenuSubButton
+                      className={navItem}
+                      isActive={pathname === item.to || pathname.startsWith(`${item.to}/`)}
+                      render={<Link to={item.to} />}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 ))}

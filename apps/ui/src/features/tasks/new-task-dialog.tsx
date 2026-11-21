@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileText, Layers3, Loader2, Plus } from "lucide-react";
+import { FileText, Layers3, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentContract } from "@/features/jobs/agents";
 import {
@@ -102,6 +103,14 @@ function NewTaskForm({
       void openTask(task.taskId);
     },
   });
+  // Why Create task is disabled, shown next to it rather than in a tooltip.
+  const submitHint = !name.trim()
+    ? "Enter a task name first."
+    : !jobName
+      ? "Choose a job first."
+      : !effectivePrompt.trim()
+        ? "Write a prompt first."
+        : undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({
@@ -252,26 +261,23 @@ function NewTaskForm({
         <FileText className="size-4" />
         Creating a task saves it. You choose when to run it.
       </p>
+      {submitHint && (
+        <p id="submit-hint" className="text-right text-xs text-muted-foreground">
+          {submitHint}
+        </p>
+      )}
       <DialogFooter>
         <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>
           Cancel
         </Button>
         <Button
           type="submit"
-          title={
-            !name.trim()
-              ? "Enter a task name first"
-              : !jobName
-                ? "Choose a job first"
-                : !effectivePrompt.trim()
-                  ? "Write a prompt first"
-                  : undefined
-          }
+          aria-describedby={submitHint ? "submit-hint" : undefined}
           disabled={
             !name.trim() || !effectivePrompt.trim() || invalid || !jobName || mutation.isPending
           }
         >
-          {mutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
+          {mutation.isPending ? <Spinner /> : <Plus />}
           Create task
         </Button>
       </DialogFooter>

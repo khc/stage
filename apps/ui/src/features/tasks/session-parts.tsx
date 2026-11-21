@@ -1,17 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  ArrowUp,
-  Clock3,
-  Loader2,
-  Terminal,
-  Upload,
-  FileText,
-} from "lucide-react";
+import { ArrowRight, ArrowUp, Clock3, Terminal, Upload, FileText } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { ConfirmDelete } from "@/components/confirm-delete";
 import { ReasoningTrace, ToolTrace, Trace } from "@/components/agent-trace";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { JsonView } from "@/components/json-view";
 import { Markdown } from "@/components/markdown";
 import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
@@ -33,8 +25,8 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
-import { Spinner } from "@/components/ui/spinner";
 import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message";
+import { Spinner } from "@/components/ui/spinner";
 import {
   api,
   formatTime,
@@ -85,7 +77,7 @@ export function RunBadge({ run }: { run?: RunState }) {
   const { label, variant } = runBadge[run.status];
   return (
     <Badge variant={variant} title={run.error}>
-      {run.status === "running" && <Loader2 className="animate-spin" />}
+      {run.status === "running" && <Spinner />}
       {label}
     </Badge>
   );

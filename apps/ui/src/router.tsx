@@ -32,9 +32,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { JobsTable } from "@/features/jobs/jobs-table";
-import { JobSheet } from "@/features/jobs/job-sheet";
 import { AssistantPage } from "@/features/assistant/assistant-page";
+import { JobSheet } from "@/features/jobs/job-sheet";
+import { JobsTable } from "@/features/jobs/jobs-table";
+import { ProvidersPage } from "@/features/settings/providers-page";
 import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
 import { TaskSheet } from "@/features/tasks/task-sheet";
 import { TasksPanel } from "@/features/tasks/tasks-panel";
@@ -50,6 +51,7 @@ const captions: Record<string, [string, string, string]> = {
   "/assistant": ["Assistant", "Assistant", "Chat with the orchestrator."],
   "/tasks": ["Tasks", "Tasks", "Save a prompt. Choose a job. Put your agents to work."],
   "/jobs": ["Jobs", "Jobs", "The workers behind your tasks."],
+  "/settings": ["Providers", "Providers", "Configure model providers and API credentials."],
 };
 
 function Shell() {
@@ -65,6 +67,7 @@ function Shell() {
   const { taskId, chatId } = useParams({ strict: false }) as { taskId?: string; chatId?: string };
   const section = `/${pathname.split("/")[1]}`;
   const isAssistant = section === "/assistant";
+  const isSettings = section === "/settings";
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
   const [crumb, title, subtitle] = captions[section] ?? captions["/"]!;
@@ -98,7 +101,7 @@ function Shell() {
             aria-label="Breadcrumb"
             className="flex items-center gap-1 text-sm text-muted-foreground"
           >
-            Workspace
+            {isSettings ? "Settings" : "Workspace"}
             <ChevronRight className="size-3.5" />
             <strong className="font-medium text-foreground">{crumb}</strong>
           </nav>
@@ -138,10 +141,12 @@ function Shell() {
                   >
                     <RefreshCw className={refreshing ? "animate-spin" : ""} />
                   </Button>
-                  <Button onClick={() => void openCreate()}>
-                    <Plus />
-                    New task
-                  </Button>
+                  {!isSettings && (
+                    <Button onClick={() => void openCreate()}>
+                      <Plus />
+                      New task
+                    </Button>
+                  )}
                 </div>
               </div>
               <Outlet />
@@ -173,7 +178,9 @@ function Stat({
   note: string;
 }) {
   const card = (
-    <Card className={`relative ${to ? "transition-colors hover:border-primary/40 hover:bg-accent/30" : ""}`}>
+    <Card
+      className={`relative ${to ? "transition-colors hover:border-primary/40 hover:bg-accent/30" : ""}`}
+    >
       <CardHeader>
         <span
           className={`absolute top-4 right-4 grid size-9 place-items-center rounded-lg [&_svg]:size-4 ${tone}`}
@@ -223,11 +230,7 @@ function Overview() {
         />
         <Stat
           icon={<Activity />}
-          tone={
-            health.isError
-              ? "bg-warning/10 text-warning"
-              : "bg-success/10 text-success"
-          }
+          tone={health.isError ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}
           label="API connection"
           value={health.isError ? "Unavailable" : health.isPending ? "Connecting" : "Healthy"}
           note={
@@ -238,23 +241,23 @@ function Overview() {
         />
       </section>
       {tasks.data?.tasks.length === 0 && (
-      <Card className="border-primary/20 bg-linear-to-br from-primary/15 via-primary/5 to-card">
-        <CardContent className="flex flex-wrap items-center gap-4">
-          <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
-            <Workflow className="size-6" />
-          </span>
-          <div className="flex-1">
-            <h2 className="font-medium">One task. Every conversation in view.</h2>
-            <p className="text-sm text-muted-foreground">
-              Give an agent a prompt, then inspect its work through execution sessions.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FileText className="size-4" /> Save <Play className="size-4" /> Run{" "}
-            <Terminal className="size-4" /> Inspect
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="border-primary/20 bg-linear-to-br from-primary/15 via-primary/5 to-card">
+          <CardContent className="flex flex-wrap items-center gap-4">
+            <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
+              <Workflow className="size-6" />
+            </span>
+            <div className="flex-1">
+              <h2 className="font-medium">One task. Every conversation in view.</h2>
+              <p className="text-sm text-muted-foreground">
+                Give an agent a prompt, then inspect its work through execution sessions.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <FileText className="size-4" /> Save <Play className="size-4" /> Run{" "}
+              <Terminal className="size-4" /> Inspect
+            </div>
+          </CardContent>
+        </Card>
       )}
       <TasksPanel title="Tasks" limit={8} />
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -310,6 +313,11 @@ const routeTree = rootRoute.addChildren([
     component: () => <TasksPanel title="Tasks" />,
   }),
   createRoute({ getParentRoute: () => rootRoute, path: "/jobs", component: JobsTable }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings/providers",
+    component: ProvidersPage,
+  }),
 ]);
 
 export const router = createRouter({ routeTree });

@@ -42,9 +42,7 @@ test("AssistantThread renders user and Markdown assistant turns without raw tech
     },
   ];
 
-  const html = renderToStaticMarkup(
-    <AssistantThread turns={turns} onStarterSelect={() => {}} />,
-  );
+  const html = renderToStaticMarkup(<AssistantThread turns={turns} onStarterSelect={() => {}} />);
 
   expect(html).toContain("What did we find?");
   expect(html).toContain("<strong>key result</strong>");
@@ -83,5 +81,7 @@ test("AssistantComposer renders target selector, attachment button, and disables
   expect(emptyHtml).toContain("orchestrator · orchestrator");
   expect(emptyHtml).toContain('aria-label="Attach file"');
   expect(emptyHtml).toContain('aria-label="Send message"');
-  expect(emptyHtml).toMatch(/disabled=""[^>]*aria-label="Send message"|aria-label="Send message"[^>]*disabled=""/);
+  expect(emptyHtml).toMatch(
+    /disabled=""[^>]*aria-label="Send message"|aria-label="Send message"[^>]*disabled=""/,
+  );
 });

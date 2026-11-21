@@ -11,14 +11,14 @@ Rules for building and changing `apps/ui`. They record how the UI is built after
 
 ## Where things live
 
-| What | Where |
-|---|---|
-| shadcn primitives | `src/components/ui/` |
-| Shared composed pieces | `src/components/` (`states.tsx`, `data-table.tsx`, `agent-trace.tsx`, `search-input.tsx`, `pane.tsx`) |
-| A screen and its parts | `src/features/<feature>/`, files named in kebab-case |
-| Route tree, shell, Overview | `src/router.tsx` |
-| API client and types | `src/lib/api.ts` (types come from the service through Eden; do not retype them) |
-| Server state | `src/lib/queries.ts` and TanStack Query |
+| What                        | Where                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| shadcn primitives           | `src/components/ui/`                                                                                  |
+| Shared composed pieces      | `src/components/` (`states.tsx`, `data-table.tsx`, `agent-trace.tsx`, `search-input.tsx`, `pane.tsx`) |
+| A screen and its parts      | `src/features/<feature>/`, files named in kebab-case                                                  |
+| Route tree, shell, Overview | `src/router.tsx`                                                                                      |
+| API client and types        | `src/lib/api.ts` (types come from the service through Eden; do not retype them)                       |
+| Server state                | `src/lib/queries.ts` and TanStack Query                                                               |
 
 A component used by two features moves to `src/components/`. Tests sit next to the file and end in `.test.ts(x)`.
 
@@ -40,7 +40,7 @@ A component used by two features moves to `src/components/`. Tests sit next to t
 - Children (sub-tasks) are table sub-rows, collapsed by default and opened by a search.
 - A row can be clicked as a mouse shortcut, but it must contain one real button or link for the keyboard. Buttons inside the row call `stopPropagation`.
 - Hide secondary columns below `md` and fold their content into the first cell's subtitle.
-- The first column of a record is an `Item` (icon, name, one line of detail).
+- The first cell of a record shows an icon, its name and one line of detail: an `Item` for jobs, a title with the prompt underneath for tasks.
 - Footer left text: `N of M <things> shown`, or `N matching` while a search is active. Right text: `Live updates` only if the list is fed by the event stream, otherwise `Refreshes every 15 seconds`. Never claim live updates the query does not have.
 - Every list has the same four states, built from `states.tsx`: `Loading`, `ErrorBox` with retry, `Empty` for no data (with the create action if there is one) and `Empty` for no search match.
 
@@ -91,7 +91,7 @@ Anything an agent does is shown with the AI Elements patterns, built on `Trace`.
 
 ## Checklist before you finish a UI change
 
-1. `bunx tsc -b` in `apps/ui` and `bun test apps/ui` pass.
+1. `bun run typecheck` (in `apps/ui`), `bun test apps/ui`, `bun run lint` and `bun run format:check` pass.
 2. The page works in light and dark, and at 390px.
 3. Loading, error, empty and no-match states exist and look right.
 4. No new raw colors, arbitrary font sizes or duplicated components.
