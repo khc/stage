@@ -32,6 +32,13 @@ test("POST /run runs the task and returns its reply", async () => {
   expect(runTask).toHaveBeenCalledWith({ taskId, sessionId: "s1" }, expect.any(AbortSignal));
 });
 
+test("the reply does not wait for the telemetry flush", async () => {
+  const flush = mock(() => new Promise<void>(() => {}));
+  const res = await createServeHandler(async () => "x", flush)(post({ taskId }));
+  expect(res.status).toBe(200);
+  expect(flush).toHaveBeenCalledTimes(1);
+});
+
 for (const body of [
   "not json",
   {},

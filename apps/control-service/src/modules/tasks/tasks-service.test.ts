@@ -151,12 +151,13 @@ describe("tasks service run", () => {
       (overrides.queue ?? (async () => true))(),
     );
     const clearMessage = mock(async (_t: string, _s: string) => {});
+    const failRun = mock(async (_t: string, _s: string, _m: string) => {});
     const service = createTasksService(
       {
         tasksStore: { get: getTask },
         agentRegistry: { list: async () => [] },
         cloudRunJobs: { run: runJob },
-        sessionsStore: { create, delete: del, get, queueMessage, clearMessage },
+        sessionsStore: { create, delete: del, get, queueMessage, clearMessage, failRun },
         allowedJobs: overrides.allowedJobs,
         agentServices: overrides.agentServices,
       } as unknown as TasksServiceDeps,
@@ -164,7 +165,17 @@ describe("tasks service run", () => {
         ? { maxQuickInFlight: overrides.maxQuickInFlight }
         : undefined,
     );
-    return { service, getTask, runJob, create, del, queueMessage, clearMessage, getSession: get };
+    return {
+      service,
+      getTask,
+      runJob,
+      create,
+      del,
+      queueMessage,
+      clearMessage,
+      failRun,
+      getSession: get,
+    };
   };
   const quickServices = (run: (...args: unknown[]) => Promise<void> = async () => {}) => {
     const runService = mock(run);
@@ -387,7 +398,9 @@ describe("tasks service run", () => {
       const { service } = setupRun({ agentServices, maxQuickInFlight: 1 });
       const controller = new AbortController();
 
-      const inFlight = service.run(taskId, { message: "one" }, "quick", controller.signal);
+      const inFlight = service.run(taskId, { message: "one" }, "quick", {
+        signal: controller.signal,
+      });
       await reachedService;
       expect(await service.run(taskId, { message: "two" }, "quick")).toEqual({
         status: "too_many_quick_runs",
@@ -402,6 +415,90 @@ describe("tasks service run", () => {
       });
       expect(await service.run(taskId, { message: "three" }, "quick")).toMatchObject({
         status: "started",
+      });
+    });
+
+    describe("in the background", () => {
+      const background = { background: true };
+
+      test("returns at once with the session while the service run goes on", async () => {
+        let release!: () => void;
+        const blocker = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const { service, runService, runJob } = setup(() => blocker);
+        expect(await service.run(taskId, { message: "hi" }, "quick", background)).toEqual({
+          status: "started",
+          operation: "service",
+          sessionId: "s-new",
+        });
+        expect(runService).toHaveBeenCalledWith("my-job", taskId, "s-new");
+        expect(runJob).not.toHaveBeenCalled();
+        release();
+      });
+
+      test("keeps its place among the quick runs until the run ends", async () => {
+        let release!: () => void;
+        const blocker = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const { agentServices } = quickServices(() => blocker);
+        const { service } = setupRun({ agentServices, maxQuickInFlight: 1 });
+        await service.run(taskId, { message: "one" }, "quick", background);
+        expect(await service.run(taskId, { message: "two" }, "quick", background)).toEqual({
+          status: "too_many_quick_runs",
+        });
+        release();
+        await blocker;
+        await Bun.sleep(0);
+        expect(await service.run(taskId, { message: "three" }, "quick", background)).toMatchObject({
+          status: "started",
+        });
+      });
+
+      test("a run that never reached the agent fails its session so the stream shows why", async () => {
+        const error = spyOn(console, "error").mockImplementation(() => {});
+        const fresh = setup(async () => Promise.reject(new Error("service down")));
+        expect(await fresh.service.run(taskId, { message: "hi" }, "quick", background)).toMatchObject(
+          { status: "started", sessionId: "s-new" },
+        );
+        await Bun.sleep(0);
+        expect(fresh.failRun).toHaveBeenCalledWith(taskId, "s-new", expect.stringContaining("service down"));
+        expect(fresh.del).not.toHaveBeenCalled();
+
+        const resumed = setup(async () => Promise.reject(new Error("service down")));
+        await resumed.service.run(taskId, resume, "quick", background);
+        await Bun.sleep(0);
+        expect(resumed.failRun).toHaveBeenCalledWith(taskId, "s1", expect.stringContaining("service down"));
+        expect(resumed.clearMessage).not.toHaveBeenCalled();
+        error.mockRestore();
+      });
+
+      test("a lease conflict leaves the other run's session alone and clears the message", async () => {
+        const error = spyOn(console, "error").mockImplementation(() => {});
+        const resumed = setup(async () => Promise.reject(new RunInProgressError()));
+        await resumed.service.run(taskId, resume, "quick", background);
+        await Bun.sleep(0);
+        expect(resumed.failRun).not.toHaveBeenCalled();
+        expect(resumed.clearMessage).toHaveBeenCalledWith(taskId, "s1");
+        error.mockRestore();
+      });
+
+      test("a failed run keeps its session and a timeout keeps the session and the message", async () => {
+        const failed = setupRun({
+          agentServices: quickServices(async () => Promise.reject(new RunFailedError()))
+            .agentServices,
+          session: { id: "s-new", run: { status: "failed" } },
+        });
+        await failed.service.run(taskId, { message: "hi" }, "quick", background);
+        const timedOut = setup(async () => Promise.reject(new QuickTimeoutError()));
+        await timedOut.service.run(taskId, { message: "hi" }, "quick", background);
+        await Bun.sleep(0);
+        for (const { del, clearMessage, failRun } of [failed, timedOut]) {
+          expect(del).not.toHaveBeenCalled();
+          expect(clearMessage).not.toHaveBeenCalled();
+          expect(failRun).not.toHaveBeenCalled();
+        }
       });
     });
 

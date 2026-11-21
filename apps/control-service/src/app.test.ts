@@ -656,13 +656,13 @@ describe("POST /tasks/:taskId/run", () => {
     });
   });
 
-  test("passes mode query param and abort signal to tasksService.run, raises idle timeout, and maps quick_timeout to 504", async () => {
+  test("passes the mode and runs in the background, so a quick run answers at once", async () => {
     let seenMode: unknown;
-    let seenSignal: unknown;
+    let seenOptions: unknown;
     const okApp = appWith({
-      run: async (_id, _resume, mode, signal) => (
+      run: async (_id, _resume, mode, options) => (
         (seenMode = mode),
-        (seenSignal = signal),
+        (seenOptions = options),
         { status: "started", operation: "service", sessionId: "s-quick" }
       ),
     });
@@ -670,35 +670,7 @@ describe("POST /tasks/:taskId/run", () => {
       await call(okApp, `/tasks/${task.taskId}/run?mode=quick`, json({ message: "fast reply" })),
     ).toEqual({ status: 202, body: { operation: "service", sessionId: "s-quick" } });
     expect(seenMode).toBe("quick");
-    expect(seenSignal).toBeInstanceOf(AbortSignal);
-
-    const server = okApp.listen(0);
-    const timeoutSpy = spyOn(server.server!, "timeout");
-    try {
-      const res = await fetch(
-        `http://localhost:${server.server!.port}/tasks/${task.taskId}/run?mode=quick`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message: "quick over http" }),
-        },
-      );
-      expect(res.status).toBe(202);
-      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Request), 255);
-    } finally {
-      timeoutSpy.mockRestore();
-      await server.stop(true);
-    }
-
-    const timeoutApp = appWith({
-      run: async () => ({ status: "quick_timeout", sessionId: "s-slow" }),
-    });
-    expect(
-      await call(timeoutApp, `/tasks/${task.taskId}/run?mode=quick`, json({ message: "slow" })),
-    ).toEqual({
-      status: 504,
-      body: { error: "quick_timeout", sessionId: "s-slow" },
-    });
+    expect(seenOptions).toEqual({ background: true });
 
     expect(
       await call(okApp, `/tasks/${task.taskId}/run?mode=invalid`, { method: "POST" }),

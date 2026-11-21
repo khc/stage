@@ -116,6 +116,31 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("sessions store", () => {
     }
   });
 
+  test("failRun records a failed run on a session nobody holds, and leaves a live run alone", async () => {
+    const firestore = new Firestore();
+    const service = new FirestoreSessionService(firestore);
+    const api = createSessionsStore(firestore);
+    const key = { appName: `test-${crypto.randomUUID()}`, userId: "user" };
+    const taskId = crypto.randomUUID();
+    const session = await service.createSession({ ...key, taskId });
+    const ref = { ...key, sessionId: session.id };
+    try {
+      await api.failRun(taskId, session.id, "service down");
+      expect((await api.get(taskId, session.id))?.run).toMatchObject({
+        status: "failed",
+        error: "service down",
+      });
+      await service.startRun(ref);
+      await api.failRun(taskId, session.id, "too late");
+      expect((await api.get(taskId, session.id))?.run?.status).toBe("running");
+      await service.finishRun(ref);
+      await api.failRun(crypto.randomUUID(), session.id, "wrong task");
+    } finally {
+      await service.deleteSession(ref);
+      await firestore.terminate();
+    }
+  });
+
   test("creates a session owned by the task under the runtime owner", async () => {
     const firestore = new Firestore();
     const api = createSessionsStore(firestore);

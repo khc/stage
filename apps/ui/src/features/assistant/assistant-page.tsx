@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, MessageSquare, PanelLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { ErrorBox } from "@/components/states";
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ApiError, api, taskTitle, type ModelRef, type RunMode, type Task } from "@/lib/api";
+import { api, taskTitle, type ModelRef, type RunMode, type Task } from "@/lib/api";
 import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
 import { NEW_CHAT_EVENT, useNav } from "@/lib/nav";
 import { useProviders, useTasks } from "@/lib/queries";
@@ -201,12 +200,6 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
       },
       {
         onSuccess: () => setDraft(""),
-        onError: (err) => {
-          if (err instanceof ApiError && err.status === 504) {
-            setDraft("");
-            if (!chatId) toast.warning(err.message);
-          }
-        },
       },
     );
   };

@@ -127,7 +127,6 @@ test("quick mode appends ?mode=quick to the run route for startSession and resum
 
 test.each([
   [409, "quick_unavailable", "no Cloud Run service configured"],
-  [504, "quick_timeout", "exceeded its time budget"],
   [502, "service_error", "Cloud Run service could not complete"],
   [429, "too_many_quick_runs", "Too many service runs"],
 ] as const)(

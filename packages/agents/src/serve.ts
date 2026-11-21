@@ -23,7 +23,7 @@ const json = (body: unknown, status: number) => Response.json(body, { status });
 // The HTTP host of the run path a job runs: `POST /run` runs a task and answers with the reply.
 // A run already in progress is a 409, a run stopped by its `budgetMs` a 504, any other failure a 500.
 export const createServeHandler =
-  (runTask: RunTask) =>
+  (runTask: RunTask, flush: () => unknown = flushTelemetry) =>
   async (req: Request): Promise<Response> => {
     const { pathname } = new URL(req.url);
     if (req.method === "GET" && pathname === "/health") return new Response("ok");
@@ -47,7 +47,9 @@ export const createServeHandler =
         return 1;
       }
     });
-    await flushTelemetry();
+    // The service keeps running, so the flush must not hold the reply: an unreachable collector
+    // retries for seconds. Only a job, which exits right after, has to wait for it.
+    void flush();
 
     if (outcome.reply !== undefined) return json({ reply: outcome.reply }, 200);
     if (outcome.error instanceof RunInProgressError) return json({ error: "run_in_progress" }, 409);

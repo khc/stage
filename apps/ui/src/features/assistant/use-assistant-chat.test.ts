@@ -137,34 +137,6 @@ test("executeNewChatSend forwards run mode when specified", async () => {
   expect(startSession).toHaveBeenCalledWith("task-fast", "Quick ping", undefined, "quick");
 });
 
-test("executeNewChatSend clears pending and reports task/session on 504 quick_timeout", async () => {
-  const { ApiError } = await import("@/lib/api");
-  let pending: PendingTask | null = null;
-  const create = mock(async () => ({ taskId: "task-slow" }));
-  const startSession = mock(async () => {
-    throw new ApiError(504, "timed out", "quick_timeout", "s-slow");
-  });
-  const onQuickTimeout = mock(() => {});
-
-  await expect(
-    executeNewChatSend({
-      client: { create, uploadDocument: mock(), startSession } as never,
-      pending,
-      setPending: (next) => {
-        pending = next;
-      },
-      target: { jobName: "orchestrator" },
-      message: "Slow ping",
-      files: [],
-      mode: "quick",
-      onQuickTimeout,
-    }),
-  ).rejects.toThrow("timed out");
-
-  expect(pending).toBeNull();
-  expect(onQuickTimeout).toHaveBeenCalledWith("task-slow", "s-slow");
-});
-
 test("executeNewChatSend gives the new task its default model and starts the session with it", async () => {
   const create = mock(async (_input: unknown) => ({ taskId: "task-9" }));
   const startSession = mock(async (_t: string, _m: string, _model?: unknown) => ({

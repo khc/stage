@@ -254,6 +254,12 @@ variable "service_resources" {
   description = "CPU and memory limits for the HTTP service container."
 }
 
+variable "service_cpu_idle" {
+  type        = bool
+  default     = false
+  description = "Whether Cloud Run throttles the HTTP service's CPU outside requests. Keep false while quick runs go on in the background after the request is answered; true bills by request."
+}
+
 variable "service_scaling" {
   type = object({
     min_instance_count = optional(number, 0)

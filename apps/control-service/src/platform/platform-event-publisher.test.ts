@@ -101,6 +101,7 @@ test("the app publishes task create, run and delete events", async () => {
       delete: async () => false,
       queueMessage: async () => true,
       clearMessage: async () => {},
+      failRun: async () => {},
     },
   });
   const app = createApp({

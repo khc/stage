@@ -74,7 +74,6 @@ const messages: Record<string, string> = {
   message_pending: "Your previous message is still being delivered. Try again in a minute.",
   run_in_progress: "This session is still running. Wait for it to finish before continuing.",
   quick_unavailable: "This agent has no Cloud Run service configured. Switch to Job mode.",
-  quick_timeout: "The service run exceeded its time budget and may still finish in the background.",
   too_many_quick_runs:
     "Too many service runs are already in flight. Try again in a moment or switch to Job mode.",
   service_error:

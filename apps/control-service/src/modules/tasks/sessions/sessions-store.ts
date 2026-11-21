@@ -4,6 +4,7 @@ import type { ModelRef } from "@stage/agents/model-ref";
 import { appName, userId } from "@stage/agents/runtime";
 import {
   FirestoreSessionService,
+  RunInProgressError,
   runFields,
   runState,
   type RunState,
@@ -34,6 +35,9 @@ export type SessionsStore = {
     model?: ModelRef,
   ) => Promise<boolean>;
   clearMessage: (taskId: string, sessionId: string) => Promise<void>;
+  // Records a failed run on a session whose run never started, so its event stream shows why. A session
+  // another run holds is left alone.
+  failRun: (taskId: string, sessionId: string, message: string) => Promise<void>;
 };
 
 const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => ({
@@ -100,6 +104,18 @@ export const createSessionsStore = (firestore: Firestore): SessionsStore => {
     async clearMessage(taskId, sessionId) {
       const doc = await find(taskId, sessionId);
       if (doc) await sessionService.clearMessage(keyOf(doc, sessionId));
+    },
+    async failRun(taskId, sessionId, message) {
+      const doc = await find(taskId, sessionId);
+      if (!doc) return;
+      const key = keyOf(doc, sessionId);
+      try {
+        await sessionService.startRun(key);
+      } catch (err) {
+        if (err instanceof RunInProgressError) return;
+        throw err;
+      }
+      await sessionService.finishRun(key, message);
     },
     async delete(taskId, sessionId) {
       const doc = await find(taskId, sessionId);

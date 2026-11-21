@@ -266,6 +266,7 @@ resource "google_cloud_run_v2_service" "service" {
       }
 
       resources {
+        cpu_idle = var.service_cpu_idle
         limits = {
           cpu    = var.service_resources.cpu
           memory = var.service_resources.memory

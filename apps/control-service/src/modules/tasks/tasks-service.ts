@@ -64,6 +64,14 @@ export type TasksServiceConfig = {
 
 export type Resume = { sessionId?: string; message: string; model?: ModelRef };
 
+export type RunOptions = {
+  // Stops a quick run that is waited for when aborted.
+  signal?: AbortSignal;
+  // A quick run returns as soon as the session exists, and the service finishes it on its own; the
+  // caller follows it on the session's event stream. Without it the call returns when the run has finished.
+  background?: boolean;
+};
+
 // Every expected outcome is a status; a failing dependency throws a DependencyError.
 export type TasksService = {
   // A job outside `allowedJobs` is refused. A job with registered agents only accepts those; a job without a
@@ -74,12 +82,12 @@ export type TasksService = {
   // Starts a new session of the task, or resumes one: the message is queued on the
   // session in Firestore and the job gets only the session id. In `workflow` mode (the default)
   // the run is a Cloud Run job started in the background; in `quick` mode it runs on the job's
-  // service and the call returns when it has finished.
+  // service and the call returns when it has finished, or at once with `background`.
   run: (
     taskId: string,
     resume?: Resume,
     mode?: RunMode,
-    signal?: AbortSignal,
+    options?: RunOptions,
   ) => Promise<RunTaskResult>;
   // Deletes the task with its sessions, then releases the documents nobody else uses.
   delete: (taskId: string) => Promise<"deleted" | "not_found" | "too_many_subtasks">;
@@ -119,7 +127,7 @@ export const createTasksService = (
       }),
     list: () => guard("task_error", tasksStore.list),
     get: (taskId) => guard("task_error", () => tasksStore.get(taskId)),
-    async run(taskId, resume, mode = "workflow", signal) {
+    async run(taskId, resume, mode = "workflow", { signal, background = false } = {}) {
       const task = await guard("task_error", () => tasksStore.get(taskId));
       if (!task) return { status: "task_not_found" };
       if (!isJobName(task.jobName ?? "") || (allowedJobs && !allowedJobs.has(task.jobName!)))
@@ -129,6 +137,8 @@ export const createTasksService = (
       if (resume?.model && !(await isUsable(resume.model))) return { status: "unknown_model" };
 
       const counted = mode === "quick";
+      // A background run keeps its place among the quick runs until it ends.
+      let handedOff = false;
       if (counted) {
         if (quickInFlight >= maxQuickInFlight) return { status: "too_many_quick_runs" };
         quickInFlight++;
@@ -173,6 +183,56 @@ export const createTasksService = (
           }
         }
 
+        const started = (): RunTaskResult => ({
+          status: "started",
+          operation: "service",
+          ...(createdSession && { sessionId: targetSessionId }),
+        });
+        // The run did not finish as a plain success: a status for the expected outcomes, a throw otherwise.
+        const recover = async (err: unknown): Promise<RunTaskResult> => {
+          // The service has the run: it may still finish, so its session and message stay.
+          if (err instanceof QuickTimeoutError)
+            return {
+              status: "quick_timeout",
+              ...(targetSessionId && { sessionId: targetSessionId }),
+            };
+          // The service ran it and the run failed: its session records the failure for the caller to
+          // read. A run that failed before it started recorded nothing, so that is a service failure.
+          if (err instanceof RunFailedError && targetSessionId) {
+            const failed = await sessionsStore
+              .get(taskId, targetSessionId)
+              .then((session) => session?.run?.status === "failed")
+              .catch(() => false);
+            if (failed) return started();
+          }
+          if (background && targetSessionId && !(err instanceof RunInProgressError)) {
+            // The caller has the session id and is already following it: let its stream show the failure.
+            await sessionsStore
+              .failRun(taskId, targetSessionId, err instanceof Error ? err.message : String(err))
+              .catch((failErr) => console.error("Failed to record the run failure", failErr));
+          } else if (createdSession && targetSessionId) {
+            await sessionsStore
+              .delete(taskId, targetSessionId)
+              .catch((delErr) => console.error("Failed to remove unstarted session", delErr));
+          } else if (resume?.sessionId) {
+            await sessionsStore
+              .clearMessage(taskId, resume.sessionId)
+              .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
+          }
+          if (err instanceof RunInProgressError) return { status: "run_in_progress" };
+          throw new DependencyError(mode === "quick" ? "service_error" : "job_error", err);
+        };
+
+        if (mode === "quick" && background) {
+          handedOff = true;
+          agentServices!
+            .run(task.jobName!, taskId, targetSessionId)
+            .catch(recover)
+            .catch((err) => console.error("Quick run failed", err))
+            .finally(() => quickInFlight--);
+          return started();
+        }
+
         try {
           const operation =
             mode === "quick"
@@ -190,40 +250,10 @@ export const createTasksService = (
             ...(createdSession && { sessionId: targetSessionId }),
           };
         } catch (err) {
-          // The service has the run: it may still finish, so its session and message stay.
-          if (err instanceof QuickTimeoutError)
-            return {
-              status: "quick_timeout",
-              ...(targetSessionId && { sessionId: targetSessionId }),
-            };
-          // The service ran it and the run failed: its session records the failure for the caller to
-          // read. A run that failed before it started recorded nothing, so that is a service failure.
-          if (err instanceof RunFailedError && targetSessionId) {
-            const failed = await sessionsStore
-              .get(taskId, targetSessionId)
-              .then((session) => session?.run?.status === "failed")
-              .catch(() => false);
-            if (failed)
-              return {
-                status: "started",
-                operation: "service",
-                ...(createdSession && { sessionId: targetSessionId }),
-              };
-          }
-          if (createdSession && targetSessionId) {
-            await sessionsStore
-              .delete(taskId, targetSessionId)
-              .catch((delErr) => console.error("Failed to remove unstarted session", delErr));
-          } else if (resume?.sessionId) {
-            await sessionsStore
-              .clearMessage(taskId, resume.sessionId)
-              .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
-          }
-          if (err instanceof RunInProgressError) return { status: "run_in_progress" };
-          throw new DependencyError(mode === "quick" ? "service_error" : "job_error", err);
+          return await recover(err);
         }
       } finally {
-        if (counted) quickInFlight--;
+        if (counted && !handedOff) quickInFlight--;
       }
     },
 

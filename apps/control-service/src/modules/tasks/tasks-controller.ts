@@ -11,9 +11,6 @@ import type { Resume, TasksService } from "./tasks-service";
 
 const isResume = TypeCompiler.Compile(TasksModel.resume);
 const tag = "Tasks";
-// Quick runs await up to QUICK_BUDGET_MS (up to 240 s), longer than Elysia's 30 s idle timeout;
-// match A2A's 255 s Bun per-request timeout so the socket is not reset mid-run.
-const QUICK_REQUEST_TIMEOUT_SECONDS = 255;
 
 export type TasksControllerDeps = {
   tasksService: TasksService;
@@ -76,7 +73,7 @@ export const tasksController = ({
     )
     .post(
       "/:taskId/run",
-      async ({ params, query, request, server, status }) => {
+      async ({ params, query, request, status }) => {
         // No body is a plain run; a body that is not JSON is refused, not taken for a plain run.
         const text = await request.text();
         let raw: Record<string, unknown> | undefined;
@@ -94,16 +91,10 @@ export const tasksController = ({
             ...(raw.model !== undefined && { model: raw.model }),
           };
         }
-        if (query.mode === "quick") server?.timeout(request, QUICK_REQUEST_TIMEOUT_SECONDS);
-        const result =
-          query.mode === "quick"
-            ? await tasksService.run(
-                params.taskId.toLowerCase(),
-                resume,
-                query.mode,
-                request.signal,
-              )
-            : await tasksService.run(params.taskId.toLowerCase(), resume, query.mode);
+        // A quick run goes on after the answer: the session id is enough to follow it on the event stream.
+        const result = await tasksService.run(params.taskId.toLowerCase(), resume, query.mode, {
+          background: true,
+        });
         switch (result.status) {
           case "started":
             return status(202, {
@@ -117,11 +108,6 @@ export const tasksController = ({
             return status(400, { error: result.status });
           case "too_many_quick_runs":
             return status(429, { error: result.status });
-          case "quick_timeout":
-            return status(504, {
-              error: result.status,
-              ...(result.sessionId && { sessionId: result.sessionId }),
-            });
           default:
             return status(409, { error: result.status });
         }
@@ -134,15 +120,14 @@ export const tasksController = ({
         parse: "none",
         ...doc(tag, "Run a task, start a session with a message, or resume a session", {
           202: {
-            description: "The Cloud Run execution was started (or completed in `quick` mode).",
+            description: "The Cloud Run job was started, or in `quick` mode the service run was handed over; follow either on the session's event stream.",
             schema: TasksModel.operation,
           },
           400: "A body that is not JSON (`invalid_request`), or one without a non-blank `message` or valid `sessionId` (`invalid_resume`), or an invalid `mode`, or a `model` that is not selectable (`unknown_model`).",
           404: "No such task or session (`task_not_found`, `session_not_found`).",
           409: "The task cannot run now (`task_not_executable`, `run_in_progress`, `message_pending`, `quick_unavailable`).",
-          429: "Too many quick service runs are already in flight (`too_many_quick_runs`).",
+          429: "Too many quick service runs are still in flight (`too_many_quick_runs`).",
           502: errors.dependency,
-          504: "The quick service run exceeded its time budget and may still finish (`quick_timeout`).",
         }),
       },
     )

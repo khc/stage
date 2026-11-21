@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sessionRefetchInterval, useSessionStream } from "@/features/tasks/session-parts";
 import {
-  ApiError,
   api,
   shortJobName,
   type AgentInfo,
@@ -79,7 +78,6 @@ export async function executeNewChatSend({
   files,
   onCreated,
   onUploaded,
-  onQuickTimeout,
   model,
   mode,
 }: {
@@ -91,7 +89,6 @@ export async function executeNewChatSend({
   files: File[];
   onCreated?: (taskId: string) => void;
   onUploaded?: (taskId: string) => void;
-  onQuickTimeout?: (taskId: string, sessionId?: string) => void;
   // The model picked for the first message; it also becomes the new task's default.
   model?: ModelRef;
   mode?: RunMode;
@@ -117,20 +114,9 @@ export async function executeNewChatSend({
     onUploaded?.(state.taskId);
   }
 
-  let started: Awaited<ReturnType<Api["startSession"]>>;
-  try {
-    started = mode
-      ? await client.startSession(state.taskId, message, model, mode)
-      : await client.startSession(state.taskId, message, model);
-  } catch (err) {
-    // A 504 quick_timeout kept the started session and queued message on the server, so clear
-    // pending task reuse to avoid launching a duplicate session on retry and track the session.
-    if (err instanceof ApiError && err.status === 504) {
-      setPending(null);
-      onQuickTimeout?.(state.taskId, err.sessionId);
-    }
-    throw err;
-  }
+  const started = mode
+    ? await client.startSession(state.taskId, message, model, mode)
+    : await client.startSession(state.taskId, message, model);
   setPending(null);
   return { taskId: state.taskId, sessionId: started.sessionId };
 }
@@ -282,13 +268,6 @@ export function useAssistantChat(
           },
           onUploaded: (taskId) => {
             void queryClient.invalidateQueries({ queryKey: ["documents", taskId] });
-          },
-          onQuickTimeout: (taskId, sessionId) => {
-            setStagedFiles([]);
-            if (sessionId) setStartingSession({ taskId, sessionId });
-            void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-            void queryClient.invalidateQueries({ queryKey: ["sessions", taskId] });
-            options?.onSessionStarted?.(taskId, sessionId);
           },
         });
       }
