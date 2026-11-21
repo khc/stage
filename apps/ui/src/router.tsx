@@ -27,6 +27,7 @@ import {
 import { useEffect } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { FontPicker } from "@/components/font-picker";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,7 @@ function Shell() {
                 New chat
               </Button>
             )}
+            <FontPicker />
             <ThemePicker />
             <ThemeToggle />
           </div>
@@ -127,11 +129,11 @@ function Shell() {
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest text-primary">
+                  <p className="mb-1 flex items-center gap-2 text-xs font-medium text-primary">
                     <span className="h-px w-4 bg-primary" />
-                    AGENT OPERATIONS
+                    Agent operations
                   </p>
-                  <h1 className="text-2xl font-semibold">{title}</h1>
+                  <h1 className="text-2xl font-medium">{title}</h1>
                   <p className="text-sm text-muted-foreground">{subtitle}</p>
                 </div>
                 <div className="flex gap-2">

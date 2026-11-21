@@ -118,9 +118,7 @@ export function SessionStatsBar({
     >
       {items.map(([label, value]) => (
         <div key={label} className="rounded-xl border bg-muted/30 px-3 py-2.5">
-          <dt className="text-[0.65rem] font-semibold tracking-wider text-muted-foreground uppercase">
-            {label}
-          </dt>
+          <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
           <dd className="text-xl font-medium">{value.toLocaleString()}</dd>
         </div>
       ))}

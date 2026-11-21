@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { defaultFont, fonts, isFontId, type FontId } from "@/lib/fonts";
 import { defaultPalette, isPalette, type Palette } from "@/lib/palettes";
 
 type Theme = "dark" | "light" | "system";
@@ -9,7 +10,6 @@ type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
-  paletteStorageKey?: string;
   disableTransitionOnChange?: boolean;
 };
 
@@ -18,6 +18,8 @@ type ThemeProviderState = {
   setTheme: (theme: Theme) => void;
   palette: Palette;
   setPalette: (palette: Palette) => void;
+  font: FontId;
+  setFont: (font: FontId) => void;
 };
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
@@ -77,11 +79,41 @@ function isEditableTarget(target: EventTarget | null) {
   return false;
 }
 
+// A saved choice (palette, font) that stays in sync across tabs and falls back when the value is unknown.
+function useStoredChoice<T extends string>(
+  key: string,
+  isValid: (value: string | null) => value is T,
+  fallback: T,
+) {
+  const [value, setValue] = React.useState<T>(() => {
+    const stored = localStorage.getItem(key);
+    return isValid(stored) ? stored : fallback;
+  });
+
+  const set = React.useCallback(
+    (next: T) => {
+      localStorage.setItem(key, next);
+      setValue(next);
+    },
+    [key],
+  );
+
+  React.useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea !== localStorage || event.key !== key) return;
+      setValue(isValid(event.newValue) ? event.newValue : fallback);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [key, isValid, fallback]);
+
+  return [value, set] as const;
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "theme",
-  paletteStorageKey = "palette",
   disableTransitionOnChange = true,
   ...props
 }: ThemeProviderProps) {
@@ -94,22 +126,26 @@ export function ThemeProvider({
     return defaultTheme;
   });
 
-  const [palette, setPaletteState] = React.useState<Palette>(() => {
-    const storedPalette = localStorage.getItem(paletteStorageKey);
-    return isPalette(storedPalette) ? storedPalette : defaultPalette;
-  });
-
-  const setPalette = React.useCallback(
-    (nextPalette: Palette) => {
-      localStorage.setItem(paletteStorageKey, nextPalette);
-      setPaletteState(nextPalette);
-    },
-    [paletteStorageKey],
-  );
+  const [palette, setPalette] = useStoredChoice("palette", isPalette, defaultPalette);
+  const [font, setFont] = useStoredChoice("font", isFontId, defaultFont);
 
   React.useEffect(() => {
     document.documentElement.dataset.palette = palette;
   }, [palette]);
+
+  // Load the chosen font first, so text never falls back to a stand-in while it downloads.
+  React.useEffect(() => {
+    let cancelled = false;
+    const chosen = fonts.find(({ id }) => id === font);
+    void (async () => {
+      await chosen?.load();
+      if (chosen && !cancelled)
+        document.documentElement.style.setProperty("--app-font", chosen.family);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [font]);
 
   const setTheme = React.useCallback(
     (nextTheme: Theme) => {
@@ -200,11 +236,6 @@ export function ThemeProvider({
         return;
       }
 
-      if (event.key === paletteStorageKey) {
-        setPaletteState(isPalette(event.newValue) ? event.newValue : defaultPalette);
-        return;
-      }
-
       if (event.key !== storageKey) {
         return;
       }
@@ -222,7 +253,7 @@ export function ThemeProvider({
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [defaultTheme, storageKey, paletteStorageKey]);
+  }, [defaultTheme, storageKey]);
 
   const value = React.useMemo(
     () => ({
@@ -230,8 +261,10 @@ export function ThemeProvider({
       setTheme,
       palette,
       setPalette,
+      font,
+      setFont,
     }),
-    [theme, setTheme, palette, setPalette],
+    [theme, setTheme, palette, setPalette, font, setFont],
   );
 
   return (

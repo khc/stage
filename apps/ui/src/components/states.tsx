@@ -101,9 +101,5 @@ export function IdLine({ value }: { value: string }) {
 }
 
 export function Overline({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-      {children}
-    </p>
-  );
+  return <p className="text-xs font-medium text-muted-foreground">{children}</p>;
 }

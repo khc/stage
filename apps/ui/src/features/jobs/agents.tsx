@@ -86,7 +86,7 @@ export function AgentContract({ agent }: { agent: AgentInfo }) {
         const fields = schemaRows(schema);
         return (
           <div key={label}>
-            <dt className="text-xs font-semibold text-muted-foreground uppercase">{label}</dt>
+            <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
             <dd>
               {fields.length ? (
                 <ul className="flex flex-col gap-1">

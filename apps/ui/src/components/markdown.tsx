@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 
 const components: Components = {
   h1: ({ children, ...props }) => (
-    <h1 className="mt-3 mb-1 text-lg font-semibold first:mt-0" {...props}>
+    <h1 className="mt-3 mb-1 text-lg font-medium first:mt-0" {...props}>
       {children}
     </h1>
   ),
   h2: ({ children, ...props }) => (
-    <h2 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props}>
+    <h2 className="mt-3 mb-1 text-base font-medium first:mt-0" {...props}>
       {children}
     </h2>
   ),
   h3: ({ children, ...props }) => (
-    <h3 className="mt-2 mb-1 font-semibold first:mt-0" {...props}>
+    <h3 className="mt-2 mb-1 font-medium first:mt-0" {...props}>
       {children}
     </h3>
   ),
@@ -61,7 +61,7 @@ const components: Components = {
       <table className="w-full border-collapse text-left text-xs" {...props} />
     </div>
   ),
-  th: (props) => <th className="border-b px-2 py-1 font-semibold" {...props} />,
+  th: (props) => <th className="border-b px-2 py-1 font-medium" {...props} />,
   td: (props) => <td className="border-b px-2 py-1" {...props} />,
 };
 

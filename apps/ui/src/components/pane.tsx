@@ -31,7 +31,7 @@ export function PaneHeader({
           {icon}
         </span>
         <div className="flex min-w-0 flex-col gap-1">
-          <SheetTitle className="line-clamp-2 text-lg font-semibold">{title}</SheetTitle>
+          <SheetTitle className="line-clamp-2 text-lg font-medium">{title}</SheetTitle>
           <IdLine value={id} />
         </div>
       </div>

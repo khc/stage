@@ -234,7 +234,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
       <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
+            <SheetTitle className="flex items-center gap-2 text-sm font-medium">
               <img src="/stage.svg" alt="" aria-hidden className="size-4" />
               Conversations
             </SheetTitle>

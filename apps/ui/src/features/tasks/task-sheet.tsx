@@ -209,7 +209,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                 </Button>
                 {detail.data && (
                   <>
-                    <h3 className="min-w-0 truncate text-lg font-semibold">
+                    <h3 className="min-w-0 truncate text-lg font-medium">
                       {detail.data.name ?? "Session activity"}
                     </h3>
                     <span className="text-sm text-muted-foreground">
