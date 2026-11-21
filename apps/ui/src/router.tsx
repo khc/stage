@@ -34,6 +34,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AssistantPage } from "@/features/assistant/assistant-page";
 import { JobSheet } from "@/features/jobs/job-sheet";
 import { JobsTable } from "@/features/jobs/jobs-table";
+import { AssistantSettingsPage } from "@/features/settings/assistant-settings-page";
 import { ProvidersPage } from "@/features/settings/providers-page";
 import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
 import { TaskSheet } from "@/features/tasks/task-sheet";
@@ -72,11 +73,17 @@ const captions: Record<string, Caption> = {
     title: "Jobs",
     subtitle: "The workers behind your tasks.",
   },
-  "/settings": {
+  "/settings/providers": {
     crumb: "Providers",
     eyebrow: "Model access",
     title: "Providers",
     subtitle: "Configure model providers and API credentials.",
+  },
+  "/settings/assistant": {
+    crumb: "Assistant",
+    eyebrow: "Preferences",
+    title: "Assistant settings",
+    subtitle: "Choose how new conversations start.",
   },
 };
 
@@ -97,7 +104,7 @@ function Shell() {
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
   const { crumb, eyebrow, title, subtitle } =
-    captions[isAssistant ? "/" : section] ?? captions["/overview"]!;
+    captions[isAssistant ? "/" : isSettings ? pathname : section] ?? captions["/overview"]!;
   const jobs = jobsQuery.data?.jobs ?? [];
   const openJob = search.job ? jobs.find((job) => shortJobName(job) === search.job) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
@@ -408,6 +415,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: "/settings/providers",
     component: ProvidersPage,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings/assistant",
+    component: AssistantSettingsPage,
   }),
 ]);
 

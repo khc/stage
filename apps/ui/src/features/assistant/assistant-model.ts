@@ -20,6 +20,19 @@ export type AssistantTarget = {
   agentName?: string;
 };
 
+// A target saved in the settings, as long as its job (and, once loaded, its agent) still exists.
+export function resolveSavedTarget(
+  saved: AssistantTarget | undefined,
+  jobs: Job[],
+  agentsByJob: Record<string, AgentInfo[]> = {},
+): AssistantTarget | undefined {
+  if (!saved || !jobs.some((job) => shortJobName(job) === saved.jobName)) return undefined;
+  const agents = agentsByJob[saved.jobName];
+  if (saved.agentName && agents && !agents.some((agent) => agent.name === saved.agentName))
+    return undefined;
+  return saved;
+}
+
 // What the user sees for a target: the agent's name, or the job's when the target is the job itself.
 export const targetLabel = ({ jobName, agentName }: AssistantTarget): string => agentName ?? jobName;
 

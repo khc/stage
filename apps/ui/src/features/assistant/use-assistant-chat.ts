@@ -12,11 +12,13 @@ import {
   type Session,
   type SessionSummary,
 } from "@/lib/api";
+import { readAssistantSettings } from "@/lib/assistant-settings";
 import { useJobs } from "@/lib/queries";
 
 import {
   buildTargetOptions,
   resolveDefaultTarget,
+  resolveSavedTarget,
   toChatTitle,
   type AssistantTarget,
 } from "./assistant-model";
@@ -148,9 +150,12 @@ export function useAssistantTargets() {
     return map;
   }, [namedJobs, agentQueries]);
 
+  const [saved] = useState(() => readAssistantSettings().defaultTarget);
   const defaultTarget = useMemo(
-    () => resolveDefaultTarget(namedJobs, agentsByJob),
-    [namedJobs, agentsByJob],
+    () =>
+      resolveSavedTarget(saved, namedJobs, agentsByJob) ??
+      resolveDefaultTarget(namedJobs, agentsByJob),
+    [saved, namedJobs, agentsByJob],
   );
   const options = useMemo(
     () => buildTargetOptions(namedJobs, agentsByJob),

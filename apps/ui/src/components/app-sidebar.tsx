@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen, KeyRound, Layers3, LayoutDashboard, Server } from "lucide-react";
+import { BookOpen, Bot, KeyRound, Layers3, LayoutDashboard, Server } from "lucide-react";
 import type * as React from "react";
 
 import { FontPicker } from "@/components/font-picker";
@@ -31,7 +31,10 @@ const workspace = [
   { to: "/jobs", label: "Jobs", icon: Server },
 ] as const;
 
-const settings = [{ to: "/settings/providers", label: "Providers", icon: KeyRound }] as const;
+const settings = [
+  { to: "/settings/providers", label: "Providers", icon: KeyRound },
+  { to: "/settings/assistant", label: "Assistant", icon: Bot },
+] as const;
 
 export function useHealthLabel() {
   const health = useHealth();

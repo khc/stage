@@ -11,6 +11,7 @@ import {
   parseTargetKey,
   resolveDefaultTarget,
   resolveEffectiveRunMode,
+  resolveSavedTarget,
   rootChatTasks,
   targetKey,
   targetLabel,
@@ -94,6 +95,17 @@ test("buildTargetOptions labels agents by name only and lists a job only when it
     "orchestrator",
   ]);
   expect(options.some((o) => o.label.includes("--") || o.label.includes("·"))).toBe(false);
+});
+
+test("resolveSavedTarget keeps a saved target only while its job and agent still exist", () => {
+  const jobs = [job("worker")];
+  const agents = { worker: [{ name: "poet" }] };
+  const saved = { jobName: "worker", agentName: "poet" };
+  expect(resolveSavedTarget(saved, jobs, agents)).toEqual(saved);
+  expect(resolveSavedTarget(saved, jobs, {})).toEqual(saved); // agents not loaded yet
+  expect(resolveSavedTarget(saved, jobs, { worker: [{ name: "other" }] })).toBeUndefined();
+  expect(resolveSavedTarget(saved, [job("elsewhere")], agents)).toBeUndefined();
+  expect(resolveSavedTarget(undefined, jobs, agents)).toBeUndefined();
 });
 
 test("targetLabel is the agent name, or the job name for a job-only target", () => {

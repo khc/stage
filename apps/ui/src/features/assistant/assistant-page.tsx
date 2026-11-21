@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, taskTitle, type ModelRef, type RunMode, type Task } from "@/lib/api";
+import { readAssistantSettings } from "@/lib/assistant-settings";
 import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
 import { NEW_CHAT_EVENT, useNav } from "@/lib/nav";
 import { useProviders, useTasks } from "@/lib/queries";
@@ -129,10 +130,12 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const [railOpen, setRailOpen] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   // The model picked in the message box. An open chat starts on its task's default; a new chat on
-  // the last pick; the pick is not written back to the task.
+  // the last pick, or the default model of the settings; the pick is not written back to the task.
   const [modelPick, setModelPick] = useState<ModelPick | null>(null);
-  const [lastModel, setLastModel] = useState<ModelRef | undefined>();
-  const [runMode, setRunMode] = useState<RunMode>("workflow");
+  const [lastModel, setLastModel] = useState<ModelRef | undefined>(
+    () => readAssistantSettings().defaultModel,
+  );
+  const [runMode, setRunMode] = useState<RunMode>(() => readAssistantSettings().runMode);
   const models = modelOptions(useProviders().data?.providers ?? []);
 
   useEffect(() => {
