@@ -10,6 +10,7 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
+import { cn } from "cn";
 import {
   Activity,
   FileText,
@@ -49,12 +50,39 @@ import { useHealth, useJobs, useTasks } from "@/lib/queries";
 
 const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 
-const captions: Record<string, [string, string, string]> = {
-  "/": ["Assistant", "Assistant", "Chat with the orchestrator."],
-  "/overview": ["Overview", "Control room", "A clear view of your agent workspace."],
-  "/tasks": ["Tasks", "Tasks", "Save a prompt. Choose a job. Put your agents to work."],
-  "/jobs": ["Jobs", "Jobs", "The workers behind your tasks."],
-  "/settings": ["Providers", "Providers", "Configure model providers and API credentials."],
+type Caption = { crumb: string; eyebrow: string; title: string; subtitle: string };
+
+const captions: Record<string, Caption> = {
+  "/": {
+    crumb: "Assistant",
+    eyebrow: "Assistant",
+    title: "Assistant",
+    subtitle: "Chat with the orchestrator.",
+  },
+  "/overview": {
+    crumb: "Overview",
+    eyebrow: "Agent operations",
+    title: "Control room",
+    subtitle: "A clear view of your agent workspace.",
+  },
+  "/tasks": {
+    crumb: "Tasks",
+    eyebrow: "Saved prompts",
+    title: "Tasks",
+    subtitle: "Save a prompt. Choose a job. Put your agents to work.",
+  },
+  "/jobs": {
+    crumb: "Jobs",
+    eyebrow: "Cloud Run workers",
+    title: "Jobs",
+    subtitle: "The workers behind your tasks.",
+  },
+  "/settings": {
+    crumb: "Providers",
+    eyebrow: "Model access",
+    title: "Providers",
+    subtitle: "Configure model providers and API credentials.",
+  },
 };
 
 function Shell() {
@@ -73,7 +101,8 @@ function Shell() {
   const isSettings = section === "/settings";
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
-  const [crumb, title, subtitle] = captions[isAssistant ? "/" : section] ?? captions["/overview"]!;
+  const { crumb, eyebrow, title, subtitle } =
+    captions[isAssistant ? "/" : section] ?? captions["/overview"]!;
   const jobs = jobsQuery.data?.jobs ?? [];
   const openJob = search.job ? jobs.find((job) => shortJobName(job) === search.job) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
@@ -94,9 +123,9 @@ function Shell() {
   }, []);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="aurora">
       <AppSidebar />
-      <SidebarInset className={isAssistant ? "h-svh overflow-hidden" : undefined}>
+      <SidebarInset className={cn("bg-transparent", isAssistant && "h-svh overflow-hidden")}>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-4" />
@@ -130,8 +159,8 @@ function Shell() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="mb-1 flex items-center gap-2 text-xs font-medium text-primary">
-                    <span className="h-px w-4 bg-primary" />
-                    Agent operations
+                    <span className="h-0.5 w-6 rounded-full bg-linear-to-r from-brand-1 via-brand-2 to-brand-3" />
+                    {eyebrow}
                   </p>
                   <h1 className="text-2xl font-medium">{title}</h1>
                   <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -219,7 +248,7 @@ function Overview() {
       <section className="grid gap-4 md:grid-cols-3" aria-label="Workspace summary">
         <Stat
           icon={<Layers3 />}
-          tone="bg-primary/10 text-primary"
+          tone="bg-linear-to-br from-brand-1/20 to-brand-3/20 text-primary"
           to="/tasks"
           label="Saved tasks"
           value={tasks.data ? tasks.data.tasks.length : "—"}
@@ -227,7 +256,7 @@ function Overview() {
         />
         <Stat
           icon={<Server />}
-          tone="bg-primary/10 text-primary"
+          tone="bg-linear-to-br from-brand-1/20 to-brand-3/20 text-primary"
           to="/jobs"
           label="Cloud Run jobs"
           value={jobs.data ? jobs.data.jobs.length : "—"}
@@ -246,7 +275,7 @@ function Overview() {
         />
       </section>
       {tasks.data?.tasks.length === 0 && (
-        <Card className="border-primary/20 bg-linear-to-br from-primary/15 via-primary/5 to-card">
+        <Card className="border-primary/20 bg-linear-to-br from-brand-1/15 via-brand-3/10 to-card">
           <CardContent className="flex flex-wrap items-center gap-4">
             <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
               <Workflow className="size-6" />

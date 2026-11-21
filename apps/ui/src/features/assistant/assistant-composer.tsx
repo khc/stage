@@ -1,6 +1,7 @@
-import { ArrowUp, ChevronDown, FileText, Plus, X } from "lucide-react";
+import { ArrowUp, FileText, Plus, X } from "lucide-react";
 import { useRef } from "react";
 
+import { PillSelectTrigger } from "@/components/pill-select-trigger";
 import {
   Attachment,
   AttachmentAction,
@@ -10,20 +11,13 @@ import {
   AttachmentTitle,
 } from "@/components/ui/attachment";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ModelPicker } from "@/features/models/model-picker";
 import type { DocumentSummary, ModelRef } from "@/lib/api";
@@ -168,38 +162,34 @@ export function AssistantComposer({
             >
               {isUploading ? <Spinner /> : <Plus />}
             </InputGroupButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                disabled={targetLocked || !selectItems.length}
-                render={
-                  <InputGroupButton
-                    size="sm"
-                    variant="outline"
-                    aria-label="Assistant agent"
-                    title={
-                      targetLocked
-                        ? "Agent is fixed for this conversation"
-                        : "Choose which agent handles this conversation"
-                    }
-                    className="max-w-60 rounded-full"
-                  />
+            <Select
+              value={selectedId}
+              items={selectItems}
+              disabled={targetLocked || !selectItems.length}
+              onValueChange={(next) => {
+                const parsed = next ? parseTargetKey(next) : undefined;
+                if (parsed) onTargetChange(parsed);
+              }}
+            >
+              <PillSelectTrigger
+                aria-label="Assistant agent"
+                title={
+                  targetLocked
+                    ? "Agent is fixed for this conversation"
+                    : "Choose which agent handles this conversation"
                 }
               >
                 <img src="/stage.svg" alt="" aria-hidden className="size-3.5" />
-                <span className="truncate">
-                  {selectItems.find((item) => item.value === selectedId)?.label ??
-                    "No agents available"}
-                </span>
-                <ChevronDown />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                <AssistantTargetMenuItems
-                  selectedId={selectedId}
-                  selectItems={selectItems}
-                  onTargetChange={onTargetChange}
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <SelectValue placeholder="No agents available" />
+              </PillSelectTrigger>
+              <SelectContent align="start" className="min-w-80">
+                {selectItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {modelOptions.length > 0 && (
               <ModelPicker
                 compact
@@ -234,34 +224,6 @@ export function AssistantComposer({
         </p>
       </form>
     </div>
-  );
-}
-
-// Menu body kept separate from the portal so it can be rendered directly in tests.
-export function AssistantTargetMenuItems({
-  selectedId,
-  selectItems,
-  onTargetChange,
-}: {
-  selectedId: string | null;
-  selectItems: Array<{ value: string; label: string }>;
-  onTargetChange: (next: AssistantTarget) => void;
-}) {
-  return (
-    <DropdownMenuRadioGroup
-      value={selectedId ?? ""}
-      onValueChange={(next) => {
-        const parsed = parseTargetKey(next);
-        if (parsed) onTargetChange(parsed);
-      }}
-    >
-      <DropdownMenuLabel>Agent</DropdownMenuLabel>
-      {selectItems.map((item) => (
-        <DropdownMenuRadioItem key={item.value} value={item.value}>
-          {item.label}
-        </DropdownMenuRadioItem>
-      ))}
-    </DropdownMenuRadioGroup>
   );
 }
 

@@ -1,6 +1,7 @@
 import { Cpu } from "lucide-react";
 import { useState } from "react";
 
+import { PillSelectTrigger } from "@/components/pill-select-trigger";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -88,6 +89,7 @@ export function ModelPicker({
       ? (options.find((o) => modelKey(o.ref) === modelKey(ref))?.label ?? ref.model)
       : "Job default";
   const empty = options.length === 0;
+  const Trigger = compact ? PillSelectTrigger : SelectTrigger;
 
   const choose = (key: string | null) => {
     const next =
@@ -107,19 +109,15 @@ export function ModelPicker({
         ]}
         onValueChange={choose}
       >
-        <SelectTrigger
+        <Trigger
           id={id}
           aria-label="Model"
           title={empty ? "Add a model in Settings → Providers" : "Model for this message"}
-          className={cn(
-            compact
-              ? "h-8 w-auto max-w-60 gap-1.5 rounded-full border-border/60 bg-muted/50 px-3 text-xs font-medium shadow-none"
-              : "w-full",
-          )}
+          className={cn(!compact && "w-full")}
         >
           <Cpu aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <SelectValue>{empty ? "No models" : label(value)}</SelectValue>
-        </SelectTrigger>
+        </Trigger>
         <SelectContent align="start" className="min-w-72">
           <SelectItem value={NONE}>Job default</SelectItem>
           {options.map((o) => (

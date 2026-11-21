@@ -2,9 +2,7 @@ import { expect, test } from "bun:test";
 
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
-
-import { AssistantComposer, AssistantTargetMenuItems } from "./assistant-composer";
+import { AssistantComposer } from "./assistant-composer";
 import type { AssistantTargetOption, ChatTurn } from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 
@@ -128,22 +126,31 @@ test("AssistantComposer shows the model picker with the chosen model, and hides 
   expect(without).not.toContain('aria-label="Model"');
 });
 
-test("AssistantTargetMenuItems renders the Agent group label and radio options without a missing MenuGroupContext error", () => {
-  const html = renderToStaticMarkup(
-    <DropdownMenu open>
-      <AssistantTargetMenuItems
-        selectedId='["orchestrator","orchestrator"]'
-        selectItems={[
-          { id: '["orchestrator","orchestrator"]', label: "orchestrator · orchestrator" },
-          { id: '["poet"]', label: "poet" },
-        ].map((item) => ({ value: item.id, label: item.label }))}
-        onTargetChange={() => {}}
-      />
-    </DropdownMenu>,
-  );
-
-  expect(html).toContain("Agent");
+test("AssistantComposer shows the agent and model pickers as the same pill, and locks the agent", () => {
+  const base = {
+    value: "hi",
+    onChange: () => {},
+    onSubmit: () => {},
+    target: { jobName: "orchestrator", agentName: "orchestrator" },
+    targetOptions: [
+      { id: '["orchestrator","orchestrator"]', label: "orchestrator · orchestrator" },
+      { id: '["poet"]', label: "poet" },
+    ] as AssistantTargetOption[],
+    onTargetChange: () => {},
+    modelOptions: [{ ref: { providerId: "p", model: "flash" }, label: "Express · flash" }],
+    onModelChange: () => {},
+    onAttachFiles: () => {},
+  };
+  const html = renderToStaticMarkup(<AssistantComposer {...base} />);
+  const trigger = (label: string) =>
+    html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
+  expect(trigger("Assistant agent")).toContain('data-slot="select-trigger"');
+  expect(trigger("Model")).toContain('data-slot="select-trigger"');
+  expect(trigger("Assistant agent")).toContain("rounded-full");
   expect(html).toContain("orchestrator · orchestrator");
-  expect(html).toContain('aria-checked="true"');
-  expect(html).toContain("poet");
+
+  const locked = renderToStaticMarkup(<AssistantComposer {...base} targetLocked />);
+  expect(locked.match(/<button[^>]*aria-label="Assistant agent"[^>]*>/)?.[0]).toMatch(
+    /disabled=""|data-disabled/,
+  );
 });
