@@ -151,7 +151,7 @@ export const parseOptions = (args: string[]): Options => {
       only: { type: "string" },
       "no-data": { type: "boolean", default: false },
       "no-indexes": { type: "boolean", default: false },
-      container: { type: "string", default: "floci-gcp-cloudsql-floci-local-imdb" },
+      container: { type: "string", default: "floci-gcp-cloudsql-floci-local-stage--imdb--db-lcl" },
       user: { type: "string", default: "imdb" },
       db: { type: "string", default: "imdb" },
       url: { type: "string", default: "https://datasets.imdbws.com" },

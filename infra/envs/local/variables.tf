@@ -117,7 +117,7 @@ variable "imdb_reader_password" {
 
 variable "imdb_db_host" {
   type        = string
-  default     = "floci-gcp-cloudsql-floci-local-imdb"
+  default     = "floci-gcp-cloudsql-floci-local-stage--imdb--db-lcl"
   description = "Host of the imdb Cloud SQL instance as the job containers reach it: the name of the Postgres container Floci runs for it (the same default as --container in scripts/imdb-load.ts), on the compose network."
 }
 

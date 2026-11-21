@@ -56,7 +56,7 @@ test("the SQL holds no end-of-data marker, since the data arrives on stdin alone
 
 test("options default to the Floci instance and reject unknown datasets and unsafe names", () => {
   expect(parseOptions([])).toMatchObject({
-    container: "floci-gcp-cloudsql-floci-local-imdb",
+    container: "floci-gcp-cloudsql-floci-local-stage--imdb--db-lcl",
     user: "imdb",
     db: "imdb",
     url: "https://datasets.imdbws.com",

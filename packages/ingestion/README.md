@@ -24,7 +24,7 @@ The corpora are cloned (shallow, sparse) into `OUT_DIR/corpora/<source>` and nev
 
 Needs Qdrant and, to embed, an OpenAI-compatible embeddings server (oMLX on the host). Optionally set `RERANK_MODEL` (plus `RERANK_URL` / `RERANK_API_KEY` if different from `EMBEDDING_URL` / `EMBEDDING_API_KEY`) to enable two-stage cross-encoder reranking (`POST /v1/rerank`: fetch 25 candidates in `search`, rerank to top 5). Set
 `NEO4J_URL` (plus `NEO4J_USER` / `NEO4J_PASSWORD`) to also write the catalog graph to Neo4j.
-`ingest imdb` queries Floci's `floci-gcp-cloudsql-floci-local-imdb` container via `docker exec` by
+`ingest imdb` queries Floci's `floci-gcp-cloudsql-floci-local-stage--imdb--db-lcl` container via `docker exec` by
 default (override with `--container` or `IMDB_DATABASE_URL`). Copy the `Ingestion` and
 `Neo4j graph discovery` sections of `.env.example` into `.env`.
 

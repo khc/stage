@@ -38,7 +38,7 @@ export type PostgresRunnerHandle =
   | PostgresSqlRunner
   | { runSql: PostgresSqlRunner; close?: () => Promise<void> };
 
-export const DEFAULT_IMDB_CONTAINER = "floci-gcp-cloudsql-floci-local-imdb";
+export const DEFAULT_IMDB_CONTAINER = "floci-gcp-cloudsql-floci-local-stage--imdb--db-lcl";
 const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 
 export type PsqlExec = (
