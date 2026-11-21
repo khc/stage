@@ -92,6 +92,7 @@ test("the app publishes task create, run and delete events", async () => {
       tasksStore({ create: async (input) => ({ ...task, ...input }), get: async () => task }),
     ),
     agentRegistry: { list: async () => [] },
+    providersStore: { get: async () => undefined },
     cloudRunJobs: events.cloudRunJobs(cloudRunJobs()),
     sessionsStore: {
       create: async () => "s1",

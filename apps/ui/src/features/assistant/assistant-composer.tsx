@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
-import type { DocumentSummary } from "@/lib/api";
+import { ModelPicker } from "@/features/models/model-picker";
+import type { DocumentSummary, ModelRef } from "@/lib/api";
+import type { ModelOption } from "@/lib/models";
 
 import {
   parseTargetKey,
@@ -42,6 +44,10 @@ export function AssistantComposer({
   targetOptions,
   targetLocked = false,
   onTargetChange,
+  modelOptions,
+  model,
+  onModelChange,
+  hasHistory = false,
   stagedFiles = [],
   documents = [],
   onAttachFiles,
@@ -59,6 +65,12 @@ export function AssistantComposer({
   targetOptions: AssistantTargetOption[];
   targetLocked?: boolean;
   onTargetChange: (next: AssistantTarget) => void;
+  // The models a message can be sent with; without any the picker is not shown.
+  modelOptions: ModelOption[];
+  model?: ModelRef;
+  onModelChange: (next?: ModelRef) => void;
+  // True once the conversation has messages: changing the model then asks first.
+  hasHistory?: boolean;
   stagedFiles?: File[];
   documents?: DocumentSummary[];
   onAttachFiles: (files: File[]) => void;
@@ -197,6 +209,16 @@ export function AssistantComposer({
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+            {modelOptions.length > 0 && (
+              <ModelPicker
+                compact
+                options={modelOptions}
+                value={model}
+                onChange={onModelChange}
+                hasHistory={hasHistory}
+                disabled={isSending}
+              />
+            )}
             <InputGroupButton
               type="submit"
               size="icon-sm"

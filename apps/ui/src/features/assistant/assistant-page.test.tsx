@@ -73,6 +73,8 @@ test("AssistantComposer renders target selector, attachment button, and disables
       targetOptions={options}
       stagedFiles={[new File(["hi"], "notes.txt")]}
       onTargetChange={() => {}}
+      modelOptions={[]}
+      onModelChange={() => {}}
       onAttachFiles={() => {}}
     />,
   );
@@ -84,4 +86,35 @@ test("AssistantComposer renders target selector, attachment button, and disables
   expect(emptyHtml).toMatch(
     /disabled=""[^>]*aria-label="Send message"|aria-label="Send message"[^>]*disabled=""/,
   );
+});
+
+test("AssistantComposer shows the model picker with the chosen model, and hides it without models", () => {
+  const base = {
+    value: "hi",
+    onChange: () => {},
+    onSubmit: () => {},
+    target: { jobName: "orchestrator" },
+    targetOptions: [],
+    onTargetChange: () => {},
+    onAttachFiles: () => {},
+  };
+  const modelOptions = [
+    { ref: { providerId: "p", model: "flash" }, label: "Express · flash" },
+    { ref: { providerId: "p", model: "pro" }, label: "Express · pro" },
+  ];
+  const withModels = renderToStaticMarkup(
+    <AssistantComposer
+      {...base}
+      modelOptions={modelOptions}
+      model={modelOptions[1]!.ref}
+      onModelChange={() => {}}
+    />,
+  );
+  expect(withModels).toContain('aria-label="Model"');
+  expect(withModels).toContain("Express · pro");
+
+  const without = renderToStaticMarkup(
+    <AssistantComposer {...base} modelOptions={[]} onModelChange={() => {}} />,
+  );
+  expect(without).not.toContain('aria-label="Model"');
 });

@@ -1,12 +1,16 @@
 import type { DocumentSnapshot, Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 
+import type { ModelRef } from "./model-ref";
+
 export type TaskContract = {
   taskId: string;
   name?: string;
   prompt: string;
   jobName?: string;
   agentName?: string;
+  // The model the task starts on; a message may choose another.
+  defaultModel?: ModelRef;
   // Set on a task that an agent delegated: the task and the session that caused it.
   parentTaskId?: string;
   parentSessionId?: string;
@@ -20,6 +24,7 @@ export const toContract = (doc: DocumentSnapshot): TaskContract => {
   const name = doc.get("name");
   const jobName = doc.get("jobName");
   const agentName = doc.get("agentName");
+  const defaultModel = doc.get("defaultModel");
   const parentTaskId = doc.get("parentTaskId");
   const parentSessionId = doc.get("parentSessionId");
   const documents = doc.get("documents");
@@ -29,6 +34,7 @@ export const toContract = (doc: DocumentSnapshot): TaskContract => {
     prompt: doc.get("prompt"),
     ...(jobName !== undefined && { jobName }),
     ...(agentName !== undefined && { agentName }),
+    ...(defaultModel !== undefined && { defaultModel }),
     ...(parentTaskId !== undefined && { parentTaskId }),
     ...(parentSessionId !== undefined && { parentSessionId }),
     ...(documents !== undefined && { documents }),

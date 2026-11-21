@@ -105,6 +105,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("sessions store", () => {
       expect(await service.pendingMessage(ref)).toBe("answer");
       await api.clearMessage(taskId, session.id);
       expect(await service.pendingMessage(ref)).toBeUndefined();
+      const model = { providerId: crypto.randomUUID(), model: "gemini-2.5-flash" };
+      expect(await api.queueMessage(taskId, session.id, "with model", model)).toBe(true);
+      expect(await service.pendingModel(ref)).toEqual(model);
+      await api.clearMessage(taskId, session.id);
+      expect(await service.pendingModel(ref)).toBeUndefined();
     } finally {
       await service.deleteSession(ref);
       await firestore.terminate();

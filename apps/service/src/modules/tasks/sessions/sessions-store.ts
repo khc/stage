@@ -1,5 +1,6 @@
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
+import type { ModelRef } from "@stage/agents/model-ref";
 import { appName, userId } from "@stage/agents/runtime";
 import {
   FirestoreSessionService,
@@ -26,7 +27,12 @@ export type SessionsStore = {
   // False when there was no such session in the task.
   delete: (taskId: string, sessionId: string) => Promise<boolean>;
   // Stores the next message for the job that resumes the session; false when the session is not the task's.
-  queueMessage: (taskId: string, sessionId: string, message: string) => Promise<boolean>;
+  queueMessage: (
+    taskId: string,
+    sessionId: string,
+    message: string,
+    model?: ModelRef,
+  ) => Promise<boolean>;
   clearMessage: (taskId: string, sessionId: string) => Promise<void>;
 };
 
@@ -85,10 +91,10 @@ export const createSessionsStore = (firestore: Firestore): SessionsStore => {
       const session = await sessionService.getSession(keyOf(doc, sessionId));
       return session?.taskId === taskId ? session : undefined;
     },
-    async queueMessage(taskId, sessionId, message) {
+    async queueMessage(taskId, sessionId, message, model) {
       const doc = await find(taskId, sessionId);
       if (!doc) return false;
-      await sessionService.queueMessage(keyOf(doc, sessionId), message);
+      await sessionService.queueMessage(keyOf(doc, sessionId), message, { model });
       return true;
     },
     async clearMessage(taskId, sessionId) {

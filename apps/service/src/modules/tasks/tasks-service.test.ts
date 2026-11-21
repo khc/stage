@@ -203,7 +203,7 @@ describe("tasks service run", () => {
   test("resumes a session: queues the message, then starts the job with only the session id", async () => {
     const { service, runJob, queueMessage } = setupRun();
     expect(await service.run(taskId, resume)).toEqual({ status: "started", operation: "op-1" });
-    expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "answer");
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "answer", undefined);
     expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s1");
   });
 
@@ -272,7 +272,7 @@ describe("tasks service run", () => {
       sessionId: "s-new",
     });
     expect(create).toHaveBeenCalledWith(taskId, "hello world");
-    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "  hello \n world  ");
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "  hello \n world  ", undefined);
     expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s-new");
 
     const failing = setupRun();
@@ -381,5 +381,128 @@ describe("tasks service delete cap", () => {
     });
     expect(await service.delete("parent")).toBe("deleted");
     expect(deleteTask).toHaveBeenCalledTimes(501);
+  });
+});
+
+describe("tasks service default model", () => {
+  const providerId = "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11";
+  const usable = {
+    providerId,
+    name: "Express",
+    kind: "google-express",
+    enabled: true,
+    models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    disabledModels: ["gemini-2.5-pro"],
+  };
+  // null stands for a missing provider
+  const setupCreate = (provider: unknown = usable) => {
+    const create = mock(async (input: unknown) => ({ taskId, ...(input as object) }));
+    const get = mock(async (_id: string) => provider);
+    const service = createTasksService({
+      tasksStore: { create },
+      agentRegistry: { list: async () => [] },
+      providersStore: { get },
+    } as unknown as TasksServiceDeps);
+    return { service, create, get };
+  };
+  const input = (model: string) => ({
+    name: "n",
+    prompt: "p",
+    jobName: "my-job",
+    defaultModel: { providerId, model },
+  });
+
+  test("stores a usable default model", async () => {
+    const { service, create, get } = setupCreate();
+    const result = await service.create(input("gemini-2.5-flash"));
+    expect(result.status).toBe("created");
+    expect(get).toHaveBeenCalledWith(providerId);
+    expect(create).toHaveBeenCalledWith(input("gemini-2.5-flash"));
+  });
+
+  test("refuses a default model that is not selectable, and creates nothing", async () => {
+    for (const provider of [null, { ...usable, enabled: false }, { ...usable, kind: "openai" }]) {
+      const { service, create } = setupCreate(provider);
+      expect(await service.create(input("gemini-2.5-flash"))).toEqual({ status: "unknown_model" });
+      expect(create).not.toHaveBeenCalled();
+    }
+    const { service, create } = setupCreate();
+    expect(await service.create(input("gemini-2.5-pro"))).toEqual({ status: "unknown_model" });
+    expect(await service.create(input("gemini-9"))).toEqual({ status: "unknown_model" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test("a task without a default model never looks up a provider", async () => {
+    const { service, get } = setupCreate();
+    expect((await service.create({ name: "n", prompt: "p", jobName: "my-job" })).status).toBe(
+      "created",
+    );
+    expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe("tasks service run with a model", () => {
+  const providerId = "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11";
+  const provider = {
+    providerId,
+    kind: "google",
+    enabled: true,
+    models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    disabledModels: ["gemini-2.5-pro"],
+  };
+  const model = { providerId, model: "gemini-2.5-flash" };
+  const setup = (found: unknown = provider) => {
+    const queueMessage = mock(async (..._args: unknown[]) => true);
+    const runJob = mock(async (..._args: unknown[]) => "op-1");
+    const service = createTasksService({
+      tasksStore: { get: async () => ({ taskId, prompt: "p", jobName: "my-job" }) },
+      agentRegistry: { list: async () => [] },
+      providersStore: { get: async () => found },
+      cloudRunJobs: { run: runJob },
+      sessionsStore: {
+        create: async () => "s-new",
+        get: async () => ({ id: "s1" }),
+        queueMessage,
+        delete: async () => true,
+        clearMessage: async () => {},
+      },
+    } as unknown as TasksServiceDeps);
+    return { service, queueMessage, runJob };
+  };
+
+  test("queues the message with its model when resuming a session", async () => {
+    const { service, queueMessage } = setup();
+    const result = await service.run(taskId, { sessionId: "s1", message: "hi", model });
+    expect(result.status).toBe("started");
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "hi", model);
+  });
+
+  test("queues the first message of a new session with its model", async () => {
+    const { service, queueMessage } = setup();
+    await service.run(taskId, { message: "hi", model });
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "hi", model);
+  });
+
+  test("a model that cannot be selected is refused before anything is queued or started", async () => {
+    for (const found of [null, { ...provider, enabled: false }, { ...provider, kind: "openai" }]) {
+      const { service, queueMessage, runJob } = setup(found);
+      expect(await service.run(taskId, { sessionId: "s1", message: "hi", model })).toEqual({
+        status: "unknown_model",
+      });
+      expect(queueMessage).not.toHaveBeenCalled();
+      expect(runJob).not.toHaveBeenCalled();
+    }
+    const { service, queueMessage } = setup();
+    const off = { providerId, model: "gemini-2.5-pro" };
+    expect(await service.run(taskId, { message: "hi", model: off })).toEqual({
+      status: "unknown_model",
+    });
+    expect(queueMessage).not.toHaveBeenCalled();
+  });
+
+  test("a message without a model queues as before", async () => {
+    const { service, queueMessage } = setup();
+    await service.run(taskId, { sessionId: "s1", message: "hi" });
+    expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "hi", undefined);
   });
 });

@@ -291,6 +291,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                   </MessageScrollerProvider>
                   <SessionComposer
                     taskId={taskId}
+                    defaultModel={data.defaultModel}
                     sessionId={detail.data.id}
                     running={detail.data.run?.status === "running"}
                   />
@@ -354,6 +355,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
               </div>
               <SessionComposer
                 taskId={taskId}
+                defaultModel={data.defaultModel}
                 disabled={!!startInputHint}
                 disabledReason={startInputHint}
                 onStarted={(newId) => {

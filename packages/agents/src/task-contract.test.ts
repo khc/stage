@@ -102,3 +102,21 @@ test("carries the parent task and session of a delegated task, and omits them ot
     parentSessionId: "s-1",
   });
 });
+
+test("carries the default model of a task when stored, and omits it otherwise", async () => {
+  const defaultModel = {
+    providerId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+    model: "gemini-2.5-flash",
+  };
+  const stored: Record<string, unknown> = { prompt: "hello", defaultModel };
+  const { db } = reader(async () => ({ id: "a", exists: true, get: (key: string) => stored[key] }));
+  expect(await createGetTask(db)("a")).toEqual({ taskId: "a", prompt: "hello", defaultModel });
+
+  const bare: Record<string, unknown> = { prompt: "hello" };
+  const { db: bareDb } = reader(async () => ({
+    id: "a",
+    exists: true,
+    get: (key: string) => bare[key],
+  }));
+  expect(await createGetTask(bareDb)("a")).toEqual({ taskId: "a", prompt: "hello" });
+});

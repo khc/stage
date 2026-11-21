@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { api, taskTitle, type Task } from "@/lib/api";
+import { api, taskTitle, type ModelRef, type Task } from "@/lib/api";
+import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
 import { useNav } from "@/lib/nav";
-import { useTasks } from "@/lib/queries";
+import { useProviders, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 import { AssistantComposer } from "./assistant-composer";
@@ -126,6 +127,11 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const [search, setSearch] = useState("");
   const [railOpen, setRailOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  // The model picked in the message box. An open chat starts on its task's default; a new chat on
+  // the last pick; the pick is not written back to the task.
+  const [modelPick, setModelPick] = useState<ModelPick | null>(null);
+  const [lastModel, setLastModel] = useState<ModelRef | undefined>();
+  const models = modelOptions(useProviders().data?.providers ?? []);
 
   useEffect(() => {
     setDraft("");
@@ -137,6 +143,13 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     },
   });
 
+  const pickKey = chatId ?? "new";
+  const model = pickedModel(
+    modelPick,
+    pickKey,
+    models,
+    chatId ? chat.taskQuery.data?.defaultModel : lastModel,
+  );
   const allTasks = tasksQuery.data?.tasks ?? [];
   const rootTasks = useMemo(() => rootChatTasks(allTasks), [allTasks]);
   const childCounts = useMemo(() => childTaskCountMap(allTasks), [allTasks]);
@@ -171,7 +184,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     if (!chat.activeTarget || !draft.trim()) return;
     const text = draft;
     chat.sendMutation.mutate(
-      { text, target: chat.activeTarget, files: chat.stagedFiles },
+      { text, target: chat.activeTarget, files: chat.stagedFiles, model },
       {
         onSuccess: () => setDraft(""),
       },
@@ -309,6 +322,13 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           targetOptions={chat.targets.options}
           targetLocked={!!chatId}
           onTargetChange={chat.setTargetOverride}
+          modelOptions={models}
+          model={model}
+          onModelChange={(next) => {
+            setModelPick({ key: pickKey, model: next });
+            setLastModel(next);
+          }}
+          hasHistory={turns.length > 0}
           stagedFiles={chat.stagedFiles}
           documents={chat.documentsQuery.data?.documents ?? []}
           onAttachFiles={(files) => {

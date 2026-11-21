@@ -1,4 +1,5 @@
 import type { Firestore } from "@google-cloud/firestore";
+import type { ModelRef } from "@stage/agents/model-ref";
 import {
   createGetTask,
   toContract,
@@ -13,6 +14,7 @@ export type NewTask = {
   prompt: string;
   jobName: string;
   agentName?: string;
+  defaultModel?: ModelRef;
   // Set by the A2A gateway for a task an agent delegated; stored only when both are given.
   parentTaskId?: string;
   parentSessionId?: string;
@@ -31,7 +33,15 @@ export type TasksStore = {
 export const createTasksStore = (firestore: Pick<Firestore, "collection">): TasksStore => {
   const tasks = firestore.collection("tasks");
   return {
-    async create({ name, prompt, jobName, agentName, parentTaskId, parentSessionId }) {
+    async create({
+      name,
+      prompt,
+      jobName,
+      agentName,
+      defaultModel,
+      parentTaskId,
+      parentSessionId,
+    }) {
       const contract = {
         taskId: crypto.randomUUID(),
         name,
@@ -39,6 +49,7 @@ export const createTasksStore = (firestore: Pick<Firestore, "collection">): Task
         jobName,
         documents: [],
         ...(agentName !== undefined && { agentName }),
+        ...(defaultModel !== undefined && { defaultModel }),
         ...(parentTaskId !== undefined &&
           parentSessionId !== undefined && { parentTaskId, parentSessionId }),
       };

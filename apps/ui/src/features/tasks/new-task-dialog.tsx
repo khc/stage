@@ -25,6 +25,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentContract } from "@/features/jobs/agents";
+import { ModelPicker } from "@/features/models/model-picker";
 import {
   api,
   buildPrompt,
@@ -35,13 +36,30 @@ import {
   takesNoInput,
   type FormValues,
   type Job,
+  type ModelRef,
 } from "@/lib/api";
+import { modelOptions } from "@/lib/models";
 import { useNav } from "@/lib/nav";
-import { useJobs } from "@/lib/queries";
+import { useJobs, useProviders } from "@/lib/queries";
 
 import { SchemaField } from "./schema-field";
 
 const DEFAULT_AGENT = "__default";
+
+// The body of the create request: trimmed, with the agent and the default model only when given.
+export const taskInput = (form: {
+  name: string;
+  prompt: string;
+  jobName: string;
+  agentName: string;
+  model?: ModelRef;
+}) => ({
+  name: form.name.trim(),
+  prompt: form.prompt.trim(),
+  jobName: form.jobName,
+  ...(form.agentName.trim() && { agentName: form.agentName.trim() }),
+  ...(form.model && { defaultModel: form.model }),
+});
 
 export function NewTaskDialog({ open, initialJob }: { open: boolean; initialJob: string }) {
   const { closeCreate } = useNav();
@@ -55,7 +73,7 @@ export function NewTaskDialog({ open, initialJob }: { open: boolean; initialJob:
   );
 }
 
-function NewTaskForm({
+export function NewTaskForm({
   jobs,
   initialJob,
   onClose,
@@ -70,6 +88,8 @@ function NewTaskForm({
   const [jobName, setJobName] = useState(initialJob);
   const [agentName, setAgentName] = useState("");
   const [values, setValues] = useState<FormValues>({});
+  const [model, setModel] = useState<ModelRef | undefined>();
+  const models = modelOptions(useProviders().data?.providers ?? []);
   const registered = useQuery({
     queryKey: ["agents", jobName],
     queryFn: () => api.agents(jobName),
@@ -113,12 +133,7 @@ function NewTaskForm({
         : undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    mutation.mutate({
-      name: name.trim(),
-      prompt: effectivePrompt.trim(),
-      jobName,
-      agentName: agentName.trim() || undefined,
-    });
+    mutation.mutate(taskInput({ name, prompt: effectivePrompt, jobName, agentName, model }));
   };
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -205,6 +220,17 @@ function NewTaskForm({
               : jobAgents.length
                 ? "Agents registered for this job."
                 : "No agents registered for this job, so its default agent runs the task. Use Register agents on the Jobs page."}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-model" className="justify-between">
+          Default model<span className="text-xs font-normal text-muted-foreground">Optional</span>
+        </Label>
+        <ModelPicker id="task-model" options={models} value={model} onChange={setModel} />
+        <p className="text-xs text-muted-foreground">
+          {models.length
+            ? "The model the chat starts on; you can change it for any message. Job default uses the job's own model."
+            : "No models are switched on yet. Add some in Settings → Providers, or leave the job's own model."}
         </p>
       </div>
       {selectedAgent && (

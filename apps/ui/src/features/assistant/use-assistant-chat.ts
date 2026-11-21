@@ -7,6 +7,7 @@ import {
   shortJobName,
   type AgentInfo,
   type Api,
+  type ModelRef,
   type Session,
   type SessionSummary,
 } from "@/lib/api";
@@ -76,6 +77,7 @@ export async function executeNewChatSend({
   files,
   onCreated,
   onUploaded,
+  model,
 }: {
   client: Pick<Api, "create" | "uploadDocument" | "startSession">;
   pending: PendingTask | null;
@@ -85,6 +87,8 @@ export async function executeNewChatSend({
   files: File[];
   onCreated?: (taskId: string) => void;
   onUploaded?: (taskId: string) => void;
+  // The model picked for the first message; it also becomes the new task's default.
+  model?: ModelRef;
 }): Promise<{ taskId: string; sessionId?: string }> {
   let state = pending;
   if (!state) {
@@ -93,6 +97,7 @@ export async function executeNewChatSend({
       prompt: message,
       jobName: target.jobName,
       ...(target.agentName && { agentName: target.agentName }),
+      ...(model && { defaultModel: model }),
     });
     state = { taskId: task.taskId, uploadedNames: new Set() };
     setPending(state);
@@ -106,7 +111,7 @@ export async function executeNewChatSend({
     onUploaded?.(state.taskId);
   }
 
-  const started = await client.startSession(state.taskId, message);
+  const started = await client.startSession(state.taskId, message, model);
   setPending(null);
   return { taskId: state.taskId, sessionId: started.sessionId };
 }
@@ -195,9 +200,7 @@ export function useAssistantChat(
 
   const sortedSessions = useMemo(
     () =>
-      (sessionsQuery.data?.sessions ?? []).toSorted(
-        (a, b) => b.lastUpdateTime - a.lastUpdateTime,
-      ),
+      (sessionsQuery.data?.sessions ?? []).toSorted((a, b) => b.lastUpdateTime - a.lastUpdateTime),
     [sessionsQuery.data?.sessions],
   );
 
@@ -233,10 +236,12 @@ export function useAssistantChat(
       text,
       target,
       files,
+      model,
     }: {
       text: string;
       target: AssistantTarget;
       files: File[];
+      model?: ModelRef;
     }) => {
       const trimmed = text.trim();
       if (!chatId) {
@@ -249,6 +254,7 @@ export function useAssistantChat(
           target,
           message: trimmed,
           files,
+          model,
           onCreated: () => {
             void queryClient.invalidateQueries({ queryKey: ["tasks"] });
           },
@@ -259,11 +265,11 @@ export function useAssistantChat(
       }
 
       if (activeSessionId) {
-        await api.resume(chatId, activeSessionId, trimmed);
+        await api.resume(chatId, activeSessionId, trimmed, model);
         return { taskId: chatId, sessionId: activeSessionId, resumed: true as const };
       }
 
-      const started = await api.startSession(chatId, trimmed);
+      const started = await api.startSession(chatId, trimmed, model);
       return { taskId: chatId, sessionId: started.sessionId, resumed: false as const };
     },
     onSuccess: (result) => {

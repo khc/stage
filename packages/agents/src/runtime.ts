@@ -1,16 +1,22 @@
 import { Firestore } from "@google-cloud/firestore";
-import { Runner, isFinalResponse, stringifyContent } from "@google/adk";
+import { Runner, isFinalResponse, stringifyContent, type BaseLlm } from "@google/adk";
 import { annotateJob } from "@stage/http/otel";
 
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
+import { runWithModel } from "./model";
 import { FirestoreSessionService, toSessionName } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
+
+// Finds the model the run uses; called once the run has started, so a model that cannot be used
+// fails the run on its session. No model means the job default.
+export type ResolveRunModel = () => Promise<BaseLlm | undefined>;
 
 export type RunAgent = (
   message: string,
   taskId?: string,
   sessionId?: string,
   agentName?: string,
+  resolveModel?: ResolveRunModel,
 ) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<
@@ -68,7 +74,7 @@ export const createTaskAgent =
     owner: Owner = defaultOwner,
     validateFirstTurn?: (message: string) => void,
   ): RunAgent =>
-  async (message, taskId, sessionId) => {
+  async (message, taskId, sessionId, _agentName, resolveModel) => {
     let session;
     if (sessionId) {
       session = await resumeSession(runner.sessionService, owner, sessionId, taskId);
@@ -91,7 +97,9 @@ export const createTaskAgent =
     await runner.sessionService.startRun(key);
     let reply: string;
     try {
-      reply = await runSession(runner, owner, session.id, message, taskId, publish);
+      const llm = await resolveModel?.();
+      const run = () => runSession(runner, owner, session.id, message, taskId, publish);
+      reply = await (llm ? runWithModel(llm, run) : run());
     } catch (err) {
       await runner.sessionService
         .finishRun(key, err instanceof Error ? err.message : String(err))
@@ -116,7 +124,7 @@ export const createRunAgent = (
   const sessionService = new FirestoreSessionService(db);
   sessionService.onUserEvent = async (event, { id, taskId }) =>
     publish?.(event, { sessionId: id, taskId });
-  return async (message, taskId, sessionId, agentName) => {
+  return async (message, taskId, sessionId, agentName, resolveModel) => {
     const spec = agents[agentName ?? defaultAgent];
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
     const { agent } = spec;
@@ -127,6 +135,6 @@ export const createRunAgent = (
     // Turn 1 validates against `inputSchema` (even on pre-created empty sessions); follow-ups are free text.
     return createTaskAgent({ sessionService, runAsync }, publish, owner, (text) =>
       checkInput(spec, text),
-    )(message, taskId, sessionId);
+    )(message, taskId, sessionId, agentName, resolveModel);
   };
 };

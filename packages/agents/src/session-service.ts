@@ -14,6 +14,8 @@ import {
   type Session,
 } from "@google/adk";
 
+import { modelRefSchema, type ModelRef } from "./model-ref";
+
 const SESSIONS = "sessions";
 const EVENTS = "events";
 // A run holds the session until its lease lapses; every persisted event renews it.
@@ -247,8 +249,12 @@ export class FirestoreSessionService extends BaseSessionService {
 
   // Stores the next message of a session for the job that resumes it, so the
   // job needs only the session id. Fails while the session runs or another
-  // message was queued moments ago.
-  async queueMessage(key: CompositeSessionKey, message: string, now = Date.now()) {
+  // message was queued moments ago. The model, if any, is the one chosen for this message.
+  async queueMessage(
+    key: CompositeSessionKey,
+    message: string,
+    { model, now = Date.now() }: { model?: ModelRef; now?: number } = {},
+  ) {
     const ref = this.ref(key);
     await this.db.runTransaction(async (tx) => {
       const snapshot = await tx.get(ref);
@@ -261,7 +267,11 @@ export class FirestoreSessionService extends BaseSessionService {
         now - (queuedAt ?? 0) < PENDING_TTL_MS;
       if (isLive(runFields(snapshot), now)) throw new RunInProgressError();
       if (queued) throw new MessageQueuedError();
-      tx.update(ref, { pendingMessage: message, pendingMessageAt: now });
+      tx.update(ref, {
+        pendingMessage: message,
+        pendingMessageAt: now,
+        pendingModel: model ?? null,
+      });
     });
   }
 
@@ -280,8 +290,18 @@ export class FirestoreSessionService extends BaseSessionService {
     return (await this.ref(key).get()).get("pendingMessage") ?? undefined;
   }
 
+  // The model chosen for the queued message; undefined when none was chosen.
+  async pendingModel(key: CompositeSessionKey): Promise<ModelRef | undefined> {
+    const parsed = modelRefSchema.safeParse((await this.ref(key).get()).get("pendingModel"));
+    return parsed.success ? parsed.data : undefined;
+  }
+
   async clearMessage(key: CompositeSessionKey): Promise<void> {
-    await this.ref(key).update({ pendingMessage: null, pendingMessageAt: null });
+    await this.ref(key).update({
+      pendingMessage: null,
+      pendingMessageAt: null,
+      pendingModel: null,
+    });
   }
 
   // Takes the session for one run. Fails when another run holds a live lease,
@@ -357,7 +377,11 @@ export class FirestoreSessionService extends BaseSessionService {
       // Only the first line is kept: the full error stays in the job log.
       runError: error?.split("\n")[0]?.slice(0, MAX_RUN_ERROR) ?? null,
       // The queued message is consumed only by a successful run, so a retried task still finds it.
-      ...(error === undefined && { pendingMessage: null, pendingMessageAt: null }),
+      ...(error === undefined && {
+        pendingMessage: null,
+        pendingMessageAt: null,
+        pendingModel: null,
+      }),
     };
     if (!held) return void (await this.ref(key).update(result));
     try {

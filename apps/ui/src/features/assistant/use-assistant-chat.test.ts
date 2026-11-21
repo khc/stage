@@ -30,9 +30,9 @@ test("pickActiveSessionId prefers starting session across initial transition, th
 test("isAwaitingRunStart stays true across /assistant -> /assistant/$chatId until run settles", () => {
   const starting = { taskId: "t-new", sessionId: "s-new" };
   expect(isAwaitingRunStart(starting, "t-new", "s-new", undefined)).toBe(true);
-  expect(isAwaitingRunStart(starting, "t-new", "s-new", { run: { status: "running", startedAt: 1 } })).toBe(
-    false,
-  );
+  expect(
+    isAwaitingRunStart(starting, "t-new", "s-new", { run: { status: "running", startedAt: 1 } }),
+  ).toBe(false);
   expect(isAwaitingRunStart(starting, "other-task", "s-new", undefined)).toBe(false);
   expect(isAwaitingRunStart(starting, undefined, null, undefined)).toBe(false);
 });
@@ -120,4 +120,35 @@ test("executeNewChatSend reuses created task and skips already-uploaded files on
   expect(uploadDocument).toHaveBeenCalledTimes(3);
   expect(startSession).toHaveBeenCalledTimes(1);
   expect(pending).toBeNull();
+});
+
+test("executeNewChatSend gives the new task its default model and starts the session with it", async () => {
+  const create = mock(async (_input: unknown) => ({ taskId: "task-9" }));
+  const startSession = mock(async (_t: string, _m: string, _model?: unknown) => ({
+    operation: "op",
+    sessionId: "s-9",
+  }));
+  const model = { providerId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10", model: "gemini-2.5-flash" };
+  await executeNewChatSend({
+    client: { create, uploadDocument: mock(), startSession } as never,
+    pending: null,
+    setPending: () => {},
+    target: { jobName: "job" },
+    message: "Hi",
+    files: [],
+    model,
+  });
+  expect(create).toHaveBeenCalledWith(expect.objectContaining({ defaultModel: model }));
+  expect(startSession).toHaveBeenCalledWith("task-9", "Hi", model);
+
+  create.mockClear();
+  await executeNewChatSend({
+    client: { create, uploadDocument: mock(), startSession } as never,
+    pending: null,
+    setPending: () => {},
+    target: { jobName: "job" },
+    message: "Hi",
+    files: [],
+  });
+  expect(Object.keys(create.mock.calls[0]![0] as object)).not.toContain("defaultModel");
 });

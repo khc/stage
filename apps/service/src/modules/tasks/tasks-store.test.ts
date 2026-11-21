@@ -80,6 +80,28 @@ describe("task store", () => {
     expect(contract.agentName).toBe("haiku");
   });
 
+  test("includes the default model only when given", async () => {
+    const { firestore, create } = fakeDb();
+    const defaultModel = {
+      providerId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10",
+      model: "gemini-2.5-flash",
+    };
+    const contract = await createTasksStore(firestore).create({
+      name: "t",
+      prompt: "p",
+      jobName: "j",
+      defaultModel,
+    });
+    expect(contract.defaultModel).toEqual(defaultModel);
+    expect(create).toHaveBeenCalledWith(contract);
+    const plain = await createTasksStore(firestore).create({
+      name: "t",
+      prompt: "p",
+      jobName: "j",
+    });
+    expect(Object.hasOwn(plain, "defaultModel")).toBe(false);
+  });
+
   test("stores the parent task and session of a delegated task", async () => {
     const { firestore, create } = fakeDb();
     const contract = await createTasksStore(firestore).create({

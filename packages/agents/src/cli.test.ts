@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 
-import { createGetMessage, main, registerMain } from "./cli";
+import type { BaseLlm } from "@google/adk";
+
+import { createGetMessage, createGetMessageModel, main, registerMain } from "./cli";
+import { ModelUnavailableError } from "./provider-models";
 import type { TaskContract } from "./task-contract";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
@@ -144,6 +147,125 @@ test("createGetMessage reads a session created under another app name", async ()
   const findOwner = async () => ({ appName: "agent-jobs", userId: "user" });
   await createGetMessage({ findOwner, pendingMessage })(taskId, "s1");
   expect(pendingMessage).toHaveBeenCalledWith({
+    appName: "agent-jobs",
+    userId: "user",
+    sessionId: "s1",
+  });
+});
+
+const ref = { providerId: "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10", model: "gemini-2.5-flash" };
+const defaultRef = { ...ref, model: "gemini-2.5-pro" };
+const llm = (model: string) => ({ model }) as BaseLlm;
+const withDefault = (defaultModel?: typeof ref) =>
+  mock(async (_id: string): Promise<TaskContract | undefined> => ({
+    taskId,
+    prompt: "p",
+    jobName: "my-job",
+    ...(defaultModel && { defaultModel }),
+  }));
+const resolverFor = () => mock(async (r: typeof ref) => llm(r.model));
+// The model the run asks for: the fifth argument is how the agent resolves it.
+const resolved = async (run: ReturnType<typeof mock<(...a: unknown[]) => Promise<string>>>) =>
+  (run.mock.calls.at(-1)?.[4] as (() => Promise<BaseLlm | undefined>) | undefined)?.();
+
+test("a resumed message runs on the model queued with it, before the task default", async () => {
+  const run = mock(async (..._args: unknown[]) => "reply");
+  const resolve = resolverFor();
+  const getMessageModel = mock(async (_sessionId: string) => ref);
+  expect(
+    await main(
+      { TASK_ID: taskId, SESSION_ID: "s1" },
+      run,
+      withDefault(defaultRef),
+      async () => "m",
+      getMessageModel,
+      resolve,
+    ),
+  ).toBe(0);
+  expect(getMessageModel).toHaveBeenCalledWith("s1");
+  expect((await resolved(run))?.model).toBe(ref.model);
+  expect(resolve).toHaveBeenCalledWith(ref);
+});
+
+test("without a message model the task default model is used", async () => {
+  const run = mock(async (..._args: unknown[]) => "reply");
+  const resolve = resolverFor();
+  await main(
+    { TASK_ID: taskId, SESSION_ID: "s1" },
+    run,
+    withDefault(defaultRef),
+    async () => "m",
+    async () => undefined,
+    resolve,
+  );
+  expect((await resolved(run))?.model).toBe(defaultRef.model);
+  const first = mock(async (..._args: unknown[]) => "reply");
+  await main(
+    { TASK_ID: taskId },
+    first,
+    withDefault(defaultRef),
+    noMessage,
+    async () => undefined,
+    resolve,
+  );
+  expect((await resolved(first))?.model).toBe(defaultRef.model);
+});
+
+test("with neither, the run asks for no model and uses the job default", async () => {
+  const run = mock(async (..._args: unknown[]) => "reply");
+  await main(
+    { TASK_ID: taskId, SESSION_ID: "s1" },
+    run,
+    withDefault(),
+    async () => "m",
+    async () => undefined,
+    resolverFor(),
+  );
+  expect(run).toHaveBeenLastCalledWith("m", taskId, "s1", undefined);
+});
+
+test("a task default that cannot be used is skipped with a warning, the run goes on", async () => {
+  const run = mock(async (..._args: unknown[]) => "reply");
+  const warn = spyOn(console, "warn").mockImplementation(() => {});
+  const resolve = mock(async (_r: typeof ref): Promise<BaseLlm> => {
+    throw new ModelUnavailableError("Provider is disabled");
+  });
+  expect(
+    await main(
+      { TASK_ID: taskId },
+      run,
+      withDefault(defaultRef),
+      noMessage,
+      async () => undefined,
+      resolve,
+    ),
+  ).toBe(0);
+  expect(await resolved(run)).toBeUndefined();
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining("Provider is disabled"));
+  warn.mockRestore();
+});
+
+test("a message model that cannot be used fails the run", async () => {
+  const run = mock(async (..._args: unknown[]) => "reply");
+  const resolve = mock(async (_r: typeof ref): Promise<BaseLlm> => {
+    throw new ModelUnavailableError("Model is switched off");
+  });
+  await main(
+    { TASK_ID: taskId, SESSION_ID: "s1" },
+    run,
+    withDefault(defaultRef),
+    async () => "m",
+    async () => ref,
+    resolve,
+  );
+  await expect(resolved(run)).rejects.toThrow("switched off");
+});
+
+test("createGetMessageModel reads the model queued for the session, under its owner", async () => {
+  const pendingModel = mock(async (_key: unknown) => ref);
+  const findOwner = async () => ({ appName: "agent-jobs", userId: "user" });
+  expect(await createGetMessageModel({ findOwner, pendingModel })("s1")).toEqual(ref);
+  expect(pendingModel).toHaveBeenCalledWith({
     appName: "agent-jobs",
     userId: "user",
     sessionId: "s1",

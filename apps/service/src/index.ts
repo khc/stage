@@ -5,10 +5,10 @@ import { createApp, type AppDeps } from "./app";
 import { loadConfig, parseAllowedJobs } from "./config";
 import { createA2aService } from "./modules/a2a/a2a-service";
 import { createAgentsService } from "./modules/agents/agents-service";
-import { createProvidersService } from "./modules/providers/providers-service";
-import { createProvidersStore } from "./modules/providers/providers-store";
 import { createEventsService } from "./modules/events/events-service";
 import { createHealthService } from "./modules/health/health-service";
+import { createProvidersService } from "./modules/providers/providers-service";
+import { createProvidersStore } from "./modules/providers/providers-store";
 import { MAX_UPLOAD_BYTES } from "./modules/tasks/documents/documents-model";
 import { createDocumentsService } from "./modules/tasks/documents/documents-service";
 import { createDocumentsStore } from "./modules/tasks/documents/documents-store";
@@ -73,18 +73,18 @@ const platformEventStream =
     ? createPlatformEventStream(pubsub, config.PLATFORM_EVENTS_TOPIC)
     : undefined;
 
+const providersStore = createProvidersStore(firestore);
 const tasksService = createTasksService({
   tasksStore,
   agentRegistry,
+  providersStore,
   cloudRunJobs,
   sessionsStore,
   documentsStore,
   allowedJobs,
 });
 const agentsService = createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs });
-const providersService = createProvidersService({
-  providersStore: createProvidersStore(firestore),
-});
+const providersService = createProvidersService({ providersStore });
 
 const appDeps: AppDeps = {
   healthService: createHealthService(),

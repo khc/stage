@@ -52,6 +52,11 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+// The model a task or a message is given: a provider and one of its models. Derived from the service
+// client, not from `Api`, which would make the types refer to each other.
+type Client = ReturnType<typeof treaty<App>>;
+export type ModelRef = NonNullable<Parameters<Client["tasks"]["post"]>[0]["defaultModel"]>;
+
 const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
   too_many_subtasks: "This task has more than 500 sub-tasks, so it cannot be deleted in one go.",
@@ -71,6 +76,7 @@ const messages: Record<string, string> = {
   not_supported: "Document upload is not configured on the server.",
   unknown_job: "This job is not allowed. Choose one of the jobs listed.",
   unknown_agent: "This job has no such registered agent.",
+  unknown_model: "This model is not available. Choose another one in the model picker.",
   provider_not_found: "This provider could not be found.",
   provider_error: "Providers could not be loaded or saved. Try again in a moment.",
   provider_models_error:
@@ -131,12 +137,18 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     fetchProviderModels: (input: Parameters<typeof client.providers.models.post>[0]) =>
       unwrap(client.providers.models.post(input)),
     task: (id: string) => unwrap(task(id).get()),
-    create: (input: { name: string; prompt: string; jobName: string; agentName?: string }) =>
-      unwrap(client.tasks.post(input)),
+    create: (input: {
+      name: string;
+      prompt: string;
+      jobName: string;
+      agentName?: string;
+      defaultModel?: ModelRef;
+    }) => unwrap(client.tasks.post(input)),
     run: (id: string) => unwrap(task(id).run.post()),
-    startSession: (taskId: string, message: string) => unwrap(task(taskId).run.post({ message })),
-    resume: (taskId: string, sessionId: string, message: string) =>
-      unwrap(task(taskId).run.post({ sessionId, message })),
+    startSession: (taskId: string, message: string, model?: ModelRef) =>
+      unwrap(task(taskId).run.post({ message, ...(model && { model }) })),
+    resume: (taskId: string, sessionId: string, message: string, model?: ModelRef) =>
+      unwrap(task(taskId).run.post({ sessionId, message, ...(model && { model }) })),
     registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),
     agents: (jobName: string) => unwrap(job(jobName).agents.get()),
     stats: (taskId: string, sessionId: string) => unwrap(session(taskId, sessionId).stats.get()),

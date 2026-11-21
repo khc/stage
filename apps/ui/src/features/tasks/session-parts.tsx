@@ -27,6 +27,7 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message";
 import { Spinner } from "@/components/ui/spinner";
+import { ModelPicker } from "@/features/models/model-picker";
 import {
   api,
   formatTime,
@@ -37,11 +38,14 @@ import {
   type AgentInfo,
   type DocumentSummary,
   type JsonSchema,
+  type ModelRef,
   type RunState,
   type Session,
   type SessionEvent,
   type SessionSummary,
 } from "@/lib/api";
+import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
+import { useProviders } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 // Keeps the cached session in step with the live message stream.
@@ -169,10 +173,13 @@ export function SessionComposer({
   running = false,
   disabled = false,
   disabledReason,
+  defaultModel,
   onStarted,
 }: {
   taskId: string;
   sessionId?: string;
+  // The task's default model; the picker starts on it.
+  defaultModel?: ModelRef;
   running?: boolean;
   disabled?: boolean;
   disabledReason?: string;
@@ -180,11 +187,14 @@ export function SessionComposer({
 }) {
   const client = useQueryClient();
   const [message, setMessage] = useState("");
+  const [modelPick, setModelPick] = useState<ModelPick | null>(null);
+  const models = modelOptions(useProviders().data?.providers ?? []);
+  const model = pickedModel(modelPick, taskId, models, defaultModel);
   const send = useMutation({
     mutationFn: () =>
       sessionId
-        ? api.resume(taskId, sessionId, message.trim())
-        : api.startSession(taskId, message.trim()),
+        ? api.resume(taskId, sessionId, message.trim(), model)
+        : api.startSession(taskId, message.trim(), model),
     onSuccess: (result) => {
       setMessage("");
       if (sessionId) {
@@ -226,6 +236,17 @@ export function SessionComposer({
           }}
         />
         <InputGroupAddon align="block-end">
+          {models.length > 0 && (
+            <ModelPicker
+              compact
+              options={models}
+              value={model}
+              onChange={(next) => setModelPick({ key: taskId, model: next })}
+              // A session that exists already has messages.
+              hasHistory={!!sessionId}
+              disabled={send.isPending}
+            />
+          )}
           <InputGroupButton
             type="submit"
             size="icon-sm"

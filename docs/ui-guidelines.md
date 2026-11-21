@@ -55,6 +55,7 @@ Anything an agent does is shown with the AI Elements patterns, built on `Trace`.
 - Messages are `Message` with a `Bubble`; the thread is a `MessageScroller`.
 - The prompt input is an `InputGroup` with a textarea, `Attachment` chips, a `+` attach button, the agent picker as a radio `DropdownMenu` and a round send button. Enter sends and Shift+Enter adds a line; show the hint with `Kbd`.
 - The empty thread uses `Empty` and one-click starter prompts as outline `Button`s.
+- The model for a message is chosen with `ModelPicker` (`features/models/model-picker.tsx`) beside the send button, preselected to the task's default model. A change in a session that already has messages asks for confirmation first, because the whole conversation is re-sent to the new model.
 - Keep a new agent step type in `agent-trace.tsx` so the chat and the task session render it the same way.
 
 ## Visual rules

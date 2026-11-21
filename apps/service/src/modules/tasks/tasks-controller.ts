@@ -30,12 +30,13 @@ export const tasksController = ({
       "",
       async ({ body, status }) => {
         // Named one by one: only the A2A gateway sets a parent, whatever else the body carries.
-        const { name, prompt, jobName, agentName } = body;
+        const { name, prompt, jobName, agentName, defaultModel } = body;
         const result = await tasksService.create({
           name: name.trim(),
           prompt: prompt.trim(),
           jobName,
           ...(agentName !== undefined && { agentName }),
+          ...(defaultModel !== undefined && { defaultModel }),
         });
         if (result.status !== "created") return status(400, { error: result.status });
         return status(201, result.task);
@@ -44,7 +45,7 @@ export const tasksController = ({
         body: TasksModel.createBody,
         ...doc(tag, "Create a task", {
           201: { description: "The created task.", schema: TasksModel.task },
-          400: "Invalid input, a job that is not allowed (`unknown_job`), or the job has registered agents and this one is not among them (`unknown_agent`).",
+          400: "Invalid input, a job that is not allowed (`unknown_job`), or the job has registered agents and this one is not among them (`unknown_agent`), or a default model that is not selectable (`unknown_model`).",
           502: errors.dependency,
         }),
       },
@@ -87,6 +88,7 @@ export const tasksController = ({
           resume = {
             ...(raw.sessionId !== undefined && { sessionId: raw.sessionId }),
             message: raw.message.trim(),
+            ...(raw.model !== undefined && { model: raw.model }),
           };
         }
         const result = await tasksService.run(params.taskId.toLowerCase(), resume);
@@ -99,6 +101,8 @@ export const tasksController = ({
           case "task_not_found":
           case "session_not_found":
             return status(404, { error: result.status });
+          case "unknown_model":
+            return status(400, { error: result.status });
           default:
             return status(409, { error: result.status });
         }
@@ -113,7 +117,7 @@ export const tasksController = ({
             description: "The Cloud Run execution was started.",
             schema: TasksModel.operation,
           },
-          400: "A body that is not JSON (`invalid_request`), or one without a non-blank `message` or valid `sessionId` (`invalid_resume`).",
+          400: "A body that is not JSON (`invalid_request`), or one without a non-blank `message` or valid `sessionId` (`invalid_resume`), or a `model` that is not selectable (`unknown_model`).",
           404: "No such task or session (`task_not_found`, `session_not_found`).",
           409: "The task cannot run now (`task_not_executable`, `run_in_progress`, `message_pending`).",
           502: errors.dependency,

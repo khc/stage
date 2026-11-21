@@ -150,3 +150,32 @@ test("freeTextInputHint blocks non-string agent schemas for new user-message ses
   expect(freeTextInputHint(undefined)).toBeUndefined();
   expect(freeTextInputHint({ type: "object", properties: {} })).toContain("structured input");
 });
+
+test("the task message box starts on the task default model and offers the usable models", () => {
+  const providerId = "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10";
+  const client = new QueryClient();
+  client.setQueryData(["providers"], {
+    providers: [
+      {
+        providerId,
+        name: "Express",
+        kind: "google-express",
+        enabled: true,
+        hasApiKey: true,
+        models: ["flash", "pro"],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
+  });
+  const render = (defaultModel?: { providerId: string; model: string }) =>
+    renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <SessionComposer taskId="t1" sessionId="s1" defaultModel={defaultModel} />
+      </QueryClientProvider>,
+    );
+  expect(render({ providerId, model: "pro" })).toContain("Express · pro");
+  // A default that is no longer offered is not preselected.
+  expect(render({ providerId, model: "gone" })).toContain("Job default");
+  expect(render()).toContain('aria-label="Model"');
+});

@@ -266,6 +266,51 @@ describe("tasks", () => {
     });
   });
 
+  test("POST /tasks passes the default model and answers 400 unknown_model for an unusable one", async () => {
+    const defaultModel = { providerId: "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11", model: "m" };
+    let received: unknown;
+    const created = appWith({
+      create: async (input) => {
+        received = input;
+        return { status: "created", task: { ...task, ...input } };
+      },
+    });
+    const body = { name: "Task", prompt: "p", jobName: "j", defaultModel };
+    expect((await call(created, "/tasks", json(body))).status).toBe(201);
+    expect(received).toEqual(body);
+
+    const refused = appWith({ create: async () => ({ status: "unknown_model" }) });
+    expect(await call(refused, "/tasks", json(body))).toEqual({
+      status: 400,
+      body: { error: "unknown_model" },
+    });
+    expect(
+      (await call(created, "/tasks", json({ ...body, defaultModel: { model: "m" } }))).status,
+    ).toBe(400);
+  });
+
+  test("POST /tasks/:id/run passes the model of a message and answers 400 unknown_model", async () => {
+    const model = { providerId: "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11", model: "m" };
+    let received: unknown;
+    const app = appWith({
+      run: async (_id, resume) => {
+        received = resume;
+        return { status: "started", operation: "op-1" };
+      },
+    });
+    const url = `/tasks/${task.taskId}/run`;
+    expect((await call(app, url, json({ message: "hi", model }))).status).toBe(202);
+    expect(received).toEqual({ message: "hi", model });
+    expect((await call(app, url, json({ message: "hi" }))).status).toBe(202);
+    expect(received).toEqual({ message: "hi" });
+    const refused = appWith({ run: async () => ({ status: "unknown_model" }) });
+    expect(await call(refused, url, json({ message: "hi", model }))).toEqual({
+      status: 400,
+      body: { error: "unknown_model" },
+    });
+    expect((await call(app, url, json({ message: "hi", model: { model: "m" } }))).status).toBe(400);
+  });
+
   test("a body that claims to be JSON but is not answers 400 invalid_request, not a server error", async () => {
     const res = await call(appWith(), "/tasks", {
       method: "POST",
@@ -951,7 +996,9 @@ describe("providers", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    expect(await call(appWith(), `/providers/${provider.providerId}`, patch({ name: "Renamed" }))).toEqual({
+    expect(
+      await call(appWith(), `/providers/${provider.providerId}`, patch({ name: "Renamed" })),
+    ).toEqual({
       status: 200,
       body: { ...provider, name: "Renamed" },
     });
@@ -961,7 +1008,12 @@ describe("providers", () => {
     });
     expect(
       await call(
-        appWith({}, {}, {}, { providers: { update: async () => ({ status: "invalid_base_url" }) } }),
+        appWith(
+          {},
+          {},
+          {},
+          { providers: { update: async () => ({ status: "invalid_base_url" }) } },
+        ),
         `/providers/${provider.providerId}`,
         patch({ baseUrl: "not-a-url" }),
       ),
@@ -973,9 +1025,10 @@ describe("providers", () => {
       new Request(`http://localhost/providers/${provider.providerId}`, { method: "DELETE" }),
     );
     expect(res.status).toBe(204);
-    expect(
-      await call(appWith(), `/providers/${task.taskId}`, { method: "DELETE" }),
-    ).toEqual({ status: 404, body: { error: "provider_not_found" } });
+    expect(await call(appWith(), `/providers/${task.taskId}`, { method: "DELETE" })).toEqual({
+      status: 404,
+      body: { error: "provider_not_found" },
+    });
   });
 
   test("maps DependencyError('provider_error') to 502", async () => {
@@ -1010,7 +1063,12 @@ describe("providers", () => {
 
     expect(
       await call(
-        appWith({}, {}, {}, { providers: { fetchModels: async () => ({ status: "api_key_required" }) } }),
+        appWith(
+          {},
+          {},
+          {},
+          { providers: { fetchModels: async () => ({ status: "api_key_required" }) } },
+        ),
         "/providers/models",
         json({ kind: "google" }),
       ),

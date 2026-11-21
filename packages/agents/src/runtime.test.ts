@@ -1,8 +1,16 @@
 import { expect, mock, spyOn, test } from "bun:test";
 
-import { createEvent, LlmAgent } from "@google/adk";
+import {
+  BaseLlm,
+  createEvent,
+  LlmAgent,
+  type BaseLlmConnection,
+  type LlmRequest,
+  type LlmResponse,
+} from "@google/adk";
 import { z } from "zod";
 
+import { createRoutedLlm } from "./model";
 import { createRunAgent, createTaskAgent } from "./runtime";
 import type { AgentSet } from "./spec";
 
@@ -284,4 +292,54 @@ test("createRunAgent enforces inputSchema on a pre-created empty session, while 
     },
   );
   await expect(taskAgentReject("not json", taskId, "s-pre")).rejects.toThrow("must be JSON");
+});
+
+class AnsweringLlm extends BaseLlm {
+  // oxlint-disable-next-line require-yield
+  async *generateContentAsync(): AsyncGenerator<LlmResponse, void> {
+    yield { content: { role: "model", parts: [{ text: this.model }] } } as LlmResponse;
+  }
+  async connect(): Promise<BaseLlmConnection> {
+    return {} as BaseLlmConnection;
+  }
+}
+
+// An agent run whose only LLM call goes through the routing model and is answered by its model name.
+const askingRun = () => {
+  const routed = createRoutedLlm(
+    "default-model",
+    () => new AnsweringLlm({ model: "default-model" }),
+  );
+  const runAsync = mock(async function* () {
+    for await (const response of routed.generateContentAsync({} as LlmRequest))
+      yield reply(response.content?.parts?.[0]?.text ?? "");
+  });
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })), ...runs() };
+  return { run: createTaskAgent({ sessionService, runAsync } as never), sessionService, runAsync };
+};
+
+test("every LLM call of the run goes to the model that was resolved for it", async () => {
+  const { run } = askingRun();
+  const chosen = new AnsweringLlm({ model: "chosen-model" });
+  expect(await run("hi", undefined, undefined, undefined, async () => chosen)).toBe("chosen-model");
+});
+
+test("without a resolved model the run uses the default model, as before", async () => {
+  const { run } = askingRun();
+  expect(await run("hi")).toBe("default-model");
+  expect(await run("hi", undefined, undefined, undefined, async () => undefined)).toBe(
+    "default-model",
+  );
+});
+
+test("a model that cannot be resolved fails the run on the session, before any LLM call", async () => {
+  const { run, sessionService, runAsync } = askingRun();
+  const failure = new Error('Model m is not available on provider "P"');
+  await expect(
+    run("hi", undefined, undefined, undefined, async () => {
+      throw failure;
+    }),
+  ).rejects.toThrow("not available");
+  expect(runAsync).not.toHaveBeenCalled();
+  expect(sessionService.finishRun).toHaveBeenCalledWith(expect.anything(), failure.message);
 });
