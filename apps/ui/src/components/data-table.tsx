@@ -12,9 +12,9 @@ import {
   sortFn_text,
   tableFeatures,
   type Column,
+  type ReactTable,
   type RowData,
 } from "@tanstack/react-table";
-import type { ReactTable } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

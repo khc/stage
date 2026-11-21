@@ -11,7 +11,13 @@ const REGISTRATION_POLL_MS = 30_000;
 export function useAgentRegistration(jobName: string, enabled = true) {
   const client = useQueryClient();
   const pollKey = ["agents-poll", jobName];
-  const poll = useQuery({ queryKey: pollKey, queryFn: () => 0, initialData: 0, staleTime: Infinity });
+  // A refetch (the shell refresh, an event-stream reconnect) must keep the deadline, not reset it.
+  const poll = useQuery({
+    queryKey: pollKey,
+    queryFn: () => client.getQueryData<number>(pollKey) ?? 0,
+    initialData: 0,
+    staleTime: Infinity,
+  });
   const query = useQuery({
     queryKey: ["agents", jobName],
     queryFn: () => api.agents(jobName),

@@ -1,7 +1,7 @@
 import type { Task } from "@/lib/api";
 
 const text = (task: Task) =>
-  `${task.name ?? ""} ${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`.toLowerCase();
+  `${task.name ?? ""} ${task.prompt} ${task.jobName ?? ""} ${task.agentName ?? ""} ${task.taskId}`.toLowerCase();
 
 // The sub-tasks of each task in the list; a task whose parent is not in the list has no entry as a child.
 const childrenOf = (tasks: Task[]) => {
@@ -46,7 +46,17 @@ export function buildTaskForest(tasks: Task[]): TaskNode[] {
 }
 
 // Whether a task matches a search: its name, prompt, job, agent or id.
-export const taskMatches = (task: Task, query: string) => text(task).includes(query.trim().toLowerCase());
+export const taskMatches = (task: Task, query: string) =>
+  text(task).includes(query.trim().toLowerCase());
+
+type RowLike = { original: Task; getParentRow: () => RowLike | undefined };
+
+// A row matches a search when it or any ancestor does, so a matching task keeps its sub-tasks.
+export function rowMatches(row: RowLike, query: string): boolean {
+  for (let current: RowLike | undefined = row; current; current = current.getParentRow())
+    if (taskMatches(current.original, query)) return true;
+  return false;
+}
 
 // How many tasks hang below this one, counting sub-tasks of sub-tasks.
 export function countDescendants(tasks: Task[], taskId: string): number {

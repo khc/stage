@@ -41,7 +41,7 @@ import { useNav } from "@/lib/nav";
 import { usePlatformLive } from "@/lib/platform-events";
 import { useTasks } from "@/lib/queries";
 
-import { buildTaskForest, taskMatches, type TaskNode } from "./task-tree";
+import { buildTaskForest, rowMatches, type TaskNode } from "./task-tree";
 import { useRunTask } from "./use-run-task";
 
 const columnHelper = createColumnHelper<DataTableFeatures, TaskNode>();
@@ -77,15 +77,17 @@ const columns = columnHelper.columns([
     id: TITLE,
     header: ({ column }) => <SortHeader column={column} title="Task" />,
     sortFn: "text",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const task = row.original;
       const open = row.getIsExpanded();
+      // A search opens every sub-task it found, so the toggle does nothing while it is active.
+      const searching = !!table.options.state?.globalFilter;
       return (
         <div
           className="flex min-w-0 items-center gap-1"
           style={{ paddingLeft: Math.min(row.depth, MAX_INDENT) * 20 }}
         >
-          {row.getCanExpand() ? (
+          {row.getCanExpand() && !searching ? (
             <Button
               variant="ghost"
               size="icon"
@@ -176,13 +178,15 @@ export function TasksPanel({ title, limit }: { title: string; limit?: number }) 
     getRowId: (task) => task.taskId,
     getSubRows: (task) => task.subTasks,
     filterFromLeafRows: true,
-    globalFilterFn: (row, _columnId, query: string) => taskMatches(row.original, query),
+    globalFilterFn: (row, _columnId, query: string) => rowMatches(row, query),
     getColumnCanGlobalFilter: (column) => column.id === TITLE,
     // A search opens every sub-task it found.
     state: { globalFilter: search, expanded: search ? true : expanded },
     onExpandedChange: setExpanded,
     initialState: { pagination: { pageIndex: 0, pageSize: limit ?? 10 } },
     paginateExpandedRows: false,
+    // The overview shows one page; a search shows every match instead of hiding the rest.
+    manualPagination: !!limit && !!search,
   });
   const rows = table.getRowModel().rows;
   const total = tasks?.length ?? 0;
