@@ -74,6 +74,34 @@ describe("providers service", () => {
     });
   });
 
+  test("keeps only disabled models that are in the model list, trimmed and deduplicated", async () => {
+    const { service, create, update } = setup();
+    await service.create({
+      name: "OpenAI",
+      kind: "openai",
+      models: ["gpt-4o", "gpt-4o-mini"],
+      disabledModels: [" gpt-4o-mini ", "gpt-4o-mini", "gpt-5", "   "],
+    });
+    expect(create).toHaveBeenCalledWith({
+      name: "OpenAI",
+      kind: "openai",
+      models: ["gpt-4o", "gpt-4o-mini"],
+      disabledModels: ["gpt-4o-mini"],
+    });
+
+    await service.update(sample.providerId, {
+      models: ["gpt-4o"],
+      disabledModels: ["gpt-4o", "gpt-4o-mini"],
+    });
+    expect(update).toHaveBeenCalledWith(sample.providerId, {
+      models: ["gpt-4o"],
+      disabledModels: ["gpt-4o"],
+    });
+
+    await service.update(sample.providerId, { disabledModels: null });
+    expect(update).toHaveBeenLastCalledWith(sample.providerId, { disabledModels: null });
+  });
+
   test("rejects non-http(s), malformed, or credential-bearing baseUrl on create and update without touching the store", async () => {
     const { service, create, update } = setup();
     for (const bad of [

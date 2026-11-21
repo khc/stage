@@ -126,7 +126,8 @@ export function ProvidersPage() {
           id: "models",
           header: "Models",
           cell: ({ row }) => {
-            const { defaultModel, models } = row.original;
+            const { defaultModel, models, disabledModels } = row.original;
+            const off = disabledModels?.length ?? 0;
             if (!defaultModel && !models?.length)
               return <span className="text-xs text-muted-foreground">Default</span>;
             return (
@@ -134,7 +135,9 @@ export function ProvidersPage() {
                 {defaultModel && <span className="font-mono">{defaultModel}</span>}
                 {models?.length ? (
                   <span className="text-muted-foreground">
-                    {models.length} model{models.length === 1 ? "" : "s"}
+                    {off > 0
+                      ? `${models.length - off} of ${models.length} models enabled`
+                      : `${models.length} model${models.length === 1 ? "" : "s"}`}
                   </span>
                 ) : null}
               </div>

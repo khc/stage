@@ -7,10 +7,13 @@ import { Dialog } from "@/components/ui/dialog";
 import { api, type Provider } from "@/lib/api";
 
 import {
+  addModel,
   buildCreatePayload,
   buildUpdatePayload,
   canFetchModels,
   ProviderForm,
+  removeModel,
+  toggleModel,
   validateBaseUrl,
 } from "./provider-dialog";
 import { kindLabel, ProvidersPage, providerMatches } from "./providers-page";
@@ -22,6 +25,7 @@ const sample: Provider = {
   baseUrl: "https://api.openai.com/v1",
   defaultModel: "gpt-4o",
   models: ["gpt-4o", "gpt-4o-mini"],
+  disabledModels: ["gpt-4o-mini"],
   enabled: true,
   hasApiKey: true,
   apiKeyHint: "••••9876",
@@ -65,7 +69,7 @@ describe("ProvidersPage", () => {
     expect(html).toContain("OpenAI Work");
     expect(html).toContain("••••9876");
     expect(html).toContain("gpt-4o");
-    expect(html).toContain("2 models");
+    expect(html).toContain("1 of 2 models enabled");
     expect(html).toContain("Gemini Dev");
     expect(html).toContain("Disabled");
     expect(html).toContain("Not set");
@@ -83,7 +87,7 @@ describe("ProvidersPage", () => {
 });
 
 describe("ProviderForm", () => {
-  test("renders Fetch models and Default model selector without a manual models textarea", () => {
+  test("renders Fetch models, a model picker with Add, and the added models with checkboxes", () => {
     const client = new QueryClient();
     const editHtml = renderToStaticMarkup(
       <QueryClientProvider client={client}>
@@ -93,8 +97,14 @@ describe("ProviderForm", () => {
       </QueryClientProvider>,
     );
     expect(editHtml).toContain("Fetch models");
-    expect(editHtml).toContain("Default model");
+    expect(editHtml).toContain("Add model");
+    expect(editHtml).not.toContain("Default model");
     expect(editHtml).not.toContain("<textarea");
+    // Both added models are listed; the disabled one is unchecked.
+    expect(editHtml).toContain('aria-label="Enable gpt-4o"');
+    expect(editHtml).toContain('aria-label="Enable gpt-4o-mini"');
+    expect(editHtml).toContain('aria-label="Remove gpt-4o-mini"');
+    expect(editHtml).toContain("1 of 2 enabled");
 
     const addHtml = renderToStaticMarkup(
       <QueryClientProvider client={client}>
@@ -104,7 +114,7 @@ describe("ProviderForm", () => {
       </QueryClientProvider>,
     );
     expect(addHtml).toContain("Fetch models");
-    expect(addHtml).toContain("Default model");
+    expect(addHtml).toContain("No models added yet");
     expect(addHtml).not.toContain("<textarea");
   });
 
@@ -125,6 +135,7 @@ describe("ProviderForm", () => {
     );
     expect(html).toContain("Google Express");
     expect(html).toContain('list="provider-express-models"');
+    expect(html).toContain("Add model");
     expect(html).toContain('<option value="gemini-2.5-flash"');
     expect(html).toContain("https://aiplatform.googleapis.com/v1");
     expect(html).not.toContain("Fetch models");
@@ -136,6 +147,30 @@ describe("ProviderForm", () => {
     expect(providerMatches({ ...sample, kind: "google" }, "express")).toBe(false);
   });
 
+  test("adds, toggles and removes models in the form without duplicates", () => {
+    const form = {
+      name: "G",
+      kind: "google" as const,
+      apiKey: "",
+      clearApiKey: false,
+      baseUrl: "",
+      models: ["a"],
+      disabledModels: [],
+      enabled: true,
+    };
+    const added = addModel(form, "  b ");
+    expect(added.models).toEqual(["a", "b"]);
+    expect(addModel(added, "b").models).toEqual(["a", "b"]);
+    expect(addModel(added, "   ").models).toEqual(["a", "b"]);
+
+    const off = toggleModel(added, "b");
+    expect(off.disabledModels).toEqual(["b"]);
+    expect(toggleModel(off, "b").disabledModels).toEqual([]);
+
+    // Removing a model also drops its disabled mark.
+    expect(removeModel(off, "b")).toMatchObject({ models: ["a"], disabledModels: [] });
+  });
+
   test("normalizes create payload and omits blank optional fields", () => {
     expect(
       buildCreatePayload({
@@ -144,15 +179,15 @@ describe("ProviderForm", () => {
         apiKey: "   ",
         clearApiKey: false,
         baseUrl: "",
-        defaultModel: "gemini-2.5-flash",
         models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+        disabledModels: ["gemini-2.5-pro"],
         enabled: true,
       }),
     ).toEqual({
       name: "Google",
       kind: "google",
-      defaultModel: "gemini-2.5-flash",
       models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+      disabledModels: ["gemini-2.5-pro"],
       enabled: true,
     });
   });
@@ -165,16 +200,16 @@ describe("ProviderForm", () => {
         apiKey: "",
         clearApiKey: false,
         baseUrl: "",
-        defaultModel: "",
         models: [],
+        disabledModels: [],
         enabled: false,
       }),
     ).toEqual({
       name: "OpenAI Renamed",
       kind: "openai",
       baseUrl: null,
-      defaultModel: null,
       models: null,
+      disabledModels: null,
       enabled: false,
     });
 
@@ -185,8 +220,8 @@ describe("ProviderForm", () => {
         apiKey: "",
         clearApiKey: true,
         baseUrl: "https://api.openai.com/v1",
-        defaultModel: "gpt-4o",
         models: ["gpt-4o"],
+        disabledModels: [],
         enabled: true,
       }),
     ).toMatchObject({ apiKey: null });
@@ -206,8 +241,8 @@ describe("ProviderForm", () => {
         apiKey: "",
         clearApiKey: false,
         baseUrl: "",
-        defaultModel: "",
         models: [],
+        disabledModels: [],
         enabled: true,
       }),
     ).toBe(false);
@@ -219,8 +254,8 @@ describe("ProviderForm", () => {
           apiKey: "",
           clearApiKey: false,
           baseUrl: sample.baseUrl!,
-          defaultModel: "",
           models: [],
+          disabledModels: [],
           enabled: true,
         },
         sample,
@@ -235,8 +270,8 @@ describe("ProviderForm", () => {
           apiKey: "",
           clearApiKey: true,
           baseUrl: sample.baseUrl!,
-          defaultModel: "",
           models: [],
+          disabledModels: [],
           enabled: true,
         },
         sample,
@@ -250,8 +285,8 @@ describe("ProviderForm", () => {
           apiKey: "",
           clearApiKey: true,
           baseUrl: "",
-          defaultModel: "",
           models: [],
+          disabledModels: [],
           enabled: true,
         },
         { ...sample, kind: "google", baseUrl: undefined },
@@ -265,8 +300,8 @@ describe("ProviderForm", () => {
           apiKey: "",
           clearApiKey: false,
           baseUrl: "",
-          defaultModel: "",
           models: [],
+          disabledModels: [],
           enabled: true,
         },
         sample,
@@ -280,8 +315,8 @@ describe("ProviderForm", () => {
           apiKey: "",
           clearApiKey: false,
           baseUrl: "",
-          defaultModel: "",
           models: [],
+          disabledModels: [],
           enabled: true,
         },
         { ...sample, baseUrl: undefined },

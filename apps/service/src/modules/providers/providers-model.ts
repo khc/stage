@@ -11,6 +11,8 @@ export const MAX_PROVIDER_MODELS = 500;
 const nonBlank = (maxLength: number) =>
   t.String({ pattern: "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$", maxLength });
 
+const modelList = t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS });
+
 export const ProvidersModel = {
   kind: providerKind,
   params: t.Object({ providerId: t.String({ format: "uuid" }) }),
@@ -20,7 +22,9 @@ export const ProvidersModel = {
     apiKey: t.Optional(nonBlank(1000)),
     baseUrl: t.Optional(nonBlank(500)),
     defaultModel: t.Optional(nonBlank(MAX_MODEL_ID_LENGTH)),
-    models: t.Optional(t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS })),
+    models: t.Optional(modelList),
+    // Models in `models` that are switched off; absent means every model is enabled.
+    disabledModels: t.Optional(modelList),
     enabled: t.Optional(t.Boolean()),
   }),
   updateBody: t.Object({
@@ -29,12 +33,8 @@ export const ProvidersModel = {
     apiKey: t.Optional(t.Union([nonBlank(1000), t.Null()])),
     baseUrl: t.Optional(t.Union([nonBlank(500), t.Null()])),
     defaultModel: t.Optional(t.Union([nonBlank(MAX_MODEL_ID_LENGTH), t.Null()])),
-    models: t.Optional(
-      t.Union([
-        t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS }),
-        t.Null(),
-      ]),
-    ),
+    models: t.Optional(t.Union([modelList, t.Null()])),
+    disabledModels: t.Optional(t.Union([modelList, t.Null()])),
     enabled: t.Optional(t.Boolean()),
   }),
   fetchModelsBody: t.Object({
@@ -54,6 +54,7 @@ export const ProvidersModel = {
     baseUrl: t.Optional(t.String()),
     defaultModel: t.Optional(t.String()),
     models: t.Optional(t.Array(t.String())),
+    disabledModels: t.Optional(t.Array(t.String())),
     enabled: t.Boolean(),
     hasApiKey: t.Boolean(),
     apiKeyHint: t.Optional(t.String()),

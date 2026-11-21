@@ -317,6 +317,12 @@ const cleanModels = (models: string[]) =>
     MAX_PROVIDER_MODELS,
   );
 
+// The disabled models that are in the model list; with no list to check against, all of them.
+const cleanDisabled = (disabled: string[], models?: string[]) => {
+  const cleaned = cleanModels(disabled);
+  return models ? cleaned.filter((model) => models.includes(model)) : cleaned;
+};
+
 const cleanNullable = (value: string | null | undefined) =>
   value === undefined ? undefined : value === null ? null : value.trim();
 
@@ -334,13 +340,17 @@ export const createProvidersService = ({
       return { status: "invalid_base_url" };
     const apiKey = input.apiKey?.trim();
     if (apiKey !== undefined && !hasValidApiKeyChars(apiKey)) return { status: "invalid_api_key" };
+    const models = input.models !== undefined ? cleanModels(input.models) : undefined;
+    const disabledModels =
+      input.disabledModels !== undefined ? cleanDisabled(input.disabledModels, models) : undefined;
     const clean: NewProvider = {
       name: input.name.trim(),
       kind: input.kind,
       ...(apiKey !== undefined && { apiKey }),
       ...(baseUrl !== undefined && { baseUrl }),
       ...(input.defaultModel !== undefined && { defaultModel: input.defaultModel.trim() }),
-      ...(input.models !== undefined && { models: cleanModels(input.models) }),
+      ...(models !== undefined && { models }),
+      ...(disabledModels !== undefined && { disabledModels }),
       ...(input.enabled !== undefined && { enabled: input.enabled }),
     };
     return {
@@ -364,6 +374,15 @@ export const createProvidersService = ({
         : patch.models === null
           ? null
           : cleanModels(patch.models);
+    // Clearing the model list clears what was switched off in it.
+    const disabledModels =
+      patch.disabledModels === undefined
+        ? models === null
+          ? null
+          : undefined
+        : patch.disabledModels === null
+          ? null
+          : cleanDisabled(patch.disabledModels, models ?? undefined);
 
     const clean: ProviderPatch = {
       ...(patch.name !== undefined && { name: patch.name.trim() }),
@@ -372,6 +391,7 @@ export const createProvidersService = ({
       ...(baseUrl !== undefined && { baseUrl }),
       ...(defaultModel !== undefined && { defaultModel }),
       ...(models !== undefined && { models }),
+      ...(disabledModels !== undefined && { disabledModels }),
       ...(patch.enabled !== undefined && { enabled: patch.enabled }),
     };
     const updated = await guard("provider_error", () => providersStore.update(providerId, clean));

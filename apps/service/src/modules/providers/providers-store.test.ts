@@ -176,7 +176,19 @@ describe("providers store", () => {
       models: ["gemini-2.5-flash"],
     });
 
-    const renamed = await store.update(created.providerId, { name: "Google Updated", enabled: false });
+    // Switching models off is stored beside the model list and cleared with null.
+    const switched = await store.update(created.providerId, {
+      disabledModels: ["gemini-2.5-flash"],
+    });
+    expect(switched?.disabledModels).toEqual(["gemini-2.5-flash"]);
+    expect(
+      (await store.update(created.providerId, { disabledModels: null }))?.disabledModels,
+    ).toBeUndefined();
+
+    const renamed = await store.update(created.providerId, {
+      name: "Google Updated",
+      enabled: false,
+    });
     expect(renamed).toMatchObject({
       providerId: created.providerId,
       name: "Google Updated",

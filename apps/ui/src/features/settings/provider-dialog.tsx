@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, RefreshCw, Save } from "lucide-react";
+import { KeyRound, Plus, RefreshCw, Save, X } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -32,12 +32,32 @@ export type ProviderFormState = {
   apiKey: string;
   clearApiKey: boolean;
   baseUrl: string;
-  defaultModel: string;
+  // The models added to this provider, and the ones among them that are switched off.
   models: string[];
+  disabledModels: string[];
   enabled: boolean;
 };
 
-const NO_DEFAULT_MODEL = "__none";
+const MAX_MODELS = 500;
+
+export const addModel = (form: ProviderFormState, id: string): ProviderFormState => {
+  const model = id.trim();
+  if (!model || form.models.includes(model) || form.models.length >= MAX_MODELS) return form;
+  return { ...form, models: [...form.models, model] };
+};
+
+export const toggleModel = (form: ProviderFormState, id: string): ProviderFormState => ({
+  ...form,
+  disabledModels: form.disabledModels.includes(id)
+    ? form.disabledModels.filter((model) => model !== id)
+    : [...form.disabledModels, id],
+});
+
+export const removeModel = (form: ProviderFormState, id: string): ProviderFormState => ({
+  ...form,
+  models: form.models.filter((model) => model !== id),
+  disabledModels: form.disabledModels.filter((model) => model !== id),
+});
 
 export const validateBaseUrl = (value: string): string | undefined => {
   const trimmed = value.trim();
@@ -67,14 +87,13 @@ export const canFetchModels = (form: ProviderFormState, provider?: Provider) => 
 export const buildCreatePayload = (form: ProviderFormState) => {
   const apiKey = form.apiKey.trim();
   const baseUrl = form.baseUrl.trim();
-  const defaultModel = form.defaultModel.trim();
   return {
     name: form.name.trim(),
     kind: form.kind,
     ...(apiKey && { apiKey }),
     ...(baseUrl && { baseUrl }),
-    ...(defaultModel && { defaultModel }),
     ...(form.models.length > 0 && { models: form.models }),
+    ...(form.disabledModels.length > 0 && { disabledModels: form.disabledModels }),
     enabled: form.enabled,
   };
 };
@@ -82,21 +101,21 @@ export const buildCreatePayload = (form: ProviderFormState) => {
 export const buildUpdatePayload = (provider: Provider, form: ProviderFormState) => {
   const apiKey = form.apiKey.trim();
   const baseUrl = form.baseUrl.trim();
-  const defaultModel = form.defaultModel.trim();
+  // A saved defaultModel is left as it is: the form no longer edits it.
   return {
     name: form.name.trim(),
     kind: form.kind,
     ...(form.clearApiKey ? { apiKey: null } : apiKey ? { apiKey } : {}),
     ...(baseUrl ? { baseUrl } : provider.baseUrl !== undefined ? { baseUrl: null } : {}),
-    ...(defaultModel
-      ? { defaultModel }
-      : provider.defaultModel !== undefined
-        ? { defaultModel: null }
-        : {}),
     ...(form.models.length > 0
       ? { models: form.models }
       : provider.models !== undefined
         ? { models: null }
+        : {}),
+    ...(form.disabledModels.length > 0
+      ? { disabledModels: form.disabledModels }
+      : provider.disabledModels !== undefined
+        ? { disabledModels: null }
         : {}),
     enabled: form.enabled,
   };
@@ -108,8 +127,8 @@ const initialForm = (provider?: Provider): ProviderFormState => ({
   apiKey: "",
   clearApiKey: false,
   baseUrl: provider?.baseUrl ?? "",
-  defaultModel: provider?.defaultModel ?? "",
   models: provider?.models ?? [],
+  disabledModels: provider?.disabledModels ?? [],
   enabled: provider?.enabled ?? true,
 });
 
@@ -137,7 +156,7 @@ export function ProviderDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
         {open && (
           <ProviderForm
             key={provider?.providerId ?? "new"}
@@ -155,6 +174,9 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ProviderFormState>(() => initialForm(provider));
   const [fetchedOnce, setFetchedOnce] = useState(false);
+  // What the provider API offered on the last fetch, and the model picked to add.
+  const [available, setAvailable] = useState<string[]>([]);
+  const [pick, setPick] = useState("");
   const fetchGenRef = useRef(0);
   const baseUrlError = validateBaseUrl(form.baseUrl);
   const endpointChanged = hasEndpointChanged(form, provider);
@@ -167,9 +189,13 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
     enabled: express,
     staleTime: Infinity,
   });
-  const modelOptions = [
-    ...new Set([...form.models, ...(form.defaultModel ? [form.defaultModel] : [])]),
-  ];
+  const offered = express ? (expressModels.data?.models ?? []) : available;
+  const pickOptions = offered.filter((model) => !form.models.includes(model));
+  const enabledCount = form.models.filter((model) => !form.disabledModels.includes(model)).length;
+  const add = () => {
+    setForm((f) => addModel(f, pick));
+    setPick("");
+  };
 
   const fetchMutation = useMutation({
     mutationFn: async (gen: number) => {
@@ -191,11 +217,8 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
     onSuccess: ({ models, gen }) => {
       if (gen !== fetchGenRef.current) return;
       setFetchedOnce(true);
-      setForm((f) => ({
-        ...f,
-        models,
-        defaultModel: f.defaultModel && models.includes(f.defaultModel) ? f.defaultModel : "",
-      }));
+      setAvailable(models);
+      setPick((current) => (models.includes(current) ? current : ""));
     },
   });
 
@@ -264,7 +287,9 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
               fetchGenRef.current += 1;
               fetchMutation.reset();
               setFetchedOnce(false);
-              setForm((f) => ({ ...f, kind: next as ProviderKind, models: [], defaultModel: "" }));
+              setAvailable([]);
+              setPick("");
+              setForm((f) => ({ ...f, kind: next as ProviderKind }));
             }
           }}
         >
@@ -363,58 +388,64 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="provider-default-model" className="justify-between">
-          Default model<span className="text-xs font-normal text-muted-foreground">Optional</span>
-        </Label>
-        {express ? (
-          <>
-            <Input
-              id="provider-default-model"
-              list="provider-express-models"
-              placeholder="e.g. gemini-2.5-flash"
-              value={form.defaultModel}
-              onChange={(e) => setForm((f) => ({ ...f, defaultModel: e.target.value }))}
-              maxLength={200}
-            />
-            <datalist id="provider-express-models">
-              {(expressModels.data?.models ?? []).map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
-            <p className="text-xs text-muted-foreground">
-              Express keys cannot list models. Pick one Google supports for express mode, or type a
-              model name.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
+      <section aria-labelledby="provider-models-heading" className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h3 id="provider-models-heading" className="text-sm font-medium">
+            Models
+          </h3>
+          <span className="text-xs text-muted-foreground">
+            Choose which ones this provider offers
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {express ? (
+            <>
+              <Input
+                id="provider-model-pick"
+                list="provider-express-models"
+                aria-label="Model to add"
+                placeholder="Pick or type a model, e.g. gemini-2.5-flash"
+                value={pick}
+                onChange={(e) => setPick(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                  e.preventDefault();
+                  add();
+                }}
+                maxLength={200}
+                className="min-w-0 flex-1"
+              />
+              <datalist id="provider-express-models">
+                {pickOptions.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            </>
+          ) : (
+            <>
               <Select
-                value={form.defaultModel || NO_DEFAULT_MODEL}
-                disabled={modelOptions.length === 0 || fetchMutation.isPending}
-                items={[
-                  {
-                    value: NO_DEFAULT_MODEL,
-                    label: modelOptions.length ? "No default model" : "Fetch models first",
-                  },
-                  ...modelOptions.map((model) => ({ value: model, label: model })),
-                ]}
-                onValueChange={(next) =>
-                  setForm((f) => ({
-                    ...f,
-                    defaultModel: !next || next === NO_DEFAULT_MODEL ? "" : next,
-                  }))
-                }
+                value={pick || null}
+                disabled={pickOptions.length === 0 || fetchMutation.isPending}
+                items={pickOptions.map((model) => ({ value: model, label: model }))}
+                onValueChange={(next) => setPick(next ?? "")}
               >
-                <SelectTrigger id="provider-default-model" className="min-w-0 flex-1">
-                  <SelectValue />
+                <SelectTrigger
+                  id="provider-model-pick"
+                  aria-label="Model to add"
+                  className="min-w-0 flex-1"
+                >
+                  <SelectValue
+                    placeholder={
+                      offered.length === 0
+                        ? "Fetch models first"
+                        : pickOptions.length === 0
+                          ? "Every fetched model is added"
+                          : "Pick a model"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_DEFAULT_MODEL}>
-                    {modelOptions.length ? "No default model" : "Fetch models first"}
-                  </SelectItem>
-                  {modelOptions.map((model) => (
+                  {pickOptions.map((model) => (
                     <SelectItem key={model} value={model}>
                       {model}
                     </SelectItem>
@@ -432,22 +463,67 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
                   Fetch models
                 </Button>
               </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {!fetchAllowed
-                ? "Enter an API key or Base URL to fetch models from the provider API."
-                : fetchedOnce
-                  ? form.models.length
-                    ? `Loaded ${form.models.length} model${form.models.length === 1 ? "" : "s"} from the provider API.`
-                    : "The provider API returned no models."
-                  : form.models.length
-                    ? `${form.models.length} saved model${form.models.length === 1 ? "" : "s"} available. Click Fetch models to refresh.`
-                    : "Click Fetch models to load available models from the provider API."}
+            </>
+          )}
+          <Button type="button" aria-label="Add model" disabled={!pick.trim()} onClick={add}>
+            <Plus />
+            Add
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {express
+            ? "Express keys cannot list models. Pick one Google supports for express mode, or type a model name."
+            : !fetchAllowed
+              ? "Enter an API key or Base URL to fetch models from the provider API."
+              : fetchedOnce
+                ? offered.length
+                  ? `Loaded ${offered.length} model${offered.length === 1 ? "" : "s"} from the provider API.`
+                  : "The provider API returned no models."
+                : "Click Fetch models to load the models you can add."}
+        </p>
+        {fetchMutation.isError && <ErrorBox error={fetchMutation.error} />}
+        <div className="rounded-lg border">
+          <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
+            <span>Added models</span>
+            <span>
+              {enabledCount} of {form.models.length} enabled
+            </span>
+          </div>
+          {form.models.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+              No models added yet. Pick one above and press Add.
             </p>
-            {fetchMutation.isError && <ErrorBox error={fetchMutation.error} />}
-          </>
-        )}
-      </div>
+          ) : (
+            <ul className="max-h-56 divide-y overflow-y-auto">
+              {form.models.map((model, index) => (
+                <li key={model} className="flex items-center gap-3 px-3 py-1.5">
+                  <Checkbox
+                    id={`provider-model-${index}`}
+                    aria-label={`Enable ${model}`}
+                    checked={!form.disabledModels.includes(model)}
+                    onCheckedChange={() => setForm((f) => toggleModel(f, model))}
+                  />
+                  <Label
+                    htmlFor={`provider-model-${index}`}
+                    className="min-w-0 flex-1 truncate font-mono text-sm font-normal"
+                  >
+                    {model}
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove ${model}`}
+                    onClick={() => setForm((f) => removeModel(f, model))}
+                  >
+                    <X />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">

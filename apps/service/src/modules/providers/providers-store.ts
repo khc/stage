@@ -9,6 +9,7 @@ export type NewProvider = {
   baseUrl?: string;
   defaultModel?: string;
   models?: string[];
+  disabledModels?: string[];
   enabled?: boolean;
 };
 
@@ -19,6 +20,7 @@ export type ProviderPatch = {
   baseUrl?: string | null;
   defaultModel?: string | null;
   models?: string[] | null;
+  disabledModels?: string[] | null;
   enabled?: boolean;
 };
 
@@ -35,11 +37,11 @@ export type ProvidersStore = {
   delete: (providerId: string) => Promise<boolean>;
 };
 
-const toApiKeyHint = (apiKey: string) =>
-  apiKey.length >= 12 ? `••••${apiKey.slice(-4)}` : "••••";
+const toApiKeyHint = (apiKey: string) => (apiKey.length >= 12 ? `••••${apiKey.slice(-4)}` : "••••");
 
 const toProviderSummary = (providerId: string, data: DocumentData): ProviderSummary => {
-  const apiKey = typeof data.apiKey === "string" && data.apiKey.length > 0 ? data.apiKey : undefined;
+  const apiKey =
+    typeof data.apiKey === "string" && data.apiKey.length > 0 ? data.apiKey : undefined;
   return {
     providerId,
     name: data.name as string,
@@ -47,6 +49,7 @@ const toProviderSummary = (providerId: string, data: DocumentData): ProviderSumm
     ...(typeof data.baseUrl === "string" && { baseUrl: data.baseUrl }),
     ...(typeof data.defaultModel === "string" && { defaultModel: data.defaultModel }),
     ...(Array.isArray(data.models) && { models: data.models as string[] }),
+    ...(Array.isArray(data.disabledModels) && { disabledModels: data.disabledModels as string[] }),
     enabled: data.enabled !== false,
     hasApiKey: apiKey !== undefined,
     ...(apiKey !== undefined && { apiKeyHint: toApiKeyHint(apiKey) }),
@@ -55,7 +58,7 @@ const toProviderSummary = (providerId: string, data: DocumentData): ProviderSumm
   };
 };
 
-const CLEARABLE_FIELDS = ["apiKey", "baseUrl", "defaultModel", "models"] as const;
+const CLEARABLE_FIELDS = ["apiKey", "baseUrl", "defaultModel", "models", "disabledModels"] as const;
 
 export const createProvidersStore = (
   firestore: Pick<Firestore, "collection" | "runTransaction">,
@@ -76,6 +79,7 @@ export const createProvidersStore = (
         ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
         ...(input.defaultModel !== undefined && { defaultModel: input.defaultModel }),
         ...(input.models !== undefined && { models: input.models }),
+        ...(input.disabledModels !== undefined && { disabledModels: input.disabledModels }),
       };
       await providers.doc(providerId).create(record);
       return toProviderSummary(providerId, record);
