@@ -18,14 +18,14 @@ export function ThemeToggle() {
           key={value}
           variant={theme === value ? "secondary" : "ghost"}
           size="xs"
-          className="max-md:size-8"
+          className="flex-1 max-md:h-8"
           aria-label={`${label} theme`}
           aria-pressed={theme === value}
           title={`${label} theme`}
           onClick={() => setTheme(value)}
         >
           <Icon />
-          <span className="hidden sm:inline">{label}</span>
+          <span>{label}</span>
         </Button>
       ))}
     </div>

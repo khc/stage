@@ -137,8 +137,8 @@ type StageWordmarkProps = {
 export function StageWordmark({
   glow = true,
   glowTransparency = 0.5,
-  glowSize = 12,
-  descriptor = true,
+  glowSize = 10,
+  descriptor = false,
 }: StageWordmarkProps) {
   const [motion] = useState(
     () =>

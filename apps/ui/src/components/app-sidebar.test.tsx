@@ -1,13 +1,17 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import { ThemeProvider } from "@/components/theme-provider";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { router as appRouter } from "@/router";
+import { restoreLocalStorage, stubLocalStorage } from "@/test-utils";
 
 import { AppSidebar } from "./app-sidebar";
+
+afterEach(restoreLocalStorage);
 
 test("AppSidebar renders the Assistant link on top of the left side panel before Workspace", async () => {
   const router = createRouter({
@@ -16,13 +20,16 @@ test("AppSidebar renders the Assistant link on top of the left side panel before
   });
   await router.load();
 
+  stubLocalStorage();
   const client = new QueryClient();
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <RouterContextProvider router={router}>
-        <SidebarProvider>
-          <AppSidebar />
-        </SidebarProvider>
+        <ThemeProvider>
+          <SidebarProvider>
+            <AppSidebar />
+          </SidebarProvider>
+        </ThemeProvider>
       </RouterContextProvider>
     </QueryClientProvider>,
   );
@@ -41,6 +48,8 @@ test("AppSidebar renders the Assistant link on top of the left side panel before
   expect(assistantLink).toContain('href="/"');
   expect(assistantLink).toContain('data-active=""');
   expect(html).toContain('src="/stage.svg"');
+  expect(html).toContain('aria-label="Color theme"');
+  expect(html).toContain('aria-label="Appearance"');
   const homeLink = html.match(
     /<a(?=[^>]*aria-label="Stage home")(?=[^>]*href="\/")[^>]*>(.*?)<\/a>/,
   );

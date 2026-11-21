@@ -24,14 +24,21 @@ export function FontPicker() {
     <DropdownMenu onOpenChange={preload}>
       <div className="flex rounded-lg border p-0.5">
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="xs" aria-label="Font" className="max-md:h-8" />}
+          render={
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-label="Font"
+              className="w-full justify-start max-md:h-8"
+            />
+          }
         >
           <Type />
-          <span className="hidden sm:inline">{current?.label}</span>
-          <ChevronDown />
+          <span>{current?.label}</span>
+          <ChevronDown className="ml-auto" />
         </DropdownMenuTrigger>
       </div>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent side="top" align="start" className="w-48">
         <DropdownMenuRadioGroup
           value={font}
           onValueChange={(value) => isFontId(value) && setFont(value)}

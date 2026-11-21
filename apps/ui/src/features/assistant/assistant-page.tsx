@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ExternalLink, MessageSquare, PanelLeft, Plus, Search } from "lucide-react";
+import { ExternalLink, MessageSquare, PanelLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, taskTitle, type ModelRef, type Task } from "@/lib/api";
 import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
-import { useNav } from "@/lib/nav";
+import { NEW_CHAT_EVENT, useNav } from "@/lib/nav";
 import { useProviders, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,6 @@ function ThreadList({
   activeChatId,
   search,
   onSearchChange,
-  onNewChat,
   onSelectChat,
   onDeletedChat,
 }: {
@@ -35,7 +34,6 @@ function ThreadList({
   activeChatId?: string;
   search: string;
   onSearchChange: (next: string) => void;
-  onNewChat: () => void;
   onSelectChat: (taskId: string) => void;
   onDeletedChat: (taskId: string) => void;
 }) {
@@ -50,10 +48,6 @@ function ThreadList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-2.5">
-      <Button className="w-full justify-start gap-2 rounded-xl" onClick={onNewChat}>
-        <Plus className="size-4" />
-        New chat
-      </Button>
       {tasks.length > 5 && (
         <div className="relative">
           <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
@@ -125,7 +119,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const tasksQuery = useTasks();
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [railOpen, setRailOpen] = useState(true);
+  const [railOpen, setRailOpen] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   // The model picked in the message box. An open chat starts on its task's default; a new chat on
   // the last pick; the pick is not written back to the task.
@@ -191,12 +185,16 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     );
   };
 
-  const handleNewChat = () => {
-    setDraft("");
-    chat.resetDraft();
-    setMobileRailOpen(false);
-    void openAssistant();
-  };
+  // The "New chat" button in the top bar asks for a clean draft; it navigates to / itself.
+  useEffect(() => {
+    const onNewChat = () => {
+      setDraft("");
+      chat.resetDraft();
+      setMobileRailOpen(false);
+    };
+    window.addEventListener(NEW_CHAT_EVENT, onNewChat);
+    return () => window.removeEventListener(NEW_CHAT_EVENT, onNewChat);
+  });
 
   const handleDeletedChat = (deletedId: string) => {
     queryClient.removeQueries({ queryKey: ["task", deletedId] });
@@ -225,7 +223,6 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
             activeChatId={chatId}
             search={search}
             onSearchChange={setSearch}
-            onNewChat={handleNewChat}
             onSelectChat={(id) => void openAssistant(id)}
             onDeletedChat={handleDeletedChat}
           />
@@ -245,7 +242,6 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
             activeChatId={chatId}
             search={search}
             onSearchChange={setSearch}
-            onNewChat={handleNewChat}
             onSelectChat={(id) => {
               setMobileRailOpen(false);
               void openAssistant(id);

@@ -8,6 +8,11 @@ export function useIsAssistant() {
   );
 }
 
+// "New chat" is a button in the app's top bar, but the draft it discards lives in AssistantPage,
+// so the button announces the request and the page clears itself.
+export const NEW_CHAT_EVENT = "stage:new-chat";
+export const requestNewChat = () => window.dispatchEvent(new Event(NEW_CHAT_EVENT));
+
 type Search = Record<string, unknown>;
 
 const keepSearch =

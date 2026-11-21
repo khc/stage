@@ -2,6 +2,9 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { BookOpen, KeyRound, Layers3, LayoutDashboard, Server } from "lucide-react";
 import type * as React from "react";
 
+import { FontPicker } from "@/components/font-picker";
+import { ThemePicker } from "@/components/theme-picker";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +23,7 @@ import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 // Larger hit area on touch screens.
-const navItem = "max-md:min-h-11";
+const navItem = "translate-x-0 max-md:min-h-11";
 
 const workspace = [
   { to: "/overview", label: "Overview", icon: LayoutDashboard },
@@ -82,7 +85,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup className="pb-0">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+              <SidebarMenuSub className="mx-0 translate-x-0 border-l-0 px-1.5">
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
                     className={navItem}
@@ -101,7 +104,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu className="gap-2">
             <SidebarMenuItem>
               <span className="block px-2 py-1.5 text-sm font-medium">Workspace</span>
-              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+              <SidebarMenuSub className="mx-0 translate-x-0 border-l-0 px-1.5">
                 {workspace.map((item) => (
                   <SidebarMenuSubItem key={item.to}>
                     <SidebarMenuSubButton
@@ -123,7 +126,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <span className="block px-2 py-1.5 text-sm font-medium">Settings</span>
-              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+              <SidebarMenuSub className="mx-0 translate-x-0 border-l-0 px-1.5">
                 {settings.map((item) => (
                   <SidebarMenuSubItem key={item.to}>
                     <SidebarMenuSubButton
@@ -140,7 +143,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <span className="block px-2 py-1.5 text-sm font-medium">Reference</span>
-              <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+              <SidebarMenuSub className="mx-0 translate-x-0 border-l-0 px-1.5">
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
                     className={navItem}
@@ -156,7 +159,12 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+        <div className="flex flex-col gap-2">
+          <FontPicker />
+          <ThemePicker />
+          <ThemeToggle />
+        </div>
+        <div className="flex items-center gap-2 px-2 pt-1 text-xs text-muted-foreground">
           <StatusDot />
           {label}
         </div>

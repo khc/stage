@@ -23,17 +23,12 @@ import {
   Workflow,
   ChevronRight,
   ArrowRight,
-  Database,
 } from "lucide-react";
 import { useEffect } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { FontPicker } from "@/components/font-picker";
-import { ThemePicker } from "@/components/theme-picker";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { AssistantPage } from "@/features/assistant/assistant-page";
@@ -44,7 +39,7 @@ import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
 import { TaskSheet } from "@/features/tasks/task-sheet";
 import { TasksPanel } from "@/features/tasks/tasks-panel";
 import { shortJobName } from "@/lib/api";
-import { assistantLayoutId, useIsAssistant, useNav } from "@/lib/nav";
+import { assistantLayoutId, requestNewChat, useIsAssistant, useNav } from "@/lib/nav";
 import { startPlatformEvents } from "@/lib/platform-events";
 import { useHealth, useJobs, useTasks } from "@/lib/queries";
 
@@ -95,7 +90,7 @@ function Shell() {
   };
   useEffect(() => startPlatformEvents(client), [client]);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { taskId, chatId } = useParams({ strict: false }) as { taskId?: string; chatId?: string };
+  const { taskId } = useParams({ strict: false }) as { taskId?: string };
   const section = `/${pathname.split("/")[1]}`;
   const isAssistant = useIsAssistant();
   const isSettings = section === "/settings";
@@ -128,7 +123,6 @@ function Shell() {
       <SidebarInset className={cn("bg-transparent", isAssistant && "h-svh overflow-hidden")}>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          <Separator orientation="vertical" className="h-4" />
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-1 text-sm text-muted-foreground"
@@ -138,15 +132,12 @@ function Shell() {
             <strong className="font-medium text-foreground">{crumb}</strong>
           </nav>
           <div className="ml-auto flex items-center gap-3">
-            {isAssistant && chatId && (
-              <Button variant="outline" size="sm" render={<Link to="/" />}>
+            {isAssistant && (
+              <Button size="sm" render={<Link to="/" />} onClick={requestNewChat}>
                 <Plus />
                 New chat
               </Button>
             )}
-            <FontPicker />
-            <ThemePicker />
-            <ThemeToggle />
           </div>
         </header>
         {isAssistant ? (
@@ -239,6 +230,61 @@ function Stat({
   );
 }
 
+const story = [
+  { icon: Layers3, word: "Tasks", rest: "define the work.", underline: "decoration-brand-1" },
+  { icon: Server, word: "Jobs", rest: "execute it.", underline: "decoration-brand-2" },
+  { icon: Terminal, word: "Sessions", rest: "tell the story.", underline: "decoration-brand-3" },
+] as const;
+
+// The idea of the product in one line, set in the wordmark's typeface over a wash of the palette.
+function StoryBanner() {
+  return (
+    <section
+      aria-label="How Stage works"
+      className="relative overflow-hidden rounded-2xl border bg-card"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-linear-to-br from-brand-1/15 via-brand-2/10 to-brand-3/15"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -top-20 -right-12 size-60 rounded-full bg-brand-3/25 blur-3xl"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-24 -bottom-24 size-60 rounded-full bg-brand-4/20 blur-3xl"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-24 left-1/3 size-56 rounded-full bg-brand-1/20 blur-3xl"
+      />
+      <div className="relative flex flex-wrap items-center justify-between gap-6 px-6 py-8 md:px-10">
+        <p className="font-display text-2xl leading-snug md:text-3xl">
+          {story.map(({ word, rest, underline }) => (
+            <span key={word} className="block">
+              <span className={cn("underline decoration-2 underline-offset-4", underline)}>
+                {word}
+              </span>{" "}
+              {rest}
+            </span>
+          ))}
+        </p>
+        <ol aria-hidden className="flex items-center gap-3 text-primary">
+          {story.map(({ icon: Icon, word }, i) => (
+            <li key={word} className="flex items-center gap-3">
+              <span className="grid size-12 place-items-center rounded-2xl bg-card/80 shadow-sm ring-1 ring-border backdrop-blur [&_svg]:size-6">
+                <Icon />
+              </span>
+              {i < story.length - 1 && <ChevronRight className="size-4 text-muted-foreground" />}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
 function Overview() {
   const tasks = useTasks();
   const jobs = useJobs();
@@ -274,6 +320,7 @@ function Overview() {
           }
         />
       </section>
+      <StoryBanner />
       {tasks.data?.tasks.length === 0 && (
         <Card className="border-primary/20 bg-linear-to-br from-brand-1/15 via-brand-3/10 to-card">
           <CardContent className="flex flex-wrap items-center gap-4">
@@ -294,14 +341,12 @@ function Overview() {
         </Card>
       )}
       <TasksPanel title="Tasks" limit={8} />
-      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Database className="size-3.5" />
-        Tasks define the work. Jobs execute it. Sessions tell the story.
+      <p className="flex justify-end text-xs text-muted-foreground">
         <a
           href="/docs"
           target="_blank"
           rel="noreferrer"
-          className="ml-auto flex items-center gap-1 text-primary"
+          className="flex items-center gap-1 text-primary"
         >
           Explore the API <ArrowRight className="size-3" />
         </a>

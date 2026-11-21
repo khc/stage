@@ -30,15 +30,20 @@ export function ThemePicker() {
       <div className="flex rounded-lg border p-0.5">
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="xs" aria-label="Color theme" className="max-md:h-8" />
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-label="Color theme"
+              className="w-full justify-start max-md:h-8"
+            />
           }
         >
           <Swatches palette={palette} />
-          <span className="hidden sm:inline">{current?.label}</span>
-          <ChevronDown />
+          <span>{current?.label}</span>
+          <ChevronDown className="ml-auto" />
         </DropdownMenuTrigger>
       </div>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent side="top" align="start" className="w-44">
         <DropdownMenuRadioGroup
           value={palette}
           onValueChange={(value) => isPalette(value) && setPalette(value)}

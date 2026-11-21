@@ -20,7 +20,7 @@ test("AssistantThread welcome state shows the animated Stage logo above the help
     /<svg[^>]*class="stage-lava\b[^>]*>.*?<\/svg>.*?data-slot="empty-description"[^>]*>Start a conversation/,
   );
   expect(html).toContain('image.svg#wordmark"');
-  expect(html).toContain('image.svg#tagline"');
+  expect(html).not.toContain('image.svg#tagline"'); // the descriptor is off by default
   expect(html).toContain('image.svg#left-ribbons"');
   expect(html).toContain('image.svg#right-ribbons"');
   expect(html).toContain("orchestrator (orchestrator)");

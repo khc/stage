@@ -31,3 +31,20 @@ export async function renderWithApp(
     </QueryClientProvider>,
   );
 }
+
+// Server rendering has no localStorage; the theme provider reads its saved choices from it.
+// Call restoreLocalStorage() in afterEach.
+const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+
+export function stubLocalStorage(saved: Record<string, string> = {}) {
+  const store = new Map(Object.entries(saved));
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: { getItem: (key: string) => store.get(key) ?? null, setItem: () => {} },
+  });
+}
+
+export function restoreLocalStorage() {
+  if (originalLocalStorage) Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+  else delete (globalThis as { localStorage?: unknown }).localStorage;
+}
