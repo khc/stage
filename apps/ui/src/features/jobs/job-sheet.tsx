@@ -24,7 +24,7 @@ import {
   RegisterAgentsNote,
   useAgentRegistration,
 } from "./agents";
-import { jobLocation } from "./job-card";
+import { jobLocation } from "./jobs-table";
 
 export function JobSheet({ job, tasks }: { job?: Job; tasks: Task[] }) {
   const { closeJob, openCreate, openTask } = useNav();

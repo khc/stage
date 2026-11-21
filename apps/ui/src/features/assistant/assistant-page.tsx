@@ -85,7 +85,7 @@ function ThreadList({
                 <button
                   type="button"
                   onClick={() => onSelectChat(task.taskId)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] leading-5"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm leading-5"
                 >
                   <MessageSquare
                     className={cn(
@@ -95,7 +95,7 @@ function ThreadList({
                   />
                   <span className="min-w-0 flex-1 truncate">{taskTitle(task)}</span>
                   {subtasks > 0 && (
-                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                    <Badge variant="secondary" className="h-5 px-1.5 text-xs">
                       {subtasks}
                     </Badge>
                   )}
@@ -259,11 +259,11 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           >
             <PanelLeft />
           </Button>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">
             {chatId && chat.taskQuery.data ? taskTitle(chat.taskQuery.data) : "New conversation"}
-          </span>
+          </h1>
           {activeLabel && (
-            <Badge variant="secondary" className="hidden font-mono text-[11px] sm:inline-flex">
+            <Badge variant="secondary" className="hidden font-mono text-xs sm:inline-flex">
               <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
               {activeLabel}
             </Badge>

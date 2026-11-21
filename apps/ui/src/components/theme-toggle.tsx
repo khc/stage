@@ -18,6 +18,7 @@ export function ThemeToggle() {
           key={value}
           variant={theme === value ? "secondary" : "ghost"}
           size="xs"
+          className="max-md:size-8"
           aria-label={`${label} theme`}
           aria-pressed={theme === value}
           title={`${label} theme`}

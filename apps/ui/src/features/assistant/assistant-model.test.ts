@@ -6,6 +6,7 @@ import {
   buildTargetOptions,
   childTaskCountMap,
   groupChatTurns,
+  parseDelegation,
   parseTargetKey,
   resolveDefaultTarget,
   rootChatTasks,
@@ -188,4 +189,14 @@ test("groupChatTurns merges consecutive assistant events, pairs tool calls, and 
     expect(assistant.errorMessage).toBe("Rate limit warning");
     expect(turnCopyText(assistant)).toBe("Revenue grew 20%.\n\nFollow-up summary.");
   }
+});
+
+test("a tool named <job>__<agent> is a delegation to that agent", () => {
+  expect(parseDelegation("knowledge-agents__imdb-assistant")).toEqual({
+    job: "knowledge-agents",
+    agent: "imdb-assistant",
+  });
+  expect(parseDelegation("search_docs")).toBeUndefined();
+  expect(parseDelegation("__agent")).toBeUndefined();
+  expect(parseDelegation("job__")).toBeUndefined();
 });

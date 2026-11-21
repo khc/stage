@@ -151,7 +151,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
             {subTasks} sub-task{subTasks === 1 ? "" : "s"}
           </Badge>
         )}
-        <span className="ml-auto flex items-center gap-1">
+        <span className="ml-auto flex items-center gap-4">
           <Button
             onClick={() => runTask.mutate(taskId)}
             disabled={!data.jobName || runTask.isPending}

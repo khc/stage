@@ -147,6 +147,14 @@ export function buildTargetOptions(
   });
 }
 
+// The orchestrator calls a registered agent as a tool named "<job>__<agent>"; that call is a subagent run.
+export const parseDelegation = (toolName: string): { job: string; agent: string } | undefined => {
+  const at = toolName.indexOf("__");
+  return at > 0 && at < toolName.length - 2
+    ? { job: toolName.slice(0, at), agent: toolName.slice(at + 2) }
+    : undefined;
+};
+
 export const rootChatTasks = (tasks: Task[]): Task[] => tasks.filter((task) => !task.parentTaskId);
 
 export function childTaskCountMap(tasks: Task[]): Map<string, number> {

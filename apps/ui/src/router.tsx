@@ -16,7 +16,6 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Search,
   Server,
   Terminal,
   Workflow,
@@ -24,19 +23,16 @@ import {
   ArrowRight,
   Database,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { Empty, ErrorBox, Loading } from "@/components/states";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { JobCard } from "@/features/jobs/job-card";
+import { JobsTable } from "@/features/jobs/jobs-table";
 import { JobSheet } from "@/features/jobs/job-sheet";
 import { AssistantPage } from "@/features/assistant/assistant-page";
 import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
@@ -122,7 +118,7 @@ function Shell() {
           </div>
         ) : (
           <>
-            <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-widest text-primary">
@@ -149,10 +145,7 @@ function Shell() {
                 </div>
               </div>
               <Outlet />
-            </main>
-            <footer className="flex items-center justify-between border-t px-6 py-3 text-xs text-muted-foreground">
-              <span>STAGE · YOUR AGENT WORKSPACE</span>
-            </footer>
+            </div>
           </>
         )}
       </SidebarInset>
@@ -180,7 +173,7 @@ function Stat({
   note: string;
 }) {
   const card = (
-    <Card className={`relative ${to ? "transition-colors hover:border-primary/40" : ""}`}>
+    <Card className={`relative ${to ? "transition-colors hover:border-primary/40 hover:bg-accent/30" : ""}`}>
       <CardHeader>
         <span
           className={`absolute top-4 right-4 grid size-9 place-items-center rounded-lg [&_svg]:size-4 ${tone}`}
@@ -190,7 +183,10 @@ function Stat({
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="text-xs text-muted-foreground">{note}</CardContent>
+      <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="max-md:hidden">{note}</span>
+        {to && <ChevronRight className="ml-auto size-4" aria-hidden />}
+      </CardContent>
     </Card>
   );
   return to ? (
@@ -211,7 +207,7 @@ function Overview() {
       <section className="grid gap-4 md:grid-cols-3" aria-label="Workspace summary">
         <Stat
           icon={<Layers3 />}
-          tone="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          tone="bg-primary/10 text-primary"
           to="/tasks"
           label="Saved tasks"
           value={tasks.data ? tasks.data.tasks.length : "—"}
@@ -219,7 +215,7 @@ function Overview() {
         />
         <Stat
           icon={<Server />}
-          tone="bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          tone="bg-primary/10 text-primary"
           to="/jobs"
           label="Cloud Run jobs"
           value={jobs.data ? jobs.data.jobs.length : "—"}
@@ -229,8 +225,8 @@ function Overview() {
           icon={<Activity />}
           tone={
             health.isError
-              ? "bg-amber-500/10 text-amber-600"
-              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              ? "bg-warning/10 text-warning"
+              : "bg-success/10 text-success"
           }
           label="API connection"
           value={health.isError ? "Unavailable" : health.isPending ? "Connecting" : "Healthy"}
@@ -241,7 +237,8 @@ function Overview() {
           }
         />
       </section>
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-card">
+      {tasks.data?.tasks.length === 0 && (
+      <Card className="border-primary/20 bg-linear-to-br from-primary/15 via-primary/5 to-card">
         <CardContent className="flex flex-wrap items-center gap-4">
           <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
             <Workflow className="size-6" />
@@ -258,7 +255,8 @@ function Overview() {
           </div>
         </CardContent>
       </Card>
-      <TasksPanel title="Saved tasks" />
+      )}
+      <TasksPanel title="Tasks" limit={8} />
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Database className="size-3.5" />
         Tasks define the work. Jobs execute it. Sessions tell the story.
@@ -272,57 +270,6 @@ function Overview() {
         </a>
       </p>
     </>
-  );
-}
-
-function Jobs() {
-  const jobsQuery = useJobs();
-  const [search, setSearch] = useState("");
-  const jobs = jobsQuery.data?.jobs ?? [];
-  const filtered = jobs.filter((job) => `${job.name}`.toLowerCase().includes(search.toLowerCase()));
-  return (
-    <Card className="has-data-[slot=card-footer]:pb-(--card-spacing)">
-      <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-2">
-          <Server className="size-4" />
-          Cloud Run jobs
-          <Badge variant="secondary">{jobs.length}</Badge>
-        </CardTitle>
-        <div className="relative w-64 max-w-full">
-          <Search className="absolute top-2 left-2.5 size-4 text-muted-foreground" />
-          <Input
-            data-search
-            aria-label="Search jobs"
-            placeholder="Search jobs…"
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {jobsQuery.isPending ? (
-          <Loading label="Loading jobs…" />
-        ) : jobsQuery.isError ? (
-          <ErrorBox error={jobsQuery.error} retry={() => void jobsQuery.refetch()} />
-        ) : !jobs.length ? (
-          <Empty icon={<Server />} title="No jobs configured">
-            Create a Cloud Run job in the configured project and region, then refresh this
-            workspace.
-          </Empty>
-        ) : !filtered.length ? (
-          <Empty icon={<Search />} title="No matching jobs">
-            Try another job name.
-          </Empty>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((job, i) => (
-              <JobCard key={job.name ?? i} job={job} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -355,14 +302,14 @@ const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/tasks",
-    component: () => <TasksPanel title="All tasks" />,
+    component: () => <TasksPanel title="Tasks" />,
   }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/tasks/$taskId",
-    component: () => <TasksPanel title="All tasks" />,
+    component: () => <TasksPanel title="Tasks" />,
   }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/jobs", component: Jobs }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/jobs", component: JobsTable }),
 ]);
 
 export const router = createRouter({ routeTree });

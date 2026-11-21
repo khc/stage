@@ -1,3 +1,5 @@
+import { createColumnHelper, useTable, type ExpandedState } from "@tanstack/react-table";
+import { Link } from "@tanstack/react-router";
 import {
   Box,
   ChevronDown,
@@ -5,20 +7,27 @@ import {
   CornerDownRight,
   FileText,
   Layers3,
-  Loader2,
   Play,
   Plus,
   RefreshCw,
   Search,
   Workflow,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import {
+  ariaSort,
+  features,
+  SortHeader,
+  TablePagination,
+  type DataTableFeatures,
+} from "@/components/data-table";
+import { SearchInput } from "@/components/search-input";
 import { Empty, ErrorBox, Loading } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -32,44 +41,160 @@ import { useNav } from "@/lib/nav";
 import { usePlatformLive } from "@/lib/platform-events";
 import { useTasks } from "@/lib/queries";
 
-import { buildTaskTree, indentLevel } from "./task-tree";
+import { buildTaskForest, taskMatches, type TaskNode } from "./task-tree";
 import { useRunTask } from "./use-run-task";
 
-export function TasksPanel({ title }: { title: string }) {
-  const tasksQuery = useTasks();
+const columnHelper = createColumnHelper<DataTableFeatures, TaskNode>();
+
+const TITLE = "title";
+const MOBILE_HIDDEN = new Set(["job", "agent"]);
+// A sub-task is indented a step per level, up to this many levels.
+const MAX_INDENT = 8;
+
+function RunButton({ task }: { task: TaskNode }) {
   const runTask = useRunTask();
+  return (
+    <span title={task.jobName ? undefined : "Assign a job to run this task"}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={!task.jobName || runTask.isPending}
+        onClick={(e) => {
+          e.stopPropagation();
+          runTask.mutate(task.taskId);
+        }}
+        aria-label={`Run task ${taskTitle(task)}${task.jobName ? "" : " (needs a job)"}`}
+      >
+        {runTask.isPending ? <Spinner /> : <Play />}
+        Run
+      </Button>
+    </span>
+  );
+}
+
+const columns = columnHelper.columns([
+  columnHelper.accessor((task) => taskTitle(task), {
+    id: TITLE,
+    header: ({ column }) => <SortHeader column={column} title="Task" />,
+    sortFn: "text",
+    cell: ({ row }) => {
+      const task = row.original;
+      const open = row.getIsExpanded();
+      return (
+        <div
+          className="flex min-w-0 items-center gap-1"
+          style={{ paddingLeft: Math.min(row.depth, MAX_INDENT) * 20 }}
+        >
+          {row.getCanExpand() ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 shrink-0 max-md:size-8"
+              aria-expanded={open}
+              aria-label={open ? "Hide sub-tasks" : "Show sub-tasks"}
+              onClick={(e) => {
+                e.stopPropagation();
+                row.getToggleExpandedHandler()();
+              }}
+            >
+              {open ? <ChevronDown /> : <ChevronRight />}
+            </Button>
+          ) : (
+            <span className="size-6 shrink-0 max-md:size-8" />
+          )}
+          {/* The row click is a mouse shortcut; this button is the keyboard stop. */}
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            {row.depth > 0 ? (
+              <CornerDownRight className="size-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <FileText className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate font-medium">{taskTitle(task)}</strong>
+              {task.name?.trim() && task.prompt.trim() !== "{}" && (
+                <small className="hidden truncate text-muted-foreground md:block">
+                  {task.prompt}
+                </small>
+              )}
+              <small className="block truncate text-muted-foreground md:hidden">
+                {task.jobName ?? "Needs job"}
+                {task.agentName ? ` · ${task.agentName}` : ""}
+              </small>
+            </span>
+          </button>
+        </div>
+      );
+    },
+  }),
+  columnHelper.accessor((task) => task.jobName ?? "", {
+    id: "job",
+    header: ({ column }) => <SortHeader column={column} title="Job" />,
+    sortFn: "text",
+    cell: ({ row }) => (
+      <Badge variant={row.original.jobName ? "outline" : "destructive"} className="font-mono">
+        <Box />
+        {row.original.jobName ?? "Needs job"}
+      </Badge>
+    ),
+  }),
+  columnHelper.accessor((task) => task.agentName ?? "", {
+    id: "agent",
+    header: ({ column }) => <SortHeader column={column} title="Agent" />,
+    sortFn: "text",
+    cell: ({ row }) => (
+      <Badge variant={row.original.agentName ? "secondary" : "outline"} className="font-mono">
+        <Workflow />
+        {row.original.agentName ?? "Default"}
+      </Badge>
+    ),
+  }),
+  columnHelper.display({
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <RunButton task={row.original} />
+      </div>
+    ),
+  }),
+]);
+
+// `limit` caps the rows shown (the overview) and links to the full list; without it the table pages.
+export function TasksPanel({ title, limit }: { title: string; limit?: number }) {
+  const tasksQuery = useTasks();
   const { openTask, openCreate } = useNav();
   const live = usePlatformLive();
   const [search, setSearch] = useState("");
-  const tasks = tasksQuery.data?.tasks ?? [];
-  // Sub-tasks sit under the task that caused them; a chevron collapses them.
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const toggle = (taskId: string) =>
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (!next.delete(taskId)) next.add(taskId);
-      return next;
-    });
-  const rows = buildTaskTree(tasks, search, collapsed);
+  // Sub-tasks sit under the task that caused them and start collapsed.
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const tasks = tasksQuery.data?.tasks;
+  const forest = useMemo(() => buildTaskForest(tasks ?? []), [tasks]);
+  const table = useTable({
+    features,
+    data: forest,
+    columns,
+    getRowId: (task) => task.taskId,
+    getSubRows: (task) => task.subTasks,
+    filterFromLeafRows: true,
+    globalFilterFn: (row, _columnId, query: string) => taskMatches(row.original, query),
+    getColumnCanGlobalFilter: (column) => column.id === TITLE,
+    // A search opens every sub-task it found.
+    state: { globalFilter: search, expanded: search ? true : expanded },
+    onExpandedChange: setExpanded,
+    initialState: { pagination: { pageIndex: 0, pageSize: limit ?? 10 } },
+    paginateExpandedRows: false,
+  });
+  const rows = table.getRowModel().rows;
+  const total = tasks?.length ?? 0;
   return (
     <Card className="gap-0">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2 pb-4">
         <CardTitle className="flex items-center gap-2">
           <Layers3 className="size-4" />
           {title}
-          {tasksQuery.data && <Badge variant="secondary">{tasks.length}</Badge>}
+          {tasksQuery.data && <Badge variant="secondary">{total}</Badge>}
         </CardTitle>
-        <div className="relative w-64 max-w-full">
-          <Search className="absolute top-2 left-2.5 size-4 text-muted-foreground" />
-          <Input
-            data-search
-            aria-label="Search tasks"
-            placeholder="Search tasks…"
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput label="Search tasks" value={search} onChange={setSearch} />
       </CardHeader>
       <CardContent className="px-0">
         {tasksQuery.isPending ? (
@@ -78,7 +203,7 @@ export function TasksPanel({ title }: { title: string }) {
           <div className="px-4">
             <ErrorBox error={tasksQuery.error} retry={() => void tasksQuery.refetch()} />
           </div>
-        ) : !tasks.length ? (
+        ) : !total ? (
           <Empty
             icon={<Layers3 />}
             title="Your next idea starts here"
@@ -98,121 +223,67 @@ export function TasksPanel({ title }: { title: string }) {
         ) : (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Task</TableHead>
-                <TableHead className="hidden md:table-cell">Job</TableHead>
-                <TableHead className="hidden md:table-cell">Agent</TableHead>
-                <TableHead className="pr-4 text-right">Actions</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((group) => (
+                <TableRow key={group.id}>
+                  {group.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      aria-sort={ariaSort(header.column.getIsSorted())}
+                      className={
+                        MOBILE_HIDDEN.has(header.column.id)
+                          ? "hidden md:table-cell"
+                          : header.column.id === TITLE
+                            ? "pl-4"
+                            : "pr-4"
+                      }
+                    >
+                      {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {rows.map(({ task, depth, hasChildren }) => (
+              {rows.map((row) => (
                 <TableRow
-                  key={task.taskId}
+                  key={row.id}
                   className="cursor-pointer"
-                  onClick={() => void openTask(task.taskId)}
+                  onClick={() => void openTask(row.original.taskId)}
                 >
-                  <TableCell
-                    className="max-w-xs pl-4"
-                    style={{ paddingLeft: 16 + indentLevel(depth) * 20 }}
-                  >
-                    <div className="flex items-center gap-1">
-                      {hasChildren ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 shrink-0"
-                          aria-label={
-                            collapsed.has(task.taskId) ? "Show sub-tasks" : "Hide sub-tasks"
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggle(task.taskId);
-                          }}
-                        >
-                          {collapsed.has(task.taskId) ? <ChevronRight /> : <ChevronDown />}
-                        </Button>
-                      ) : (
-                        <span className="size-6 shrink-0" />
-                      )}
-                      <button
-                        className="flex items-center gap-2 text-left"
-                        onClick={() => void openTask(task.taskId)}
-                      >
-                        {depth > 0 ? (
-                          <CornerDownRight className="size-4 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FileText className="size-4 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="min-w-0">
-                          <strong className="line-clamp-1 font-medium">{taskTitle(task)}</strong>
-                          {task.name?.trim() && task.prompt.trim() !== "{}" && (
-                            <small className="line-clamp-1 hidden text-muted-foreground md:block">
-                              {task.prompt}
-                            </small>
-                          )}
-                          <small className="text-muted-foreground md:hidden">
-                            {task.jobName ?? "Needs job"}
-                            {task.agentName ? ` · ${task.agentName}` : ""}
-                          </small>
-                        </span>
-                      </button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge variant={task.jobName ? "outline" : "destructive"} className="font-mono">
-                      <Box />
-                      {task.jobName ?? "Needs job"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge variant={task.agentName ? "secondary" : "outline"} className="font-mono">
-                      <Workflow />
-                      {task.agentName ?? "Default"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="pr-4">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="hidden md:inline-flex"
-                        onClick={() => void openTask(task.taskId)}
-                      >
-                        Details
-                        <ChevronRight />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!task.jobName || runTask.isPending}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          runTask.mutate(task.taskId);
-                        }}
-                        aria-label={`Run task ${task.taskId}`}
-                      >
-                        {runTask.isPending && runTask.variables === task.taskId ? (
-                          <Loader2 className="animate-spin" />
-                        ) : (
-                          <Play />
-                        )}
-                        Run
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {row.getAllCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        MOBILE_HIDDEN.has(cell.column.id)
+                          ? "hidden md:table-cell"
+                          : cell.column.id === TITLE
+                            ? "max-w-xs pl-4"
+                            : "pr-4"
+                      }
+                    >
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
       </CardContent>
-      <CardFooter className="justify-between text-xs text-muted-foreground">
-        <span>
+      <CardFooter className="flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-2">
           {tasksQuery.data
-            ? `${rows.length} task${rows.length === 1 ? "" : "s"}`
+            ? search
+              ? `${rows.length} matching`
+              : `${rows.length} of ${total} tasks shown`
             : "Task workspace"}
+          {limit && !search && table.getPageCount() > 1 && (
+            <Link to="/tasks" className="text-primary hover:underline">
+              View all
+            </Link>
+          )}
         </span>
+        {!limit && <TablePagination table={table} />}
         <span className="flex items-center gap-1">
           <RefreshCw className="size-3" />
           {live ? "Live updates" : "Refreshes every 15 seconds"}

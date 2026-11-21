@@ -18,6 +18,9 @@ import {
 import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
+// Larger hit area on touch screens.
+const navItem = "max-md:min-h-11";
+
 const workspace = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/tasks", label: "Tasks", icon: Layers3 },
@@ -40,9 +43,10 @@ export function StatusDot({ className }: { className?: string }) {
   const { health } = useHealthLabel();
   return (
     <span
+      aria-hidden
       className={cn(
         "size-2 rounded-full",
-        health.isError ? "bg-destructive" : health.isPending ? "bg-amber-500" : "bg-emerald-500",
+        health.isError ? "bg-destructive" : health.isPending ? "bg-warning" : "bg-success",
         className,
       )}
     />
@@ -63,10 +67,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               className="h-auto py-1.5"
               render={<Link to="/" aria-label="Stage home" />}
             >
-              <div className="flex flex-col gap-1 leading-none">
-                <span className="font-display text-5xl leading-none">Stage</span>
-                <span className="text-xs text-muted-foreground">v1.0</span>
-              </div>
+              <span className="font-display text-5xl leading-tight">Stage</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -78,6 +79,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
+                    className={navItem}
                     isActive={pathname === "/assistant" || pathname.startsWith("/assistant/")}
                     render={<Link to="/assistant" />}
                   >
@@ -97,7 +99,10 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                 {workspace.map((item) => (
                   <SidebarMenuSubItem key={item.to}>
                     <SidebarMenuSubButton
-                      isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
+                      className={navItem}
+                      isActive={
+                        item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)
+                      }
                       render={<Link to={item.to} />}
                     >
                       <item.icon />
@@ -117,6 +122,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
+                    className={navItem}
                     render={<a href="/docs" target="_blank" rel="noreferrer" />}
                   >
                     <BookOpen />

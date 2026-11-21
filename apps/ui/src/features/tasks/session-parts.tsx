@@ -2,30 +2,38 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ArrowUp,
-  Check,
   Clock3,
   Loader2,
   Terminal,
   Upload,
   FileText,
-  Workflow,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { ReasoningTrace, ToolTrace, Trace } from "@/components/agent-trace";
 import { JsonView } from "@/components/json-view";
 import { Markdown } from "@/components/markdown";
 import { Empty, ErrorBox, Loading, Overline } from "@/components/states";
+import {
+  Attachment,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import { Spinner } from "@/components/ui/spinner";
 import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message";
 import {
   api,
@@ -208,7 +216,7 @@ export function SessionComposer({
         if (canSend) send.mutate();
       }}
     >
-      <InputGroup className="rounded-3xl border-transparent bg-muted dark:bg-muted">
+      <InputGroup className="rounded-3xl bg-card shadow-sm">
         <InputGroupTextarea
           className="max-h-40 min-h-0 resize-none p-3"
           aria-label={
@@ -234,7 +242,7 @@ export function SessionComposer({
             aria-label="Send message"
             disabled={!canSend}
           >
-            {send.isPending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+            {send.isPending ? <Spinner /> : <ArrowUp />}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
@@ -251,7 +259,9 @@ export function SessionComposer({
           {blockedMessage}
         </p>
       ) : (
-        <p className="text-xs text-muted-foreground">Enter to send · Shift+Enter for a new line</p>
+        <p className="text-xs text-muted-foreground">
+          <Kbd>Enter</Kbd> to send · <Kbd>Shift</Kbd> <Kbd>Enter</Kbd> for a new line
+        </p>
       )}
     </form>
   );
@@ -426,7 +436,7 @@ export function TaskDocuments({
           }}
         />
         <Button size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
-          {upload.isPending ? <Loader2 className="animate-spin" /> : <Upload />}
+          {upload.isPending ? <Spinner /> : <Upload />}
           Upload
         </Button>
       </div>
@@ -442,47 +452,27 @@ export function TaskDocuments({
       ) : (
         <div className="flex flex-col gap-2">
           {query.data.documents.map((doc) => (
-            <div key={doc.documentId} className="flex items-center gap-3 rounded-lg border p-3">
-              <FileText className="size-4 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <strong className="block truncate text-sm">{doc.filename}</strong>
-                <small className="text-muted-foreground">{doc.contentType}</small>
-              </span>
-              <ConfirmDelete
-                label="Remove document"
-                question="Remove this document?"
-                remove={() => api.deleteDocument(taskId, doc.documentId)}
-                onDeleted={() => void refresh()}
-              />
-            </div>
+            <Attachment key={doc.documentId} className="w-full">
+              <AttachmentMedia>
+                <FileText />
+              </AttachmentMedia>
+              <AttachmentContent>
+                <AttachmentTitle>{doc.filename}</AttachmentTitle>
+                <AttachmentDescription>{doc.contentType}</AttachmentDescription>
+              </AttachmentContent>
+              <AttachmentActions>
+                <ConfirmDelete
+                  label="Remove document"
+                  question="Remove this document?"
+                  remove={() => api.deleteDocument(taskId, doc.documentId)}
+                  onDeleted={() => void refresh()}
+                />
+              </AttachmentActions>
+            </Attachment>
           ))}
         </div>
       )}
     </>
-  );
-}
-
-function ToolEvent({
-  icon,
-  name,
-  data,
-  open,
-}: {
-  icon: React.ReactNode;
-  name: string;
-  data: unknown;
-  open?: boolean;
-}) {
-  return (
-    <Collapsible defaultOpen={open}>
-      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        {icon}
-        {name}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <JsonView className="overflow-x-auto rounded-md bg-muted p-2" value={data} />
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
 
@@ -522,46 +512,45 @@ export function EventCard({
               // oxlint-disable-next-line react/no-array-index-key
               <div key={i} className="flex flex-col gap-1">
                 {part.text != null &&
-                  (part.thought || !parseJsonObject(part.text) ? (
-                    textAsMarkdown && !part.thought ? (
-                      <Markdown className="text-[13px]">{part.text}</Markdown>
+                  (part.thought ? (
+                    <Trace>
+                      <ReasoningTrace text={part.text} />
+                    </Trace>
+                  ) : !parseJsonObject(part.text) ? (
+                    textAsMarkdown ? (
+                      <Markdown className="text-sm">{part.text}</Markdown>
                     ) : (
-                      <div
-                        className={cn(
-                          "text-[13px] leading-relaxed whitespace-pre-wrap",
-                          part.thought && "text-muted-foreground italic",
-                        )}
-                      >
-                        {part.thought && (
-                          <span className="mr-1 text-xs font-semibold uppercase">Reasoning</span>
-                        )}
-                        {part.text}
-                      </div>
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap">{part.text}</div>
                     )
                   ) : (
                     <OutputText text={part.text} schema={outputSchema} />
                   ))}
                 {part.functionCall && (
-                  <ToolEvent
-                    open
-                    icon={<Workflow className="size-3.5" />}
-                    name={part.functionCall.name ?? "Tool call"}
-                    data={part.functionCall.args ?? {}}
-                  />
+                  <Trace>
+                    <ToolTrace
+                      defaultOpen
+                      name={part.functionCall.name ?? "Tool call"}
+                      args={part.functionCall.args ?? {}}
+                    />
+                  </Trace>
                 )}
                 {part.functionResponse && (
-                  <ToolEvent
-                    icon={<Check className="size-3.5" />}
-                    name={part.functionResponse.name ?? "Tool response"}
-                    data={part.functionResponse.response ?? {}}
-                  />
+                  <Trace>
+                    <ToolTrace
+                      name={part.functionResponse.name ?? "Tool response"}
+                      label={`Result of ${part.functionResponse.name ?? "tool"}`}
+                      response={part.functionResponse.response ?? {}}
+                    />
+                  </Trace>
                 )}
               </div>
             ))}
           </BubbleContent>
         </Bubble>
         <MessageFooter className="px-0">
-          <ToolEvent icon={null} name="Raw event" data={event} />
+          <Trace>
+            <ToolTrace name="Raw event" label="Raw event" icon={<Terminal />} response={event} />
+          </Trace>
         </MessageFooter>
       </MessageContent>
     </Message>

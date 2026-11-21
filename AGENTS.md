@@ -42,6 +42,8 @@ Use `bun check` to type check the project. It reads `tsconfig.json` and reports 
 
 `apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. Its API types come from the service: `src/lib/api.ts` builds an Eden client from `import type { App } from "@stage/service/app"`, so a change to a route is a type error in the UI. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
 
+Build and change `apps/ui` by the rules in [docs/ui-guidelines.md](docs/ui-guidelines.md): shadcn and AI Elements components only, Data Tables for lists, `Trace` for agent output, color tokens, and the accessibility and responsive checklist. Read it before touching the UI.
+
 # Repository conventions
 
 ## File naming

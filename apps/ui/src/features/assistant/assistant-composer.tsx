@@ -1,21 +1,30 @@
-import { ArrowUp, FileText, Loader2, Paperclip, X } from "lucide-react";
+import { ArrowUp, ChevronDown, FileText, Plus, X } from "lucide-react";
 import { useRef } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Kbd } from "@/components/ui/kbd";
+import { Spinner } from "@/components/ui/spinner";
 import type { DocumentSummary } from "@/lib/api";
 
 import {
@@ -102,46 +111,28 @@ export function AssistantComposer({
             if (list.length) onAttachFiles(list);
           }}
         />
-        <InputGroup className="rounded-3xl border bg-card shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-primary/20">
+        <InputGroup className="rounded-3xl bg-card shadow-sm">
           {hasAttachments && (
-            <div className="flex w-full flex-wrap gap-1.5 px-4 pt-3">
+            <InputGroupAddon align="block-start" className="flex-wrap">
               {stagedFiles.map((file, i) => (
-                <Badge key={`staged-${file.name}-${i}`} variant="secondary" className="gap-1 pr-1">
-                  <FileText className="size-3" />
-                  <span className="max-w-44 truncate">{file.name}</span>
-                  {onRemoveStagedFile && (
-                    <button
-                      type="button"
-                      aria-label={`Remove ${file.name}`}
-                      className="rounded-full p-0.5 hover:bg-muted"
-                      onClick={() => onRemoveStagedFile(i)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </Badge>
+                <FileChip
+                  key={`staged-${file.name}-${i}`}
+                  name={file.name}
+                  onRemove={onRemoveStagedFile && (() => onRemoveStagedFile(i))}
+                />
               ))}
               {documents.map((doc) => (
-                <Badge key={doc.documentId} variant="outline" className="gap-1 pr-1">
-                  <FileText className="size-3 text-primary" />
-                  <span className="max-w-44 truncate">{doc.filename}</span>
-                  {onDeleteDocument && (
-                    <button
-                      type="button"
-                      aria-label={`Remove ${doc.filename}`}
-                      className="rounded-full p-0.5 hover:bg-muted"
-                      onClick={() => onDeleteDocument(doc.documentId)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </Badge>
+                <FileChip
+                  key={doc.documentId}
+                  name={doc.filename}
+                  onRemove={onDeleteDocument && (() => onDeleteDocument(doc.documentId))}
+                />
               ))}
-            </div>
+            </InputGroupAddon>
           )}
           <InputGroupTextarea
             aria-label="Message assistant"
-            className="max-h-44 min-h-[3.25rem] resize-none px-4 pt-3.5 pb-2 text-[15px]"
+            className="max-h-44 min-h-[3.25rem] resize-none p-3"
             rows={2}
             maxLength={10_000}
             value={value}
@@ -153,49 +144,59 @@ export function AssistantComposer({
               e.currentTarget.form?.requestSubmit();
             }}
           />
-          <InputGroupAddon align="block-end" className="gap-2 px-3 pb-2.5">
-            <Button
+          <InputGroupAddon align="block-end">
+            <InputGroupButton
               type="button"
-              variant="ghost"
               size="icon-sm"
-              className="rounded-full text-muted-foreground hover:text-foreground"
+              variant="outline"
+              className="rounded-full"
               aria-label="Attach file"
-              title="Attach file"
               disabled={isUploading || isSending}
               onClick={() => fileInput.current?.click()}
             >
-              {isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
-            </Button>
-            <Select
-              value={selectedId}
-              disabled={targetLocked || !selectItems.length}
-              items={selectItems}
-              onValueChange={(next) => {
-                if (!next) return;
-                const parsed = parseTargetKey(next);
-                if (parsed) onTargetChange(parsed);
-              }}
-            >
-              <SelectTrigger
-                aria-label="Assistant agent"
-                title={
-                  targetLocked
-                    ? "Agent is fixed for this conversation"
-                    : "Choose which agent handles this conversation"
+              {isUploading ? <Spinner /> : <Plus />}
+            </InputGroupButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={targetLocked || !selectItems.length}
+                render={
+                  <InputGroupButton
+                    size="sm"
+                    variant="outline"
+                    aria-label="Assistant agent"
+                    title={
+                      targetLocked
+                        ? "Agent is fixed for this conversation"
+                        : "Choose which agent handles this conversation"
+                    }
+                    className="max-w-60 rounded-full"
+                  />
                 }
-                className="h-8 w-auto max-w-60 gap-1.5 rounded-full border-border/60 bg-muted/50 px-3 text-xs font-medium shadow-none"
               >
                 <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
-                <SelectValue placeholder="No agents available" />
-              </SelectTrigger>
-              <SelectContent align="start">
-                {selectItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <span className="truncate">
+                  {selectItems.find((item) => item.value === selectedId)?.label ??
+                    "No agents available"}
+                </span>
+                <ChevronDown />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>Agent</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={selectedId ?? ""}
+                  onValueChange={(next) => {
+                    const parsed = parseTargetKey(next);
+                    if (parsed) onTargetChange(parsed);
+                  }}
+                >
+                  {selectItems.map((item) => (
+                    <DropdownMenuRadioItem key={item.value} value={item.value}>
+                      {item.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <InputGroupButton
               type="submit"
               size="icon-sm"
@@ -204,7 +205,7 @@ export function AssistantComposer({
               aria-label="Send message"
               disabled={!canSend}
             >
-              {isSending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+              {isSending ? <Spinner /> : <ArrowUp />}
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
@@ -212,9 +213,33 @@ export function AssistantComposer({
           className="px-2 text-center text-xs text-muted-foreground"
           role={blockedHint ? "status" : undefined}
         >
-          {blockedHint ?? "Enter to send · Shift+Enter for a new line"}
+          {blockedHint ?? (
+            <>
+              <Kbd>Enter</Kbd> to send · <Kbd>Shift</Kbd> <Kbd>Enter</Kbd> for a new line
+            </>
+          )}
         </p>
       </form>
     </div>
+  );
+}
+
+function FileChip({ name, onRemove }: { name: string; onRemove?: () => void }) {
+  return (
+    <Attachment size="sm">
+      <AttachmentMedia>
+        <FileText />
+      </AttachmentMedia>
+      <AttachmentContent>
+        <AttachmentTitle>{name}</AttachmentTitle>
+      </AttachmentContent>
+      {onRemove && (
+        <AttachmentActions>
+          <AttachmentAction aria-label={`Remove ${name}`} onClick={onRemove}>
+            <X />
+          </AttachmentAction>
+        </AttachmentActions>
+      )}
+    </Attachment>
   );
 }

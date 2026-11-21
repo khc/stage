@@ -1,13 +1,20 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, CircleAlert, Loader2, Wrench, Workflow } from "lucide-react";
+import { CircleAlert, Workflow } from "lucide-react";
 
-import { JsonView } from "@/components/json-view";
+import { ReasoningTrace, SubagentTrace, ToolTrace, Trace, WorkingLine } from "@/components/agent-trace";
 import { Markdown } from "@/components/markdown";
 import { CopyButton } from "@/components/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Message, MessageContent } from "@/components/ui/message";
 import {
   MessageScroller,
@@ -17,11 +24,12 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
+import { Spinner } from "@/components/ui/spinner";
 import { OutputText } from "@/features/tasks/session-parts";
 import { parseJsonObject, type AgentInfo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-import { turnCopyText, type AssistantTarget, type ChatTurn } from "./assistant-model";
+import { parseDelegation, turnCopyText, type AssistantTarget, type ChatTurn } from "./assistant-model";
 
 const STARTER_PROMPTS = [
   "Summarize what agents and tools are available in this workspace.",
@@ -30,61 +38,46 @@ const STARTER_PROMPTS = [
   "Draft a structured action plan and explain each step clearly.",
 ];
 
-function ActivityDisclosure({
+// What the agent did in a turn: its thinking, then each tool call, as one Trace.
+function Activity({
   turn,
   active,
 }: {
   turn: Extract<ChatTurn, { kind: "assistant" }>;
   active?: boolean;
 }) {
-  const stepCount = turn.tools.length + turn.thoughts.length;
-  if (!stepCount) return null;
-  const hasPendingTool = turn.tools.some((tool) => tool.pending);
-  const label =
-    hasPendingTool || (active && !turn.textSegments.length)
-      ? `Working · ${turn.tools.at(-1)?.name ?? "thinking"}…`
-      : turn.tools.length
-        ? `Activity · ${turn.tools.length} tool ${turn.tools.length === 1 ? "call" : "calls"}${turn.thoughts.length ? ` · ${turn.thoughts.length} notes` : ""}`
-        : `Reasoning (${turn.thoughts.length})`;
-
+  if (!turn.tools.length && !turn.thoughts.length) return null;
+  const waiting = !!active && !turn.textSegments.length;
   return (
-    <Collapsible className="w-fit max-w-full rounded-xl border bg-muted/30 text-xs">
-      <CollapsibleTrigger className="group flex h-[30px] items-center gap-2 px-3 font-medium text-muted-foreground hover:text-foreground">
-        {hasPendingTool || (active && !turn.textSegments.length) ? (
-          <Loader2 className="size-3.5 animate-spin text-primary" />
+    <Trace>
+      {turn.thoughts.map((thought, i) => (
+        <ReasoningTrace
+          key={`thought-${i}`}
+          text={thought}
+          running={waiting && !turn.tools.length && i === turn.thoughts.length - 1}
+        />
+      ))}
+      {turn.tools.map((tool) => {
+        const delegation = parseDelegation(tool.name);
+        return delegation ? (
+          <SubagentTrace
+            key={tool.id}
+            {...delegation}
+            args={tool.args}
+            response={tool.response}
+            pending={tool.pending}
+          />
         ) : (
-          <Wrench className="size-3.5 text-muted-foreground" />
-        )}
-        <span>{label}</span>
-        <ChevronDown className="size-3.5 transition-transform group-data-panel-open:rotate-180" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-2.5 border-t px-3 py-2.5">
-        {turn.thoughts.map((thought, i) => (
-          <p key={`thought-${i}`} className="leading-relaxed whitespace-pre-wrap text-muted-foreground italic">
-            {thought}
-          </p>
-        ))}
-        {turn.tools.map((tool) => (
-          <div key={tool.id} className="flex flex-col gap-1.5 rounded-lg border bg-background/70 p-2">
-            <div className="flex items-center gap-2">
-              <Badge variant={tool.pending ? "secondary" : "outline"} className="font-mono text-[11px]">
-                {tool.pending && <Loader2 className="size-3 animate-spin" />}
-                {tool.name}
-              </Badge>
-              <span className="text-[11px] text-muted-foreground">
-                {tool.pending ? "Running" : "Completed"}
-              </span>
-            </div>
-            {tool.args !== undefined && (
-              <JsonView className="overflow-x-auto rounded bg-muted/60 p-1.5" value={tool.args} />
-            )}
-            {tool.response !== undefined && (
-              <JsonView className="overflow-x-auto rounded bg-muted/60 p-1.5" value={tool.response} />
-            )}
-          </div>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+          <ToolTrace
+            key={tool.id}
+            name={tool.name}
+            args={tool.args}
+            response={tool.response}
+            pending={tool.pending}
+          />
+        );
+      })}
+    </Trace>
   );
 }
 
@@ -110,7 +103,7 @@ export function AssistantThread({
   if (isLoadingSession) {
     return (
       <div className="flex flex-1 items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
+        <Spinner />
         Loading conversation…
       </div>
     );
@@ -123,37 +116,35 @@ export function AssistantThread({
         : target.jobName
       : "orchestrator";
     return (
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
-        <div className="flex w-full max-w-2xl flex-col items-center gap-6 text-center">
-          <div className="flex flex-col items-center gap-3">
-            <img
-              src="/stage.png"
-              alt="Stage Assistant"
-              className="size-12 rounded-2xl shadow-sm"
-            />
-            <h2 className="font-display text-5xl tracking-tight sm:text-6xl">
-              How can I help today?
-            </h2>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Start a conversation powered by{" "}
-              <span className="font-medium text-foreground">{defaultLabel}</span> by default. Attach
-              documents or switch agents anytime below.
-            </p>
-          </div>
-          <div className="grid w-full gap-2.5 text-left sm:grid-cols-2">
+      <Empty className="flex-1 overflow-y-auto">
+        <EmptyHeader>
+          <EmptyMedia>
+            <img src="/stage.png" alt="" className="size-12 rounded-2xl shadow-sm" />
+          </EmptyMedia>
+          <EmptyTitle className="font-display text-4xl tracking-tight sm:text-5xl">
+            How can I help today?
+          </EmptyTitle>
+          <EmptyDescription>
+            Start a conversation powered by{" "}
+            <span className="font-medium text-foreground">{defaultLabel}</span> by default. Attach
+            documents or switch agents anytime below.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent className="max-w-2xl">
+          <div className="grid w-full gap-2 sm:grid-cols-2">
             {STARTER_PROMPTS.map((prompt) => (
-              <button
+              <Button
                 key={prompt}
-                type="button"
+                variant="outline"
+                className="h-auto justify-start py-2.5 text-left whitespace-normal"
                 onClick={() => onStarterSelect(prompt)}
-                className="group rounded-2xl border bg-card/70 p-3.5 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-accent/50"
               >
-                <span className="line-clamp-2 leading-relaxed">{prompt}</span>
-              </button>
+                {prompt}
+              </Button>
             ))}
           </div>
-        </div>
-      </div>
+        </EmptyContent>
+      </Empty>
     );
   }
 
@@ -187,7 +178,7 @@ export function AssistantThread({
                     <Message align="end">
                       <MessageContent>
                         <Bubble align="end" variant="tinted">
-                          <BubbleContent className="rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
+                          <BubbleContent className="rounded-2xl px-4 py-2.5 text-base leading-relaxed whitespace-pre-wrap">
                             {turn.text}
                           </BubbleContent>
                         </Bubble>
@@ -209,7 +200,7 @@ export function AssistantThread({
                       className="size-8 shrink-0 rounded-xl shadow-xs"
                     />
                     <MessageContent className="gap-3">
-                      <ActivityDisclosure turn={turn} active={isLast && isRunning} />
+                      <Activity turn={turn} active={isLast && isRunning} />
                       {turn.textSegments.map((segment, segIdx) =>
                         parseJsonObject(segment) ? (
                           <OutputText key={segIdx} text={segment} schema={schema} />
@@ -217,7 +208,7 @@ export function AssistantThread({
                           <Markdown
                             key={segIdx}
                             className={cn(
-                              "text-[15px] leading-relaxed text-foreground",
+                              "text-base leading-relaxed text-foreground",
                               "[&_p]:my-2.5 [&_pre]:rounded-xl [&_pre]:p-3",
                             )}
                           >
@@ -245,14 +236,11 @@ export function AssistantThread({
             {showWorkingIndicator && (
               <MessageScrollerItem messageId="assistant-working">
                 <Message align="start" className="items-center gap-3">
-                  <span
-                    aria-hidden
-                    className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15"
-                  >
-                    <Loader2 className="size-4 animate-spin" />
-                  </span>
+                  <img src="/stage.png" alt="" aria-hidden className="size-8 shrink-0 rounded-xl" />
                   <MessageContent>
-                    <span className="text-sm text-muted-foreground">Working on it…</span>
+                    <Trace>
+                      <WorkingLine label="Working on it" />
+                    </Trace>
                   </MessageContent>
                 </Message>
               </MessageScrollerItem>

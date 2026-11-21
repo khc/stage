@@ -1,7 +1,5 @@
 import type { Task } from "@/lib/api";
 
-export type TaskRow = { task: Task; depth: number; hasChildren: boolean };
-
 const text = (task: Task) =>
   `${task.name ?? ""} ${task.prompt} ${task.jobName} ${task.agentName ?? ""} ${task.taskId}`.toLowerCase();
 
@@ -17,72 +15,38 @@ const childrenOf = (tasks: Task[]) => {
   return children;
 };
 
-// The tasks in table order: each task is followed by its sub-tasks, and theirs, indented by `depth`.
-// A search keeps a matching task with its ancestors and its sub-tasks, and shows everything it finds
-// expanded; without one, the sub-tasks of a `collapsed` task are left out.
-export function buildTaskTree(
-  tasks: Task[],
-  search: string,
-  collapsed: ReadonlySet<string>,
-): TaskRow[] {
+export type TaskNode = Task & { subTasks: TaskNode[] };
+
+// The tasks as a forest: a task without a parent in the list is a root, and each task holds its
+// sub-tasks. Built with a stack, so a long chain cannot overflow it; tasks that are each other's
+// parent have no root, so they are attached once, under whichever comes first.
+export function buildTaskForest(tasks: Task[]): TaskNode[] {
   const children = childrenOf(tasks);
-  const byId = new Map(tasks.map((task) => [task.taskId, task]));
-  const query = search.trim().toLowerCase();
-
-  let shown: Set<string> | undefined;
-  if (query) {
-    shown = new Set();
-    for (const match of tasks.filter((candidate) => text(candidate).includes(query))) {
-      // The task, its sub-tasks and theirs (a stack, not recursion: a chain can be long)...
-      const stack = [match];
-      while (stack.length) {
-        const current = stack.pop()!;
-        if (shown.has(current.taskId) && current !== match) continue;
-        shown.add(current.taskId);
-        stack.push(
-          ...(children.get(current.taskId) ?? []).filter((kid) => !shown!.has(kid.taskId)),
-        );
-      }
-      // ...and its ancestors, with a guard against a parent loop.
-      const seen = new Set([match.taskId]);
-      for (
-        let parent = byId.get(match.parentTaskId ?? "");
-        parent && !seen.has(parent.taskId);
-        parent = byId.get(parent.parentTaskId ?? "")
-      ) {
-        seen.add(parent.taskId);
-        shown.add(parent.taskId);
-      }
-    }
-  }
-
-  const rows: TaskRow[] = [];
-  const visited = new Set<string>();
-  // Depth first with an explicit stack. A task under a collapsed one is still visited, so it is not
-  // taken for a root of its own later.
-  const walk = (root: Task) => {
-    const stack = [{ task: root, depth: 0, hidden: false }];
+  const attached = new Set<string>();
+  const grow = (root: Task): TaskNode => {
+    const rootNode: TaskNode = { ...root, subTasks: [] };
+    attached.add(root.taskId);
+    const stack: [Task, TaskNode][] = [[root, rootNode]];
     while (stack.length) {
-      const { task, depth, hidden } = stack.pop()!;
-      if (visited.has(task.taskId)) continue;
-      visited.add(task.taskId);
-      const all = children.get(task.taskId) ?? [];
-      if (!hidden && (!shown || shown.has(task.taskId)))
-        rows.push({ task, depth, hasChildren: all.length > 0 });
-      const hideBelow = hidden || (!shown && collapsed.has(task.taskId));
-      for (let i = all.length - 1; i >= 0; i--)
-        stack.push({ task: all[i]!, depth: depth + 1, hidden: hideBelow });
+      const [task, node] = stack.pop()!;
+      for (const child of children.get(task.taskId) ?? []) {
+        if (attached.has(child.taskId)) continue;
+        attached.add(child.taskId);
+        const childNode: TaskNode = { ...child, subTasks: [] };
+        node.subTasks.push(childNode);
+        stack.push([child, childNode]);
+      }
     }
+    return rootNode;
   };
   const isChild = new Set([...children.values()].flat().map((task) => task.taskId));
-  for (const task of tasks) if (!isChild.has(task.taskId)) walk(task);
-  // Tasks that are each other's parent have no root: they are shown as roots, once.
-  for (const task of tasks) if (!visited.has(task.taskId)) walk(task);
-  return rows;
+  const roots = tasks.filter((task) => !isChild.has(task.taskId)).map(grow);
+  for (const task of tasks) if (!attached.has(task.taskId)) roots.push(grow(task));
+  return roots;
 }
 
-// The indent of a sub-task stops growing after this many levels.
-export const indentLevel = (depth: number) => Math.min(depth, 8);
+// Whether a task matches a search: its name, prompt, job, agent or id.
+export const taskMatches = (task: Task, query: string) => text(task).includes(query.trim().toLowerCase());
 
 // How many tasks hang below this one, counting sub-tasks of sub-tasks.
 export function countDescendants(tasks: Task[], taskId: string): number {

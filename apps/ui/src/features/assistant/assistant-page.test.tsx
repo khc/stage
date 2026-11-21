@@ -49,7 +49,8 @@ test("AssistantThread renders user and Markdown assistant turns without raw tech
   expect(html).toContain("What did we find?");
   expect(html).toContain("<strong>key result</strong>");
   expect(html).toContain("<li>Item A</li>");
-  expect(html).toContain("Activity · 1 tool call · 1 notes");
+  expect(html).toContain("Thought");
+  expect(html).toContain("Called search_docs");
   expect(html).not.toContain("Raw event");
   expect(html).not.toContain("Session state");
 });

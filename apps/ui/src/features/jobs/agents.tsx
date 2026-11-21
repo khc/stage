@@ -1,25 +1,27 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
-import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { api, schemaRows, schemaSummary, type AgentInfo, type JsonSchema } from "@/lib/api";
 
 const REGISTRATION_POLL_MS = 30_000;
 
-// Registration is asynchronous, so poll the registry for a while after submitting.
+// Registration is asynchronous, so poll the registry for a while after submitting. The deadline
+// lives in the query cache, so every view of the same job (a table cell and its action cell) polls.
 export function useAgentRegistration(jobName: string, enabled = true) {
-  const [pollUntil, setPollUntil] = useState(0);
+  const client = useQueryClient();
+  const pollKey = ["agents-poll", jobName];
+  const poll = useQuery({ queryKey: pollKey, queryFn: () => 0, initialData: 0, staleTime: Infinity });
   const query = useQuery({
     queryKey: ["agents", jobName],
     queryFn: () => api.agents(jobName),
     enabled,
     retry: false,
-    refetchInterval: () => (Date.now() < pollUntil ? 3000 : false),
+    refetchInterval: () => (Date.now() < poll.data ? 3000 : false),
   });
   const register = useMutation({
     mutationFn: () => api.registerAgents(jobName),
-    onSuccess: () => setPollUntil(Date.now() + REGISTRATION_POLL_MS),
+    onSuccess: () => client.setQueryData(pollKey, Date.now() + REGISTRATION_POLL_MS),
   });
   return { agents: query.data?.agents ?? [], query, register };
 }
@@ -30,14 +32,16 @@ export function RegisterAgentsButton({
   register,
   disabled,
   className,
+  variant = "outline",
 }: {
   register: Register;
   disabled?: boolean;
   className?: string;
+  variant?: "outline" | "ghost";
 }) {
   return (
     <Button
-      variant="outline"
+      variant={variant}
       className={className}
       disabled={disabled || register.isPending}
       onClick={() => register.mutate()}

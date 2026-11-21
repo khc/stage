@@ -1,13 +1,22 @@
-import { Check, CircleAlert, Copy, Loader2 } from "lucide-react";
+import { Check, CircleAlert, Copy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Empty as EmptyRoot,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
-      <Loader2 className="size-4 animate-spin" />
+      <Spinner />
       {label}
     </div>
   );
@@ -42,12 +51,14 @@ export function Empty({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 p-8 text-center">
-      <div className="rounded-full bg-muted p-3 text-muted-foreground [&_svg]:size-5">{icon}</div>
-      <h3 className="font-medium">{title}</h3>
-      <p className="max-w-sm text-sm text-muted-foreground">{children}</p>
-      {action}
-    </div>
+    <EmptyRoot>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">{icon}</EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{children}</EmptyDescription>
+      </EmptyHeader>
+      {action && <EmptyContent>{action}</EmptyContent>}
+    </EmptyRoot>
   );
 }
 
@@ -63,6 +74,7 @@ export function CopyButton({ value, label = "Copy ID" }: { value: string; label?
     <Button
       variant="ghost"
       size="icon-xs"
+      className="max-md:size-9"
       title={text}
       aria-label={text}
       onClick={async () => {
