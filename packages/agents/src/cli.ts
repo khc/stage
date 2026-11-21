@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createAgentRegistry, type AgentInfo, type AgentRegistry } from "./agent-registry";
 import type { ModelRef } from "./model-ref";
+import type { RunMode } from "./run-mode";
 import { ModelUnavailableError, createModelResolver, type ResolveModel } from "./provider-models";
 import { appName, createRunAgent, userId, type ResolveRunModel, type RunAgent } from "./runtime";
 import { createServeHandler, type RunTaskInput } from "./serve";
@@ -147,6 +148,9 @@ export const registerMain = async (
   }
 };
 
+// How an execution mode hosts a run: `serve` is the quick service, any other mode the workflow job.
+export const hostMode = (mode?: string): RunMode => (mode === "serve" ? "quick" : "workflow");
+
 // `serve` execution mode: the HTTP host of the run path, listening on PORT (8080 by default).
 // A run answers only when it has finished, so Bun's default idle timeout (10 s) would close the
 // connection of any longer run: allow Bun's maximum. A run request is under 2 KB, so the body limit
@@ -171,7 +175,7 @@ export const runCli = async (set: AgentSet, argv = process.argv, env = process.e
   const mode = argv[2];
   const deps = () =>
     [
-      createRunAgent(set, { db, mode: mode === "serve" ? "quick" : "workflow" }),
+      createRunAgent(set, { db, mode: hostMode(mode) }),
       createGetTask(db),
       createGetMessage(sessions),
       createGetMessageModel(sessions),

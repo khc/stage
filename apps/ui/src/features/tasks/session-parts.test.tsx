@@ -8,6 +8,7 @@ import type { AgentInfo, SessionEvent } from "@/lib/api";
 import {
   EventCard,
   OutputText,
+  RunHostBadge,
   SessionComposer,
   freeTextInputHint,
   sessionRefetchInterval,
@@ -178,4 +179,18 @@ test("the task message box starts on the task default model and offers the usabl
   // A default that is no longer offered is not preselected.
   expect(render({ providerId, model: "gone" })).toContain("Job default");
   expect(render()).toContain('aria-label="Model"');
+});
+
+test("RunHostBadge names the service for a quick run and the job for a workflow run", () => {
+  const job = "stage--knowledge-agents--job-lcl";
+  const quick = renderToStaticMarkup(
+    <RunHostBadge run={{ status: "succeeded", startedAt: 1, mode: "quick" }} jobName={job} />,
+  );
+  const workflow = renderToStaticMarkup(
+    <RunHostBadge run={{ status: "succeeded", startedAt: 1, mode: "workflow" }} jobName={job} />,
+  );
+  expect(quick).toContain("stage--knowledge-agents--svc-lcl");
+  expect(quick).not.toContain(job);
+  expect(workflow).toContain(job);
+  expect(renderToStaticMarkup(<RunHostBadge run={{ status: "succeeded", startedAt: 1 }} jobName={job} />)).toBe("");
 });

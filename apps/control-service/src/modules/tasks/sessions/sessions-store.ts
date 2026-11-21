@@ -1,6 +1,7 @@
 import type { Firestore } from "@google-cloud/firestore";
 import type { Session } from "@google/adk";
 import type { ModelRef } from "@stage/agents/model-ref";
+import type { RunMode } from "@stage/agents/run-mode";
 import { appName, userId } from "@stage/agents/runtime";
 import {
   FirestoreSessionService,
@@ -37,7 +38,7 @@ export type SessionsStore = {
   clearMessage: (taskId: string, sessionId: string) => Promise<void>;
   // Records a failed run on a session whose run never started, so its event stream shows why. A session
   // another run holds is left alone.
-  failRun: (taskId: string, sessionId: string, message: string) => Promise<void>;
+  failRun: (taskId: string, sessionId: string, message: string, mode?: RunMode) => Promise<void>;
 };
 
 const keyOf = (doc: { get: (field: string) => unknown }, sessionId: string) => ({
@@ -105,12 +106,12 @@ export const createSessionsStore = (firestore: Firestore): SessionsStore => {
       const doc = await find(taskId, sessionId);
       if (doc) await sessionService.clearMessage(keyOf(doc, sessionId));
     },
-    async failRun(taskId, sessionId, message) {
+    async failRun(taskId, sessionId, message, mode) {
       const doc = await find(taskId, sessionId);
       if (!doc) return;
       const key = keyOf(doc, sessionId);
       try {
-        await sessionService.startRun(key);
+        await sessionService.startRun(key, { mode });
       } catch (err) {
         if (err instanceof RunInProgressError) return;
         throw err;

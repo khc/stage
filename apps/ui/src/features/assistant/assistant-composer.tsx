@@ -27,6 +27,7 @@ import type { ModelOption } from "@/lib/models";
 import {
   parseTargetKey,
   targetKey,
+  targetLabel,
   type AssistantTarget,
   type AssistantTargetOption,
 } from "./assistant-model";
@@ -96,7 +97,7 @@ export function AssistantComposer({
       ? [
           {
             value: targetKey(target),
-            label: target.agentName ? `${target.agentName} · ${target.jobName}` : target.jobName,
+            label: targetLabel(target),
           },
         ]
       : []),

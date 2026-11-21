@@ -151,7 +151,7 @@ describe("tasks service run", () => {
       (overrides.queue ?? (async () => true))(),
     );
     const clearMessage = mock(async (_t: string, _s: string) => {});
-    const failRun = mock(async (_t: string, _s: string, _m: string) => {});
+    const failRun = mock(async (_t: string, _s: string, _m: string, _mode?: string) => {});
     const service = createTasksService(
       {
         tasksStore: { get: getTask },
@@ -463,13 +463,23 @@ describe("tasks service run", () => {
           { status: "started", sessionId: "s-new" },
         );
         await Bun.sleep(0);
-        expect(fresh.failRun).toHaveBeenCalledWith(taskId, "s-new", expect.stringContaining("service down"));
+        expect(fresh.failRun).toHaveBeenCalledWith(
+          taskId,
+          "s-new",
+          expect.stringContaining("service down"),
+          "quick",
+        );
         expect(fresh.del).not.toHaveBeenCalled();
 
         const resumed = setup(async () => Promise.reject(new Error("service down")));
         await resumed.service.run(taskId, resume, "quick", background);
         await Bun.sleep(0);
-        expect(resumed.failRun).toHaveBeenCalledWith(taskId, "s1", expect.stringContaining("service down"));
+        expect(resumed.failRun).toHaveBeenCalledWith(
+          taskId,
+          "s1",
+          expect.stringContaining("service down"),
+          "quick",
+        );
         expect(resumed.clearMessage).not.toHaveBeenCalled();
         error.mockRestore();
       });

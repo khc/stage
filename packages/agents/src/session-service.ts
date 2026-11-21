@@ -15,7 +15,7 @@ import {
 } from "@google/adk";
 
 import { modelRefSchema, type ModelRef } from "./model-ref";
-import type { RunMode } from "./run-mode";
+import { runModeSchema, type RunMode } from "./run-mode";
 
 const SESSIONS = "sessions";
 const EVENTS = "events";
@@ -61,7 +61,7 @@ type RunFields = {
   runEndedAt?: number | null;
   runError?: string | null;
   runLeaseUntil?: number;
-  runMode?: RunMode | null;
+  runMode?: RunMode;
 };
 const isLive = (f: RunFields, now: number) =>
   f.runStatus === "running" && (f.runLeaseUntil ?? 0) > now;
@@ -88,7 +88,7 @@ export const runFields = (doc: { get: (field: string) => unknown }): RunFields =
   runEndedAt: doc.get("runEndedAt") as number | null | undefined,
   runError: doc.get("runError") as string | null | undefined,
   runLeaseUntil: doc.get("runLeaseUntil") as number | undefined,
-  runMode: doc.get("runMode") as RunMode | null | undefined,
+  runMode: runModeSchema.safeParse(doc.get("runMode")).data,
 });
 
 const MAX_SESSION_NAME = 120;
@@ -342,7 +342,10 @@ export class FirestoreSessionService extends BaseSessionService {
     }
   }
 
-  async startRun(key: CompositeSessionKey, now = Date.now(), mode?: RunMode): Promise<void> {
+  async startRun(
+    key: CompositeSessionKey,
+    { mode, now = Date.now() }: { mode?: RunMode; now?: number } = {},
+  ): Promise<void> {
     const ref = this.ref(key);
     const runId = crypto.randomUUID();
     await this.db.runTransaction(async (tx) => {

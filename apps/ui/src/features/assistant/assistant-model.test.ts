@@ -13,6 +13,7 @@ import {
   resolveEffectiveRunMode,
   rootChatTasks,
   targetKey,
+  targetLabel,
   toChatTitle,
   turnCopyText,
 } from "./assistant-model";
@@ -79,6 +80,25 @@ test("buildTargetOptions places the orchestrator default first and marks structu
   });
   const structured = options.find((o) => o.agentName === "structured-agent");
   expect(structured?.unsupportedHint).toContain("structured input");
+});
+
+test("buildTargetOptions labels agents by name only and lists a job only when it has no agents", () => {
+  const options = buildTargetOptions([job("worker"), job("bare"), job("orchestrator")], {
+    worker: [{ name: "haiku-poet" }, { name: "limerick-poet" }],
+    orchestrator: [{ name: "orchestrator" }],
+  });
+  expect(options.map((o) => o.label).toSorted()).toEqual([
+    "bare",
+    "haiku-poet",
+    "limerick-poet",
+    "orchestrator",
+  ]);
+  expect(options.some((o) => o.label.includes("--") || o.label.includes("·"))).toBe(false);
+});
+
+test("targetLabel is the agent name, or the job name for a job-only target", () => {
+  expect(targetLabel({ jobName: "stage--x--job-lcl", agentName: "poet" })).toBe("poet");
+  expect(targetLabel({ jobName: "stage--x--job-lcl" })).toBe("stage--x--job-lcl");
 });
 
 test("targetKey and parseTargetKey round-trip job and agent names containing slashes or colons", () => {

@@ -208,7 +208,12 @@ export const createTasksService = (
           if (background && targetSessionId && !(err instanceof RunInProgressError)) {
             // The caller has the session id and is already following it: let its stream show the failure.
             await sessionsStore
-              .failRun(taskId, targetSessionId, err instanceof Error ? err.message : String(err))
+              .failRun(
+                taskId,
+                targetSessionId,
+                err instanceof Error ? err.message : String(err),
+                "quick",
+              )
               .catch((failErr) => console.error("Failed to record the run failure", failErr));
           } else if (createdSession && targetSessionId) {
             await sessionsStore

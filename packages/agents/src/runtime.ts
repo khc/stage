@@ -106,7 +106,7 @@ export const createTaskAgent =
       "gcp.vertex.agent.session_id": session.id,
       "gen_ai.conversation.id": session.id,
     });
-    await runner.sessionService.startRun(key, undefined, mode);
+    await runner.sessionService.startRun(key, { mode });
     let reply: string;
     try {
       const llm = await resolveModel?.();

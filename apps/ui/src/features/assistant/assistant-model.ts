@@ -20,6 +20,9 @@ export type AssistantTarget = {
   agentName?: string;
 };
 
+// What the user sees for a target: the agent's name, or the job's when the target is the job itself.
+export const targetLabel = ({ jobName, agentName }: AssistantTarget): string => agentName ?? jobName;
+
 export type AssistantTargetOption = AssistantTarget & {
   id: string;
   label: string;
@@ -123,22 +126,26 @@ export function buildTargetOptions(
   for (const job of jobs) {
     if (!job.name) continue;
     const jobName = shortJobName(job);
-    const jobTarget: AssistantTarget = { jobName };
-    const jobId = targetKey(jobTarget);
-    options.push({
-      ...jobTarget,
-      id: jobId,
-      label: `${jobName} (Default)`,
-      isOrchestrator: isOrchestratorLike(jobName) || jobId === defaultId,
-    });
+    const agents = agentsByJob[jobName] ?? [];
+    // A job with registered agents is reached through them; only one without any is listed itself.
+    if (!agents.length) {
+      const jobTarget: AssistantTarget = { jobName };
+      const jobId = targetKey(jobTarget);
+      options.push({
+        ...jobTarget,
+        id: jobId,
+        label: targetLabel(jobTarget),
+        isOrchestrator: isOrchestratorLike(jobName) || jobId === defaultId,
+      });
+    }
 
-    for (const agent of agentsByJob[jobName] ?? []) {
+    for (const agent of agents) {
       const target: AssistantTarget = { jobName, agentName: agent.name };
       const id = targetKey(target);
       options.push({
         ...target,
         id,
-        label: `${agent.name} · ${jobName}`,
+        label: targetLabel(target),
         description: agent.description,
         isOrchestrator: isOrchestratorLike(agent.name) || id === defaultId,
         unsupportedHint: freeTextInputHint(agent.inputSchema),

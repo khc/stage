@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 
 import {
   parseDelegation,
+  targetLabel,
   turnCopyText,
   type AssistantTarget,
   type ChatTurn,
@@ -121,11 +122,7 @@ export function AssistantThread({
   }
 
   if (!turns.length && !isRunning) {
-    const defaultLabel = target
-      ? target.agentName
-        ? `${target.agentName} (${target.jobName})`
-        : target.jobName
-      : "orchestrator";
+    const defaultLabel = target ? targetLabel(target) : "orchestrator";
     return (
       <Empty className="min-h-0 [scrollbar-width:none] justify-center-safe overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden">
         <EmptyMedia className="mb-0 w-full max-w-3xl" aria-hidden>

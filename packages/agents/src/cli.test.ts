@@ -5,6 +5,7 @@ import type { BaseLlm } from "@google/adk";
 import {
   createGetMessage,
   createGetMessageModel,
+  hostMode,
   main,
   registerMain,
   runTask,
@@ -368,4 +369,10 @@ test("serve mode raises Bun's idle timeout above the longest quick run", async (
     await server.stop(true);
     serve.mockRestore();
   }
+});
+
+test("a serve run is hosted as quick, any other execution mode as workflow", () => {
+  expect(hostMode("serve")).toBe("quick");
+  expect(hostMode("register")).toBe("workflow");
+  expect(hostMode(undefined)).toBe("workflow");
 });

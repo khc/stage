@@ -125,10 +125,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("sessions store", () => {
     const session = await service.createSession({ ...key, taskId });
     const ref = { ...key, sessionId: session.id };
     try {
-      await api.failRun(taskId, session.id, "service down");
+      await api.failRun(taskId, session.id, "service down", "quick");
       expect((await api.get(taskId, session.id))?.run).toMatchObject({
         status: "failed",
         error: "service down",
+        mode: "quick",
       });
       await service.startRun(ref);
       await api.failRun(taskId, session.id, "too late");

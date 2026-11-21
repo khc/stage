@@ -25,11 +25,33 @@ env:
   JOB_FLOCI: "{{.FLOCI}}"
 
 tasks:
+  deploy:
+    desc: Force-redeploy Cloud Run services in Floci whose local image changed, and register agents (run `task build` first; FORCE=true replaces all services; pass Terraform flags after --, e.g. -- -auto-approve)
+    cmds:
+      - task: tf:apply
+        vars:
+          CLI_ARGS: "{{.CLI_ARGS}}"
+          FORCE: "{{.FORCE}}"
+          REDEPLOY: "true"
+      - task: register-agents
+
   register-agents:
     desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT, ENV)
     cmds:
-      - for: { var: JOBS }
-        cmd: JOB_NAME=stage--{{.ITEM}}-agents--job-{{.ENV}} FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun --preload ./packages/agents/src/telemetry-init.ts agents/{{.ITEM}}/src/main.ts register
+      - |
+        pids=""
+        for item in {{.JOBS}}; do
+          JOB_NAME="stage--${item}-agents--job-{{.ENV}}" \
+            FIRESTORE_EMULATOR_HOST="{{.FLOCI_HOST}}" \
+            GOOGLE_CLOUD_PROJECT="{{.PROJECT}}" \
+            bun "agents/${item}/src/main.ts" register &
+          pids="$pids $!"
+        done
+        status=0
+        for pid in $pids; do
+          wait "$pid" || status=1
+        done
+        exit "$status"
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)

@@ -8,6 +8,7 @@ import {
   MessageQueuedError,
   RunInProgressError,
   RunLostError,
+  runFields,
   runState,
   toSessionName,
 } from "./session-service";
@@ -240,6 +241,13 @@ describe("runState", () => {
       mode: "quick",
     });
   });
+  test("reads a stored mode it does not know as none", () => {
+    const doc = { get: (field: string) => (field === "runMode" ? "bogus" : undefined) };
+    expect(runFields(doc).runMode).toBeUndefined();
+    expect(runFields({ get: (field) => (field === "runMode" ? "quick" : undefined) }).runMode).toBe(
+      "quick",
+    );
+  });
   test("reports a run whose lease lapsed as failed", () => {
     expect(runState(base, 2_000)).toEqual({
       status: "failed",
@@ -261,14 +269,27 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     const service = newService();
     const { id } = await service.createSession(key);
     const ref = { ...key, sessionId: id };
-    await service.startRun(ref, 1_000);
-    await expect(service.startRun(ref, 2_000)).rejects.toBeInstanceOf(RunInProgressError);
+    await service.startRun(ref, { now: 1_000 });
+    await expect(service.startRun(ref, { now: 2_000 })).rejects.toBeInstanceOf(RunInProgressError);
     await service.finishRun(ref, undefined, 3_000);
     const done = await service.getSession(ref);
     expect((done as { run?: unknown }).run).toMatchObject({ status: "succeeded", endedAt: 3_000 });
-    await service.startRun(ref, 4_000);
-    await expect(service.startRun(ref, 5_000)).rejects.toBeInstanceOf(RunInProgressError);
-    await service.startRun(ref, 4_000 + 11 * 60_000);
+    await service.startRun(ref, { now: 4_000 });
+    await expect(service.startRun(ref, { now: 5_000 })).rejects.toBeInstanceOf(RunInProgressError);
+    await service.startRun(ref, { now: 4_000 + 11 * 60_000 });
+  });
+
+  test("a run records the mode it was hosted in, and the next run replaces it", async () => {
+    const key = newApp();
+    const service = newService();
+    const { id } = await service.createSession(key);
+    const ref = { ...key, sessionId: id };
+    const modeOf = async () => ((await service.getSession(ref)) as { run?: { mode?: string } }).run?.mode;
+    await service.startRun(ref, { mode: "quick" });
+    expect(await modeOf()).toBe("quick");
+    await service.finishRun(ref);
+    await service.startRun(ref);
+    expect(await modeOf()).toBeUndefined();
   });
 
   test("of two simultaneous runs exactly one starts", async () => {
@@ -364,7 +385,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     const session = await first.createSession(key);
     const ref = { ...key, sessionId: session.id };
     // The first run started long ago and its lease lapsed, so a second run takes the session over.
-    await first.startRun(ref, Date.now() - 11 * 60_000);
+    await first.startRun(ref, { now: Date.now() - 11 * 60_000 });
     await second.startRun(ref);
     const stale = await first.getSession(ref);
     const lost = await first.appendEvent({ session: stale!, event: reply("late") }).catch((e) => e);
@@ -433,11 +454,11 @@ describe("queued messages", () => {
     const f = fields();
     const service = new FirestoreSessionService(fakeDb(f).db, 5);
     await service.queueMessage(key, "answer", { now: 1_000 });
-    await service.startRun(key, 2_000);
+    await service.startRun(key, { now: 2_000 });
     expect(f.pendingMessage).toBe("answer");
     await service.finishRun(key, "boom");
     expect(f.pendingMessage).toBe("answer");
-    await service.startRun(key, 3_000);
+    await service.startRun(key, { now: 3_000 });
     await service.finishRun(key);
     expect(f.pendingMessage).toBeNull();
   });
@@ -446,7 +467,7 @@ describe("queued messages", () => {
     const f = fields();
     const service = new FirestoreSessionService(fakeDb(f).db, 5);
     await service.queueMessage(key, "one", { now: 1_000 });
-    await service.startRun(key, 2_000);
+    await service.startRun(key, { now: 2_000 });
     await service.finishRun(key, "boom", 3_000);
     await service.queueMessage(key, "two", { now: 4_000 });
     expect(f.pendingMessage).toBe("two");
@@ -466,7 +487,7 @@ describe("queued messages", () => {
   test("refuses a message while the session runs", async () => {
     const f = fields();
     const service = new FirestoreSessionService(fakeDb(f).db, 5);
-    await service.startRun(key, 1_000);
+    await service.startRun(key, { now: 1_000 });
     await expect(service.queueMessage(key, "x", { now: 2_000 })).rejects.toBeInstanceOf(
       RunInProgressError,
     );

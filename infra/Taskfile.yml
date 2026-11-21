@@ -10,7 +10,7 @@ tasks:
       - terraform -chdir=infra/envs/local init
 
   apply:
-    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq, and the knowledge job's Qdrant, embedding, Neo4j and Exa settings with bun
+    desc: Apply infra/envs/local to Floci with Terraform (jobs, extract service, topics); reads GEMINI_API_KEY, AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI and OTEL_* from .env with yq, and the knowledge job's Qdrant, embedding, Neo4j and Exa settings with bun. Set REDEPLOY=true to replace services whose local Docker image changed (FORCE=true replaces all)
     cmds:
       - |
         env_value() { yq -p props -oy ".$1 // \"\"" .env; }
@@ -21,7 +21,53 @@ tasks:
         export TF_VAR_otel_env="$(yq -p props -o=json -I=0 'with_entries(select((.key | test("^OTEL_")) and (.value != "")))' .env)"
         # bun reads .env as the ingestion CLI does; yq would keep the quotes around EMBEDDING_QUERY_PREFIX.
         export TF_VAR_knowledge_env="$(bun --env-file=.env -e 'const keys = ["QDRANT_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_API_KEY", "EMBEDDING_QUERY_PREFIX", "RERANK_MODEL", "RERANK_API_KEY", "NEO4J_USER", "NEO4J_PASSWORD", "EXA_API_KEY"]; console.log(JSON.stringify(Object.fromEntries(keys.flatMap((key) => (process.env[key] ? [[key, process.env[key]]] : [])))))')"
-        terraform -chdir=infra/envs/local apply
+
+        stamp_file="infra/envs/local/.deployed-images"
+        image_for() {
+          case "$1" in
+            module.stage.google_cloud_run_v2_service.extract) echo "stage/extract-service:latest" ;;
+            'module.stage.google_cloud_run_v2_service.service[0]') echo "stage/control-service:latest" ;;
+            module.stage.google_cloud_run_v2_service.agent_services\[*)
+              app="${1#module.stage.google_cloud_run_v2_service.agent_services[\"}"
+              app="${app%\"]}"
+              echo "stage/$app-agents:latest"
+              ;;
+          esac
+        }
+        set --
+        if [ "{{.REDEPLOY}}" = "true" ]; then
+          while IFS= read -r addr; do
+            [ -n "$addr" ] || continue
+            if [ "{{.FORCE}}" = "true" ]; then
+              set -- "$@" "-replace=$addr"
+              continue
+            fi
+            img="$(image_for "$addr")"
+            id="$(docker image inspect --format '{{"{{"}}.Id{{"}}"}}' "$img" 2>/dev/null || true)"
+            prev="$(grep -F "${addr}=" "$stamp_file" 2>/dev/null | head -n1 | cut -d= -f2- || true)"
+            if [ -z "$id" ] || [ -z "$prev" ] || [ "$prev" != "$id" ]; then
+              set -- "$@" "-replace=$addr"
+            fi
+          done <<EOF
+        $(terraform -chdir=infra/envs/local state list 2>/dev/null | grep '^module\.stage\.google_cloud_run_v2_service\.' || true)
+        EOF
+        fi
+
+        terraform -chdir=infra/envs/local apply "$@" {{.CLI_ARGS}}
+
+        if [ "{{.REDEPLOY}}" = "true" ] || [ ! -f "$stamp_file" ]; then
+          tmp_stamp="$(mktemp)"
+          while IFS= read -r addr; do
+            [ -n "$addr" ] || continue
+            img="$(image_for "$addr")"
+            [ -n "$img" ] || continue
+            id="$(docker image inspect --format '{{"{{"}}.Id{{"}}"}}' "$img" 2>/dev/null || true)"
+            [ -z "$id" ] || printf '%s=%s\n' "$addr" "$id" >> "$tmp_stamp"
+          done <<EOF
+        $(terraform -chdir=infra/envs/local state list 2>/dev/null | grep '^module\.stage\.google_cloud_run_v2_service\.' || true)
+        EOF
+          mv "$tmp_stamp" "$stamp_file"
+        fi
 
   import:
     desc: Import Floci topics and jobs created outside Terraform into the local state; skips what is already in state. A job in JOBS that Floci does not have yet (for example knowledge-agents before the first `task tf:apply`) cannot be imported, so apply first or set JOBS to the existing ones

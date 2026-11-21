@@ -8,3 +8,4 @@ backend.hcl
 *.tfplan
 tfplan
 crash.log
+.deployed-images

@@ -22,6 +22,7 @@ import {
   isQuickServiceAvailable,
   resolveEffectiveRunMode,
   rootChatTasks,
+  targetLabel,
 } from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 import { useAssistantChat } from "./use-assistant-chat";
@@ -181,11 +182,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
       ? "The assistant is still responding…"
       : undefined;
 
-  const activeLabel = chat.activeTarget
-    ? chat.activeTarget.agentName
-      ? `${chat.activeTarget.agentName} · ${chat.activeTarget.jobName}`
-      : chat.activeTarget.jobName
-    : undefined;
+  const activeLabel = chat.activeTarget ? targetLabel(chat.activeTarget) : undefined;
 
   const handleSubmit = () => {
     if (!chat.activeTarget || !draft.trim()) return;
