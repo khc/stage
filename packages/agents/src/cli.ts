@@ -171,7 +171,7 @@ export const runCli = async (set: AgentSet, argv = process.argv, env = process.e
   const mode = argv[2];
   const deps = () =>
     [
-      createRunAgent(set, { db }),
+      createRunAgent(set, { db, mode: mode === "serve" ? "quick" : "workflow" }),
       createGetTask(db),
       createGetMessage(sessions),
       createGetMessageModel(sessions),

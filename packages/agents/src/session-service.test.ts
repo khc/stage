@@ -233,6 +233,13 @@ describe("runState", () => {
   test("reports a live run as running", () => {
     expect(runState(base, 500)).toEqual({ status: "running", startedAt: 100 });
   });
+  test("reports the mode the run was hosted in", () => {
+    expect(runState({ ...base, runMode: "quick" }, 500)).toEqual({
+      status: "running",
+      startedAt: 100,
+      mode: "quick",
+    });
+  });
   test("reports a run whose lease lapsed as failed", () => {
     expect(runState(base, 2_000)).toEqual({
       status: "failed",

@@ -11,6 +11,7 @@ import {
   buildPrompt,
   parseJsonObject,
   promptError,
+  quickServiceName,
   schemaFields,
   schemaRows,
   schemaSummary,
@@ -463,4 +464,10 @@ test("taskTitle prefers the task name and falls back for legacy tasks", () => {
     "Document analyser",
   );
   expect(taskTitle({ taskId: "t", prompt: "{}" })).toBe("Untitled task");
+});
+
+test("quickServiceName names the quick service of a job", () => {
+  expect(quickServiceName("stage--knowledge-agents--job-lcl")).toBe(
+    "stage--knowledge-agents--svc-lcl",
+  );
 });

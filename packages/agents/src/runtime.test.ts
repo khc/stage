@@ -171,8 +171,19 @@ test("records a succeeded run around a successful execution", async () => {
   });
   await run("hi");
   const key = { appName: "stage", userId: "user", sessionId: "s1" };
-  expect(sessionService.startRun).toHaveBeenCalledWith(key);
+  expect(sessionService.startRun).toHaveBeenCalledWith(key, undefined, undefined);
   expect(sessionService.finishRun).toHaveBeenCalledWith(key);
+});
+
+test("records the mode of the host on the run", async () => {
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })), ...runs() };
+  const runAsync = async function* () {
+    yield reply("done");
+  };
+  await createTaskAgent({ sessionService, runAsync } as never, undefined, undefined, undefined, "quick")(
+    "hi",
+  );
+  expect(sessionService.startRun).toHaveBeenCalledWith(expect.anything(), undefined, "quick");
 });
 
 test("a failed success write is logged and does not fail the run", async () => {
@@ -225,7 +236,7 @@ test("resumes a session under the app and user it was created with", async () =>
 
   expect(await run("more", taskId, "s9")).toBe("again");
   expect(getSession).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
-  expect(sessionService.startRun).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
+  expect(sessionService.startRun).toHaveBeenCalledWith({ ...owner, sessionId: "s9" }, undefined, undefined);
   expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: "legacy" }));
 });
 

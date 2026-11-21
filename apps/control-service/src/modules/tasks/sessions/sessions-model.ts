@@ -14,7 +14,15 @@ export const SessionsModel = {
     appName: t.String(),
     userId: t.String(),
     lastUpdateTime: t.Number(),
-    run: t.Optional(t.Object({ status: t.String() }, { additionalProperties: true })),
+    run: t.Optional(
+      t.Object(
+        {
+          status: t.String(),
+          mode: t.Optional(t.Union([t.Literal("quick"), t.Literal("workflow")])),
+        },
+        { additionalProperties: true },
+      ),
+    ),
   }),
   stats: t.Object({
     events: t.Number(),

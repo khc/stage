@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ArrowUp, Clock3, Terminal, Upload, FileText } from "lucide-react";
+import { ArrowRight, ArrowUp, Box, Clock3, FileText, Terminal, Upload, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ReasoningTrace, ToolTrace, Trace } from "@/components/agent-trace";
@@ -33,6 +33,7 @@ import {
   formatTime,
   lastOutput,
   parseJsonObject,
+  quickServiceName,
   streamMessages,
   withEvent,
   type AgentInfo,
@@ -83,6 +84,22 @@ export function RunBadge({ run }: { run?: RunState }) {
     <Badge variant={variant} title={run.error}>
       {run.status === "running" && <Spinner />}
       {label}
+    </Badge>
+  );
+}
+
+// Where a run was hosted: a quick run on the job's service, a workflow run as the job itself.
+export function RunHostBadge({ run, jobName }: { run?: RunState; jobName?: string }) {
+  if (!run?.mode || !jobName) return null;
+  const quick = run.mode === "quick";
+  return (
+    <Badge
+      variant="outline"
+      className="font-mono"
+      title={quick ? "Quick run on the agent service" : "Workflow run as a Cloud Run job"}
+    >
+      {quick ? <Zap /> : <Box />}
+      {quick ? quickServiceName(jobName) : jobName}
     </Badge>
   );
 }

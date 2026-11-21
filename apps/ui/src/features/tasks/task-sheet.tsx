@@ -41,6 +41,7 @@ import { useTasks } from "@/lib/queries";
 import {
   SessionComposer,
   RunBadge,
+  RunHostBadge,
   DeleteSession,
   EventCard,
   LastOutput,
@@ -216,6 +217,7 @@ function TaskDetails({ taskId }: { taskId: string }) {
                       {detail.data.events.length} events
                     </span>
                     <RunBadge run={detail.data.run} />
+                    <RunHostBadge run={detail.data.run} jobName={data.jobName} />
                     <span className="ml-auto flex">
                       <DeleteSession
                         taskId={taskId}

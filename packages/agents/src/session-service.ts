@@ -15,6 +15,7 @@ import {
 } from "@google/adk";
 
 import { modelRefSchema, type ModelRef } from "./model-ref";
+import type { RunMode } from "./run-mode";
 
 const SESSIONS = "sessions";
 const EVENTS = "events";
@@ -31,6 +32,8 @@ export type RunState = {
   startedAt: number;
   endedAt?: number;
   error?: string;
+  // How the run was hosted; absent on runs recorded before it was kept.
+  mode?: RunMode;
 };
 export class MessageQueuedError extends Error {
   constructor() {
@@ -58,6 +61,7 @@ type RunFields = {
   runEndedAt?: number | null;
   runError?: string | null;
   runLeaseUntil?: number;
+  runMode?: RunMode | null;
 };
 const isLive = (f: RunFields, now: number) =>
   f.runStatus === "running" && (f.runLeaseUntil ?? 0) > now;
@@ -69,6 +73,7 @@ export const runState = (f: RunFields, now = Date.now()): RunState | undefined =
   return {
     status: stalled ? "failed" : f.runStatus,
     startedAt: f.runStartedAt,
+    ...(f.runMode && { mode: f.runMode }),
     ...(stalled
       ? { endedAt: f.runLeaseUntil, error: "The run stopped responding" }
       : {
@@ -83,6 +88,7 @@ export const runFields = (doc: { get: (field: string) => unknown }): RunFields =
   runEndedAt: doc.get("runEndedAt") as number | null | undefined,
   runError: doc.get("runError") as string | null | undefined,
   runLeaseUntil: doc.get("runLeaseUntil") as number | undefined,
+  runMode: doc.get("runMode") as RunMode | null | undefined,
 });
 
 const MAX_SESSION_NAME = 120;
@@ -336,7 +342,7 @@ export class FirestoreSessionService extends BaseSessionService {
     }
   }
 
-  async startRun(key: CompositeSessionKey, now = Date.now()): Promise<void> {
+  async startRun(key: CompositeSessionKey, now = Date.now(), mode?: RunMode): Promise<void> {
     const ref = this.ref(key);
     const runId = crypto.randomUUID();
     await this.db.runTransaction(async (tx) => {
@@ -349,6 +355,7 @@ export class FirestoreSessionService extends BaseSessionService {
         runStartedAt: now,
         runEndedAt: null,
         runError: null,
+        runMode: mode ?? null,
         runLeaseUntil: now + RUN_LEASE_MS,
       });
     });

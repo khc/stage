@@ -4,6 +4,7 @@ import { annotateJob } from "@stage/http/otel";
 
 import { publisherFromEnv, type PublishEvent } from "./event-publisher";
 import { runWithModel } from "./model";
+import type { RunMode } from "./run-mode";
 import { FirestoreSessionService, toSessionName } from "./session-service";
 import { checkInput, type AgentSet } from "./spec";
 
@@ -83,6 +84,7 @@ export const createTaskAgent =
     publish?: PublishEvent,
     owner: Owner = defaultOwner,
     validateFirstTurn?: (message: string) => void,
+    mode?: RunMode,
   ): RunAgent =>
   async (message, taskId, sessionId, _agentName, resolveModel, abortSignal) => {
     let session;
@@ -104,7 +106,7 @@ export const createTaskAgent =
       "gcp.vertex.agent.session_id": session.id,
       "gen_ai.conversation.id": session.id,
     });
-    await runner.sessionService.startRun(key);
+    await runner.sessionService.startRun(key, undefined, mode);
     let reply: string;
     try {
       const llm = await resolveModel?.();
@@ -130,7 +132,8 @@ export const createRunAgent = (
   {
     db = new Firestore(),
     publish = publisherFromEnv(process.env),
-  }: { db?: Firestore; publish?: PublishEvent } = {},
+    mode,
+  }: { db?: Firestore; publish?: PublishEvent; mode?: RunMode } = {},
 ): RunAgent => {
   const sessionService = new FirestoreSessionService(db);
   sessionService.onUserEvent = async (event, { id, taskId }) =>
@@ -146,6 +149,7 @@ export const createRunAgent = (
     // Turn 1 validates against `inputSchema` (even on pre-created empty sessions); follow-ups are free text.
     return createTaskAgent({ sessionService, runAsync }, publish, owner, (text) =>
       checkInput(spec, text),
+      mode,
     )(message, taskId, sessionId, agentName, resolveModel, abortSignal);
   };
 };

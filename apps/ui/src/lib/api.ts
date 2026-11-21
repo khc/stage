@@ -446,6 +446,8 @@ export const buildPrompt = (
   return { prompt: JSON.stringify(result) };
 };
 export const shortJobName = (job: Job) => job.name?.split("/").at(-1) ?? "Unnamed job";
+// A job's quick service is named like the job, with `svc` in place of `job` (docs/naming-rules.md).
+export const quickServiceName = (jobName: string) => jobName.replace(/--job-/, "--svc-");
 // ADK records event/session timestamps in milliseconds in this repository.
 export const formatTime = (timestamp: number) =>
   new Date(timestamp).toLocaleString(undefined, {
