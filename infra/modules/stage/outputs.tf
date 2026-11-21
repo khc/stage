@@ -25,3 +25,13 @@ output "agent_job_names" {
 output "platform_events_topic" {
   value = google_pubsub_topic.events[var.platform_events_topic].name
 }
+
+output "agent_service_urls" {
+  value       = { for app, service in google_cloud_run_v2_service.agent_services : app => service.uri }
+  description = "App name => URL of its agent service."
+}
+
+output "agent_services" {
+  value       = jsonencode(local.agent_services)
+  description = "The value of AGENT_SERVICES for an HTTP service that Terraform does not deploy (a service run on the host): job name => agent service URL."
+}

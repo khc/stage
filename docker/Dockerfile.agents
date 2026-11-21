@@ -6,7 +6,9 @@
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
 # and the Gemini credentials. With the argument `register` the container records
-# its agents for the job named by JOB_NAME instead of running a task.
+# its agents for the job named by JOB_NAME instead of running a task. With the
+# argument `serve` it runs as an HTTP service (PORT, default 8080) that runs tasks
+# on `POST /run`: the quick host of the same agents, deployed as a Cloud Run service.
 ARG BUN_BUILD_IMAGE=oven/bun:1.4.4-slim
 ARG BUN_IMAGE=oven/bun:1.4.4-distroless
 

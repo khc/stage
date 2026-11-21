@@ -288,3 +288,36 @@ test("with no other agent to call, the model is not forced to call one", async (
   expect(events.length).toBeGreaterThan(0);
   expect(mode).toBeUndefined();
 });
+
+test("the instruction says when to use quick and workflow, to retry a missed quick as workflow, and that a workflow reply is a receipt", () => {
+  const instruction = String(orchestratorAgent.instruction);
+  expect(instruction).toMatch(/quick.*lookup or a single answer/s);
+  expect(instruction).toMatch(/workflow.*multi-step or long/s);
+  expect(instruction).toContain("retry it once as workflow");
+  expect(instruction).toContain("receipt");
+  expect(instruction).toContain("task id");
+  expect(instruction).toContain("do not present it as the answer");
+});
+
+test("a mode the model picks reaches the gateway in the message metadata", async () => {
+  const toolset = new RemoteAgentsToolset({
+    registry: () => ({
+      listAll: async () => [
+        {
+          jobName: "generic-agents",
+          name: "assistant",
+          inputSchema: { type: "string" },
+          modes: ["quick", "workflow"] as ("quick" | "workflow")[],
+        },
+      ],
+    }),
+    env: { GATEWAY_URL: `http://127.0.0.1:${gateway.port}` },
+  });
+  const [tool] = await toolset.getTools({ invocationId: "i" } as never);
+  sent.length = 0;
+  for (const mode of ["quick", "workflow"])
+    await tool!.runAsync({ args: { request: "hi", mode }, toolContext: undefined as never });
+  expect(
+    sent.map((params) => (params as { message: { metadata: unknown } }).message.metadata),
+  ).toMatchObject([{ "stage:mode": "quick" }, { "stage:mode": "workflow" }]);
+});

@@ -12,6 +12,9 @@ module "stage" {
   deploy_service        = true
   extract_ingress       = "INGRESS_TRAFFIC_ALL"
   service_ingress       = "INGRESS_TRAFFIC_ALL"
+  # Quick hosts: the generic image also runs as a service. Floci has no IAM, so ingress is open here.
+  agent_service_apps    = var.agent_service_apps
+  agent_service_ingress = "INGRESS_TRAFFIC_ALL"
 
   service_env = {
     FIRESTORE_EMULATOR_HOST = var.emulator_host

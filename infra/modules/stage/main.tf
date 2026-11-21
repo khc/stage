@@ -11,9 +11,20 @@ locals {
     var.use_vertexai == null ? {} : { GOOGLE_GENAI_USE_VERTEXAI = var.use_vertexai },
   )
 
-  # agent_env for every job, plus what only that app's job needs (such as its own API keys).
+  # agent_env for every job, plus what only that app's job needs (such as its own API keys). An app with
+  # an agent service also sets AGENT_QUICK, so its agents register the `quick` mode (see registerMain).
   job_env = {
-    for app in var.agent_apps : app => merge(local.agent_env, lookup(var.agent_app_env, app, {}))
+    for app in var.agent_apps : app => merge(
+      local.agent_env,
+      lookup(var.agent_app_env, app, {}),
+      contains(var.agent_service_apps, app) ? { AGENT_QUICK = "true" } : {},
+    )
+  }
+
+  # Job name => URL of its agent service: the platform service's AGENT_SERVICES.
+  agent_services = {
+    for app, service in google_cloud_run_v2_service.agent_services :
+    "${var.name_prefix}${app}-agents" => service.uri
   }
 
   service_env = merge(
@@ -26,6 +37,8 @@ locals {
       PLATFORM_EVENTS_TOPIC = var.platform_events_topic
     },
     var.set_extract_audience ? { EXTRACT_AUDIENCE = google_cloud_run_v2_service.extract.uri } : {},
+    length(local.agent_services) > 0 ? { AGENT_SERVICES = jsonencode(local.agent_services) } : {},
+    var.set_agent_services_audience ? { AGENT_SERVICES_ID_TOKEN = "true" } : {},
     var.service_env,
   )
 }
@@ -81,6 +94,81 @@ resource "google_cloud_run_v2_job" "agents" {
       }
     }
   }
+}
+
+# The quick host of an agent app: the job's image run as an HTTP service with the `serve` argument, on the
+# same env and secrets as the job. It answers POST /run for the platform service (apps/service).
+resource "google_cloud_run_v2_service" "agent_services" {
+  for_each            = var.agent_service_apps
+  name                = "${var.name_prefix}${each.key}-agents-svc"
+  location            = var.region
+  ingress             = var.agent_service_ingress
+  deletion_protection = var.deletion_protection
+
+  lifecycle {
+    precondition {
+      condition     = contains(var.agent_apps, each.key)
+      error_message = "agent_service_apps entry ${each.key} is not in agent_apps."
+    }
+  }
+
+  template {
+    timeout                          = var.agent_service_timeout
+    service_account                  = var.agent_service_account
+    max_instance_request_concurrency = var.agent_service_concurrency
+
+    scaling {
+      min_instance_count = var.agent_service_scaling.min_instance_count
+      max_instance_count = var.agent_service_scaling.max_instance_count
+    }
+
+    containers {
+      image = "${var.image_prefix}stage-${each.key}${local.image_sep}${var.image_tag}"
+      args  = ["serve"]
+
+      ports {
+        container_port = 8080
+      }
+
+      resources {
+        limits = {
+          cpu    = var.agent_resources.cpu
+          memory = var.agent_resources.memory
+        }
+      }
+
+      dynamic "env" {
+        for_each = nonsensitive(keys(local.job_env[each.key]))
+        content {
+          name  = env.value
+          value = local.job_env[each.key][env.value]
+        }
+      }
+
+      dynamic "env" {
+        for_each = nonsensitive(keys(var.agent_secret_env))
+        content {
+          name = env.value
+          value_source {
+            secret_key_ref {
+              secret  = var.agent_secret_env[env.value]
+              version = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Only the HTTP service's account may call an agent service. Without a named account the service runs as
+# the default one, and the binding is left to the environment.
+resource "google_cloud_run_v2_service_iam_member" "agent_services_invoker" {
+  for_each = var.service_service_account == null ? toset([]) : var.agent_service_apps
+  name     = google_cloud_run_v2_service.agent_services[each.key].name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.service_service_account}"
 }
 
 resource "google_cloud_run_v2_service" "extract" {

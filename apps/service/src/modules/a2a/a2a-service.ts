@@ -9,6 +9,7 @@ import {
 } from "@a2a-js/sdk/server";
 import { isFinalResponse, stringifyContent } from "@google/adk";
 import { A2A_PARENT_KEY, parentRefSchema, type ParentRef } from "@stage/agents/parent-ref";
+import { A2A_MODE_KEY, runModeSchema, type RunMode } from "@stage/agents/run-mode";
 import { promptSchema } from "@stage/agents/task-contract";
 
 import { guard } from "../../errors";
@@ -18,6 +19,7 @@ import type { TasksService } from "../tasks/tasks-service";
 import {
   A2A_CARD_VERSION,
   A2A_MAX_IN_FLIGHT,
+  A2A_MAX_WORKFLOWS_PER_MINUTE,
   A2A_PROTOCOL_VERSION,
   A2A_STREAMING_METHODS,
   A2A_TASKS_KEPT,
@@ -40,6 +42,8 @@ export type A2aConfig = {
   timeoutMs?: number;
   // Delegated runs waited for at once; one more is refused.
   maxInFlight?: number;
+  // Workflow runs started per minute; they are not waited for, so this bounds them instead.
+  maxWorkflowsPerMinute?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 };
@@ -70,6 +74,13 @@ const lastReply = (events: Parameters<typeof isFinalResponse>[0][] = []) => {
   return final ? stringifyContent(final).trim() : "";
 };
 
+// The run mode the caller asks for; an absent or unknown value leaves the run to go the default way.
+const modeOf = (metadata: Message["metadata"]): RunMode | undefined => {
+  if (!metadata || !(A2A_MODE_KEY in metadata)) return undefined;
+  const mode = runModeSchema.safeParse(metadata[A2A_MODE_KEY]);
+  return mode.success ? mode.data : undefined;
+};
+
 const status = (state: "submitted" | "working" | "completed" | "failed", note?: string) => ({
   state,
   timestamp: new Date().toISOString(),
@@ -89,6 +100,7 @@ export const createA2aService = (
     pollMs = 2_000,
     timeoutMs = 240_000,
     maxInFlight = A2A_MAX_IN_FLIGHT,
+    maxWorkflowsPerMinute = A2A_MAX_WORKFLOWS_PER_MINUTE,
     now = Date.now,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   }: A2aConfig = {},
@@ -110,6 +122,17 @@ export const createA2aService = (
     }
     console.warn("A2A parent reference ignored");
     return undefined;
+  };
+
+  // When the workflow runs of the last minute started. The count is for the whole gateway, like the
+  // in-flight cap, not per caller.
+  const workflowStarts: number[] = [];
+  const mayStartWorkflow = () => {
+    const minuteAgo = now() - 60_000;
+    while (workflowStarts.length && workflowStarts[0]! <= minuteAgo) workflowStarts.shift();
+    if (workflowStarts.length >= maxWorkflowsPerMinute) return false;
+    workflowStarts.push(now());
+    return true;
   };
 
   let inFlight = 0;
@@ -153,8 +176,13 @@ export const createA2aService = (
       if (!prompt) return finish("failed", "Only text parts are supported.");
       if (!prompt.success)
         return finish("failed", "The message must have 1 to 10000 characters of text.");
+      // A workflow run is not waited for, so it holds a slot only while it starts and is limited
+      // by how many start per minute instead.
+      const mode = modeOf(userMessage.metadata);
       if (inFlight >= maxInFlight)
         return finish("failed", "Too many delegated runs are in flight; try again later.");
+      if (mode === "workflow" && !mayStartWorkflow())
+        return finish("failed", "Too many workflow runs were started; try again later.");
       // Text another agent wrote must not start with the discovery agent's explicit-query line.
       const message = prompt.data.replace(WEB_SEARCH_PREFIX, "Web search -");
 
@@ -171,9 +199,38 @@ export const createA2aService = (
         if (created.status !== "created")
           return finish("failed", `Cannot run the agent: ${created.status}.`);
         const { taskId: platformTaskId } = created.task;
-        const started = await tasksService.run(platformTaskId, { message });
+        const started =
+          mode === "quick"
+            ? await tasksService.run(platformTaskId, { message }, "quick")
+            : await tasksService.run(platformTaskId, { message });
+        if (started.status === "quick_timeout")
+          return finish(
+            "failed",
+            "The quick run exceeded its time budget and may have partly run; ask again with mode workflow.",
+          );
+        if (started.status === "quick_unavailable")
+          return finish("failed", "The agent has no quick mode; ask again with mode workflow.");
         if (started.status !== "started" || !started.sessionId)
           return finish("failed", `Cannot run the agent: ${started.status}.`);
+
+        if (mode === "workflow") {
+          bus.publish({
+            kind: "artifact-update",
+            taskId,
+            contextId,
+            artifact: {
+              artifactId: crypto.randomUUID(),
+              name: "reply",
+              parts: [
+                {
+                  kind: "text",
+                  text: `Started workflow task ${platformTaskId} (session ${started.sessionId}). It runs in the background; follow it in the UI at /tasks/${platformTaskId}.`,
+                },
+              ],
+            },
+          });
+          return finish("completed");
+        }
 
         const deadline = now() + timeoutMs;
         for (;;) {

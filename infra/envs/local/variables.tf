@@ -31,6 +31,12 @@ variable "agent_apps" {
   default = ["generic", "poet", "knowledge", "orchestrator"]
 }
 
+variable "agent_service_apps" {
+  type        = set(string)
+  default     = ["generic"]
+  description = "The agent apps that also run as a quick service in Floci (a subset of agent_apps). Set AGENT_SERVICES for the service from the agent_services output."
+}
+
 variable "gateway_url" {
   type        = string
   default     = "http://host.docker.internal:3000"

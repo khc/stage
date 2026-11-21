@@ -166,3 +166,115 @@ test.each([
   await toolset.getTools(context("i1", sessionId));
   expect(configs.every((config) => config.beforeRequestCallbacks === undefined)).toBe(true);
 });
+
+// Agents with run modes: one supports both, one only quick, one none (as before).
+const withModes = (env: Record<string, string | undefined> = {}) => {
+  const configs: RemoteA2AAgentConfig[] = [];
+  const toolset = new RemoteAgentsToolset({
+    registry: () => ({
+      listAll: async () => [
+        {
+          jobName: "generic-agents",
+          name: "assistant",
+          modes: ["quick", "workflow"] as ("quick" | "workflow")[],
+        },
+        { jobName: "generic-agents", name: "lookup", modes: ["quick"] as ("quick" | "workflow")[] },
+        { jobName: "generic-agents", name: "plain" },
+      ],
+    }),
+    env: { GATEWAY_URL: "http://gateway.test", ...env },
+    // The agent is never reached: a call fails once it has been built, which is all these tests need.
+    remoteAgent: (config) => {
+      configs.push(config);
+      return { name: config.name, description: config.description } as RemoteA2AAgent;
+    },
+  });
+  return { toolset, configs };
+};
+const toolNamed = async (toolset: RemoteAgentsToolset, name: string) =>
+  (await toolset.getTools(context("i1", "s-1"))).find((tool) => tool.name === name) as FunctionTool;
+// ADK has no public accessor for the declaration the model is shown.
+const declarationOf = (tool: FunctionTool) => tool["_getDeclaration"]();
+const call = (tool: FunctionTool, args: Record<string, unknown>) =>
+  tool.runAsync({ args, toolContext: undefined as never }).catch(() => {});
+const metadataOf = async (config: RemoteA2AAgentConfig) => {
+  const params: { message: { metadata?: Record<string, unknown> } } = { message: {} };
+  for (const callback of config.beforeRequestCallbacks ?? [])
+    await callback({} as never, params as never);
+  return params.message.metadata;
+};
+
+test("an agent with modes takes a mode among the ones it supports; one without keeps its schema", async () => {
+  const { toolset } = withModes();
+  const parameters = async (name: string) =>
+    (
+      declarationOf(await toolNamed(toolset, name)) as {
+        parameters: { properties: Record<string, { enum?: string[] }>; required: string[] };
+      }
+    ).parameters;
+
+  const both = await parameters("generic-agents__assistant");
+  expect(both.properties.mode?.enum).toEqual(["quick", "workflow"]);
+  expect(both.required).toEqual(["request", "mode"]);
+  expect((await parameters("generic-agents__lookup")).properties.mode?.enum).toEqual(["quick"]);
+  const plain = await parameters("generic-agents__plain");
+  expect(plain.properties).not.toHaveProperty("mode");
+  expect(plain.required).toEqual(["request"]);
+
+  const tools = await toolset.getTools(context("i1"));
+  expect(tools[0]!.description).toContain("quick, workflow");
+  expect(tools[2]!.description).not.toContain("quick");
+});
+
+test("the mode parameter tells the model when to use each mode", async () => {
+  const { toolset } = withModes();
+  const declaration = declarationOf(await toolNamed(toolset, "generic-agents__assistant")) as {
+    parameters: { properties: { mode: { description: string } } };
+  };
+  const described = declaration.parameters.properties.mode.description;
+  expect(described).toMatch(/quick.*(lookup|single answer).*waits/is);
+  expect(described).toMatch(/workflow.*(multi-step|long).*background/is);
+});
+
+test("builds one remote agent per agent and mode, on first use, and keeps it", async () => {
+  const { toolset, configs } = withModes();
+  const assistant = await toolNamed(toolset, "generic-agents__assistant");
+  // Agents with modes are built on use; the one without is built with the tools, as before.
+  expect(configs.map((config) => config.name)).toEqual(["generic-agents__plain"]);
+
+  await call(assistant, { request: "a", mode: "quick" });
+  await call(assistant, { request: "b", mode: "quick" });
+  await call(assistant, { request: "c", mode: "workflow" });
+  expect(configs.map((config) => config.name)).toEqual([
+    "generic-agents__plain",
+    "generic-agents__assistant",
+    "generic-agents__assistant",
+  ]);
+});
+
+test("each mode's agent sends its own mode, next to the parent reference, with no shared state", async () => {
+  const { toolset, configs } = withModes({ TASK_ID: taskId });
+  const assistant = await toolNamed(toolset, "generic-agents__assistant");
+  await Promise.all([
+    call(assistant, { request: "a", mode: "quick" }),
+    call(assistant, { request: "b", mode: "workflow" }),
+  ]);
+  const [quick, workflow] = configs.filter((config) => config.name === "generic-agents__assistant");
+  expect(await metadataOf(quick!)).toEqual({
+    "stage:parent": { taskId, sessionId: "s-1" },
+    "stage:mode": "quick",
+  });
+  expect(await metadataOf(workflow!)).toEqual({
+    "stage:parent": { taskId, sessionId: "s-1" },
+    "stage:mode": "workflow",
+  });
+});
+
+test("without a parent, a mode is still sent, and an agent without modes sends none", async () => {
+  const { toolset, configs } = withModes();
+  await call(await toolNamed(toolset, "generic-agents__lookup"), { request: "a", mode: "quick" });
+  const lookup = configs.find((config) => config.name === "generic-agents__lookup")!;
+  expect(await metadataOf(lookup)).toEqual({ "stage:mode": "quick" });
+  const plain = configs.find((config) => config.name === "generic-agents__plain")!;
+  expect(plain.beforeRequestCallbacks).toBeUndefined();
+});

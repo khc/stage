@@ -2,7 +2,7 @@ import { createAgentRegistry } from "@stage/agents/agent-registry";
 import { Elysia } from "elysia";
 
 import { createApp, type AppDeps } from "./app";
-import { loadConfig, parseAllowedJobs } from "./config";
+import { loadConfig, parseAgentServices, parseAllowedJobs } from "./config";
 import { createA2aService } from "./modules/a2a/a2a-service";
 import { createAgentsService } from "./modules/agents/agents-service";
 import { createEventsService } from "./modules/events/events-service";
@@ -16,6 +16,7 @@ import { createSessionsService } from "./modules/tasks/sessions/sessions-service
 import { createSessionsStore } from "./modules/tasks/sessions/sessions-store";
 import { createTasksService } from "./modules/tasks/tasks-service";
 import { createTasksStore } from "./modules/tasks/tasks-store";
+import { createAgentServices } from "./platform/agent-services-client";
 import { createCloudRunJobs, createJobsClient } from "./platform/cloud-run-jobs-client";
 import { createExtractClient } from "./platform/extract-client";
 import { createFirestoreClient } from "./platform/firestore-client";
@@ -64,6 +65,14 @@ const cloudRunJobs = published(
   }),
 );
 
+// Created only when quick services are configured; without them every quick run is unavailable.
+const agentServices = config.AGENT_SERVICES
+  ? createAgentServices(parseAgentServices(config.AGENT_SERVICES), {
+      timeoutMs: config.QUICK_BUDGET_MS ?? 60_000,
+      ...(config.AGENT_SERVICES_ID_TOKEN && { authorization: createIdTokenAuthorization }),
+    })
+  : undefined;
+
 const allowedJobs = parseAllowedJobs(config.AGENT_JOBS);
 if (!allowedJobs) console.warn("AGENT_JOBS is *: any Cloud Run job in the project can be run");
 const sessionEventStream =
@@ -79,6 +88,7 @@ const tasksService = createTasksService({
   agentRegistry,
   providersStore,
   cloudRunJobs,
+  agentServices,
   sessionsStore,
   documentsStore,
   allowedJobs,

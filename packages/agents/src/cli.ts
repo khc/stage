@@ -6,6 +6,7 @@ import { createAgentRegistry, type AgentInfo, type AgentRegistry } from "./agent
 import type { ModelRef } from "./model-ref";
 import { ModelUnavailableError, createModelResolver, type ResolveModel } from "./provider-models";
 import { appName, createRunAgent, userId, type ResolveRunModel, type RunAgent } from "./runtime";
+import { createServeHandler, type RunTaskInput } from "./serve";
 import { FirestoreSessionService } from "./session-service";
 import { describeAgents, type AgentSet } from "./spec";
 import { createGetTask, promptSchema, type GetTask } from "./task-contract";
@@ -55,6 +56,32 @@ const modelFor = (
 
 const taskIdSchema = z.uuid().transform((id) => id.toLowerCase());
 
+// Runs one task: loads its contract, picks the message (the stored prompt, or the queued one when
+// resuming a session) and runs the agent. The job and the service both run tasks through it; it
+// throws on any failure.
+export const runTask = async (
+  { taskId, sessionId }: RunTaskInput,
+  run: RunAgent,
+  getTask: GetTask,
+  getMessage: GetMessage,
+  getMessageModel: GetMessageModel = async () => undefined,
+  resolveModel?: ResolveModel,
+  signal?: AbortSignal,
+): Promise<string> => {
+  annotateJob({ "stage.task_id": taskId });
+  const contract = await getTask(taskId);
+  if (!contract) throw new Error("Task contract not found");
+  if (!promptSchema.safeParse(contract.prompt).success)
+    throw new Error("Task contract has an invalid prompt");
+  const message = sessionId ? await getMessage(taskId, sessionId) : contract.prompt;
+  if (!promptSchema.safeParse(message).success)
+    throw new Error("No queued message to resume this session");
+  const messageModel = sessionId ? await getMessageModel(sessionId) : undefined;
+  const model = resolveModel && modelFor(messageModel, contract.defaultModel, resolveModel);
+  const extra: [ResolveRunModel?, AbortSignal?] = signal ? [model, signal] : model ? [model] : [];
+  return run(message!, taskId, sessionId, contract.agentName, ...extra);
+};
+
 export const main = async (
   env: Record<string, string | undefined>,
   run: RunAgent,
@@ -68,22 +95,17 @@ export const main = async (
     console.error("TASK_ID is required and must be a UUID");
     return 1;
   }
-  annotateJob({ "stage.task_id": id.data });
   try {
-    const contract = await getTask(id.data);
-    if (!contract) throw new Error("Task contract not found");
-    if (!promptSchema.safeParse(contract.prompt).success)
-      throw new Error("Task contract has an invalid prompt");
     const sessionId = env.SESSION_ID || undefined;
-    const message = sessionId ? await getMessage(id.data, sessionId) : contract.prompt;
-    if (!promptSchema.safeParse(message).success)
-      throw new Error("No queued message to resume this session");
-    const messageModel = sessionId ? await getMessageModel(sessionId) : undefined;
-    const model = resolveModel && modelFor(messageModel, contract.defaultModel, resolveModel);
     console.log(
-      await (model
-        ? run(message!, id.data, sessionId, contract.agentName, model)
-        : run(message!, id.data, sessionId, contract.agentName)),
+      await runTask(
+        { taskId: id.data, ...(sessionId && { sessionId }) },
+        run,
+        getTask,
+        getMessage,
+        getMessageModel,
+        resolveModel,
+      ),
     );
     return 0;
   } catch (err) {
@@ -93,6 +115,16 @@ export const main = async (
 };
 
 const jobNameSchema = z.string().min(1);
+
+// An agent advertises `quick` only where its service is deployed: Terraform sets AGENT_QUICK on the
+// job of such an app. Without it the mode is dropped, and an agent left with no modes is job only.
+const withHostedModes = (env: Record<string, string | undefined>, agents: AgentInfo[]) =>
+  env.AGENT_QUICK === "true"
+    ? agents
+    : agents.map(({ modes, ...agent }): AgentInfo => {
+        const hosted = modes?.filter((mode) => mode !== "quick");
+        return hosted?.length ? { ...agent, modes: hosted } : agent;
+      });
 
 // `register` execution mode: records this container's agents for its job.
 export const registerMain = async (
@@ -106,7 +138,7 @@ export const registerMain = async (
     return 1;
   }
   try {
-    await register(job.data, agents);
+    await register(job.data, withHostedModes(env, agents));
     console.log(`Registered ${agents.map((a) => a.name).join(", ")}`);
     return 0;
   } catch (err) {
@@ -115,23 +147,51 @@ export const registerMain = async (
   }
 };
 
-// Entrypoint of a job image: runs a task, or with the `register` argument
-// records the image's agents for its job.
+// `serve` execution mode: the HTTP host of the run path, listening on PORT (8080 by default).
+// A run answers only when it has finished, so Bun's default idle timeout (10 s) would close the
+// connection of any longer run: allow Bun's maximum. A run request is under 2 KB, so the body limit
+// is far below Bun's default.
+export const serveMain = (
+  env: Record<string, string | undefined>,
+  fetch: (req: Request) => Promise<Response>,
+) =>
+  Bun.serve({
+    port: Number(env.PORT ?? 8080),
+    hostname: "0.0.0.0",
+    idleTimeout: 255,
+    maxRequestBodySize: 16 * 1024,
+    fetch,
+  });
+
+// Entrypoint of an agent image: runs a task, or with the `register` argument records the image's
+// agents for its job, or with `serve` hosts the same run path over HTTP and keeps running.
 export const runCli = async (set: AgentSet, argv = process.argv, env = process.env) => {
   const db = new Firestore();
   const sessions = new FirestoreSessionService(db);
-  const register = argv[2] === "register";
+  const mode = argv[2];
+  const deps = () =>
+    [
+      createRunAgent(set, { db }),
+      createGetTask(db),
+      createGetMessage(sessions),
+      createGetMessageModel(sessions),
+      createModelResolver(db),
+    ] as const;
+  if (mode === "serve") {
+    const [run, getTask, getMessage, getMessageModel, resolveModel] = deps();
+    serveMain(
+      env,
+      createServeHandler((input, signal) =>
+        runTask(input, run, getTask, getMessage, getMessageModel, resolveModel, signal),
+      ),
+    );
+    return;
+  }
+  const register = mode === "register";
   const code = await traceJob(register ? "register_agents" : "agent_job", async () =>
     register
       ? registerMain(env, createAgentRegistry(db).register, describeAgents(set.agents))
-      : main(
-          env,
-          createRunAgent(set, { db }),
-          createGetTask(db),
-          createGetMessage(sessions),
-          createGetMessageModel(sessions),
-          createModelResolver(db),
-        ),
+      : main(env, ...deps()),
   );
   await flushTelemetry();
   process.exit(code);

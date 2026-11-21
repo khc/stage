@@ -1,11 +1,15 @@
 import type { Firestore } from "@google-cloud/firestore";
 
+import { runModeSchema, type RunMode } from "./run-mode";
+
 export type JsonSchema = Record<string, unknown>;
 export type AgentInfo = {
   name: string;
   description?: string;
   inputSchema?: JsonSchema;
   outputSchema?: JsonSchema;
+  // The run modes the agent supports; unset means job only.
+  modes?: RunMode[];
 };
 export type AgentRegistry = {
   list: (jobName: string) => Promise<AgentInfo[]>;
@@ -27,6 +31,14 @@ const parseSchema = (value: unknown): JsonSchema | undefined => {
   }
 };
 
+const parseModes = (value: unknown): RunMode[] =>
+  Array.isArray(value)
+    ? value.flatMap((mode) => {
+        const parsed = runModeSchema.safeParse(mode);
+        return parsed.success ? [parsed.data] : [];
+      })
+    : [];
+
 const toAgentInfo = (doc: { get: (field: string) => unknown }): AgentInfo => {
   const info: AgentInfo = { name: doc.get("name") as string };
   const description = doc.get("description");
@@ -35,6 +47,8 @@ const toAgentInfo = (doc: { get: (field: string) => unknown }): AgentInfo => {
   if (inputSchema) info.inputSchema = inputSchema;
   const outputSchema = parseSchema(doc.get("outputSchema"));
   if (outputSchema) info.outputSchema = outputSchema;
+  const modes = parseModes(doc.get("modes"));
+  if (modes.length) info.modes = modes;
   return info;
 };
 
@@ -61,13 +75,14 @@ export const createAgentRegistry = (
     for (const doc of stored.docs) if (!keep.has(doc.get("name"))) batch.delete(doc.ref);
     // Schemas are stored as JSON text: Firestore restricts nested arrays and
     // some key names that JSON Schema can contain.
-    for (const { name, description, inputSchema, outputSchema } of agents)
+    for (const { name, description, inputSchema, outputSchema, modes } of agents)
       batch.set(collection.doc(`${jobName}:${name}`), {
         jobName,
         name,
         ...(description && { description }),
         ...(inputSchema && { inputSchema: JSON.stringify(inputSchema) }),
         ...(outputSchema && { outputSchema: JSON.stringify(outputSchema) }),
+        ...(modes?.length && { modes }),
         registeredAt: Date.now(),
       });
     await batch.commit();
@@ -104,6 +119,7 @@ export const toAgentCard = (jobName: string, info: AgentInfo) => {
       jobName,
       ...(info.inputSchema && { inputSchema: info.inputSchema }),
       ...(info.outputSchema && { outputSchema: info.outputSchema }),
+      ...(info.modes && { modes: info.modes }),
     },
   };
 };

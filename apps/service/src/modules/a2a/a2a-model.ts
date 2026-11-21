@@ -17,6 +17,9 @@ export const A2A_REQUEST_TIMEOUT_SECONDS = 255;
 export const A2A_MAX_BODY_BYTES = 64 * 1024;
 // Delegated runs the gateway waits for at once, and finished tasks it remembers.
 export const A2A_MAX_IN_FLIGHT = 8;
+// Workflow runs the gateway starts per minute: they run in the background and are not waited for, so the
+// in-flight cap does not bound them.
+export const A2A_MAX_WORKFLOWS_PER_MINUTE = 20;
 export const A2A_TASKS_KEPT = 200;
 // The explicit-query line of the discovery agent. A message another agent wrote must not trigger it.
 export const WEB_SEARCH_PREFIX = /^Web search:/;

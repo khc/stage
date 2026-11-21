@@ -14,6 +14,7 @@ const setup = ({
   allowedJobs,
   timeoutMs = 1_000,
   maxInFlight,
+  maxWorkflowsPerMinute,
   createResult,
   runResult,
   getSession,
@@ -24,6 +25,7 @@ const setup = ({
   allowedJobs?: ReadonlySet<string>;
   timeoutMs?: number;
   maxInFlight?: number;
+  maxWorkflowsPerMinute?: number;
   createResult?: unknown;
   runResult?: unknown;
   getSession?: () => Promise<unknown>;
@@ -75,6 +77,7 @@ const setup = ({
       pollMs: 10,
       timeoutMs,
       ...(maxInFlight && { maxInFlight }),
+      ...(maxWorkflowsPerMinute && { maxWorkflowsPerMinute }),
       now: () => time,
       sleep: async (ms) => {
         time += ms;
@@ -82,7 +85,15 @@ const setup = ({
       },
     },
   );
-  return { service, create, run, known };
+  return {
+    service,
+    create,
+    run,
+    known,
+    advance: (ms: number) => {
+      time += ms;
+    },
+  };
 };
 
 const base = "http://service.test";
@@ -348,5 +359,140 @@ describe("a2a service", () => {
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
     });
+  });
+});
+
+describe("a2a service run modes", () => {
+  const withMode = (mode: unknown, value = "hi") => send(text(value), true, { "stage:mode": mode });
+  const noteOf = (response: Awaited<ReturnType<typeof call>>) =>
+    response.result?.status.message?.parts[0]?.text;
+
+  test("quick runs on the service and answers with the reply", async () => {
+    const { service, run } = setup();
+    const response = await call(service, withMode("quick"));
+    expect(run).toHaveBeenCalledWith("task-1", { message: "hi" }, "quick");
+    expect(response.result?.status.state).toBe("completed");
+    expect(response.result?.artifacts?.[0]?.parts[0]?.text).toBe("an old pond");
+  });
+
+  test("a quick run over its budget fails the task and says to ask again as workflow", async () => {
+    const { service } = setup({ runResult: { status: "quick_timeout", sessionId: "session-1" } });
+    const response = await call(service, withMode("quick"));
+    expect(response.result?.status.state).toBe("failed");
+    expect(noteOf(response)).toContain("time budget");
+    expect(noteOf(response)).toContain("mode workflow");
+  });
+
+  test("an agent without a quick mode fails the task and says to ask again as workflow", async () => {
+    const { service } = setup({ runResult: { status: "quick_unavailable" } });
+    const response = await call(service, withMode("quick"));
+    expect(response.result?.status.state).toBe("failed");
+    expect(noteOf(response)).toContain("no quick mode");
+    expect(noteOf(response)).toContain("mode workflow");
+  });
+
+  test("workflow starts the job and answers at once with a receipt, without polling", async () => {
+    const getSession = mock(async () => {
+      throw new Error("a workflow receipt must not poll");
+    });
+    const { service, run } = setup({ getSession });
+    const response = await call(service, withMode("workflow"));
+    expect(run).toHaveBeenCalledWith("task-1", { message: "hi" });
+    expect(getSession).not.toHaveBeenCalled();
+    expect(response.result?.status.state).toBe("completed");
+    const receipt = response.result?.artifacts?.[0]?.parts[0]?.text;
+    expect(receipt).toContain("Started workflow task task-1 (session session-1)");
+    expect(receipt).toContain("/tasks/task-1");
+  });
+
+  test("a workflow task still records the calling parent", async () => {
+    const { service, create } = setup();
+    await call(
+      service,
+      send(text("hi"), true, {
+        "stage:mode": "workflow",
+        "stage:parent": { taskId: parentTaskId, sessionId: "parent-session" },
+      }),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ parentTaskId, parentSessionId: "parent-session" }),
+    );
+  });
+
+  test("a workflow that cannot start fails the task", async () => {
+    const { service } = setup({ runResult: { status: "task_not_executable" } });
+    const response = await call(service, withMode("workflow"));
+    expect(response.result?.status.state).toBe("failed");
+    expect(noteOf(response)).toContain("task_not_executable");
+  });
+
+  test("a workflow start holds an in-flight slot only while it starts", async () => {
+    let release!: (session: unknown) => void;
+    const gate = new Promise((resolve) => (release = resolve));
+    const { service } = setup({ maxInFlight: 1, getSession: () => gate });
+    const slow = call(service, withMode("quick", "slow"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // The cap is reached, so a workflow start is refused like any other delegated run.
+    expect(noteOf(await call(service, withMode("workflow", "long")))).toContain("Too many");
+    release({ run: { status: "succeeded" }, events: [reply("done")] });
+    expect((await slow).result?.status.state).toBe("completed");
+  });
+
+  test("workflow starts are limited per minute, not only by what is in flight", async () => {
+    const { service, create, advance } = setup({ maxWorkflowsPerMinute: 2 });
+    for (const value of ["one", "two"])
+      expect((await call(service, withMode("workflow", value))).result?.status.state).toBe(
+        "completed",
+      );
+    const refused = await call(service, withMode("workflow", "three"));
+    expect(refused.result?.status.state).toBe("failed");
+    expect(noteOf(refused)).toContain("workflow");
+    expect(create).toHaveBeenCalledTimes(2);
+
+    // Quick runs are not counted, and the window slides on.
+    expect((await call(service, withMode("quick", "four"))).result?.status.state).toBe("completed");
+    advance(60_001);
+    expect((await call(service, withMode("workflow", "five"))).result?.status.state).toBe(
+      "completed",
+    );
+  });
+
+  test("a quick run the platform could not run fails at once, without polling", async () => {
+    const getSession = mock(async () => {
+      throw new Error("must not poll");
+    });
+    const { service, run } = setup({ getSession });
+    run.mockRejectedValue(new Error("service_error"));
+    const spy = spyOn(console, "error").mockImplementation(() => {});
+    const response = await call(service, withMode("quick"));
+    spy.mockRestore();
+    expect(getSession).not.toHaveBeenCalled();
+    expect(noteOf(response)).toBe("The platform could not run the agent.");
+  });
+
+  test("a quick run that failed is read from its session: the run failed", async () => {
+    const { service } = setup({
+      sessions: [{ run: { status: "failed", error: "model exploded" } }],
+    });
+    const response = await call(service, withMode("quick"));
+    expect(response.result?.status.state).toBe("failed");
+    expect(noteOf(response)).toBe("The agent run failed.");
+  });
+
+  test.each([["slow"], [7], [null], [undefined]])(
+    "mode %p is ignored: the run goes the job's way and waits for the reply",
+    async (mode) => {
+      const { service, run } = setup();
+      const response = await call(service, withMode(mode));
+      expect(run).toHaveBeenCalledWith("task-1", { message: "hi" });
+      expect(response.result?.artifacts?.[0]?.parts[0]?.text).toBe("an old pond");
+    },
+  );
+
+  test("no mode key keeps today's behavior", async () => {
+    const { service, run } = setup();
+    const response = await call(service, send(text("hi")));
+    expect(run).toHaveBeenCalledWith("task-1", { message: "hi" });
+    expect(response.result?.status.state).toBe("completed");
   });
 });

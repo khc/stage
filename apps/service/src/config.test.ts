@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { loadConfig, parseAllowedJobs } from "./config";
+import { loadConfig, parseAgentServices, parseAllowedJobs } from "./config";
 
 const gcp = { GCP_PROJECT: "floci-local", GCP_REGION: "us-central1", AGENT_JOBS: "poet-agents" };
 
@@ -39,8 +39,68 @@ describe("loadConfig", () => {
     "SCHEDULER_TARGET_URL",
     "SCHEDULER_INVOKER",
     "PUBLIC_URL",
+    "AGENT_SERVICES",
   ])("rejects an empty %s", (name) => {
     expect(() => loadConfig({ ...gcp, [name]: "" })).toThrow();
+  });
+});
+
+describe("agent services settings", () => {
+  const services = '{"generic-agents":"http://generic-svc:8080"}';
+
+  test("are read as given, a boolean and a number of milliseconds", () => {
+    expect(
+      loadConfig({
+        ...gcp,
+        AGENT_SERVICES: services,
+        AGENT_SERVICES_ID_TOKEN: "true",
+        QUICK_BUDGET_MS: "45000",
+      }),
+    ).toMatchObject({
+      AGENT_SERVICES: services,
+      AGENT_SERVICES_ID_TOKEN: true,
+      QUICK_BUDGET_MS: 45_000,
+    });
+  });
+
+  test("are optional", () => {
+    const config = loadConfig(gcp);
+    expect(config.AGENT_SERVICES).toBeUndefined();
+    expect(config.AGENT_SERVICES_ID_TOKEN).toBeUndefined();
+    expect(config.QUICK_BUDGET_MS).toBeUndefined();
+  });
+
+  test.each(["", "abc", "0", "999", "1500.5", "240001"])(
+    "rejects the QUICK_BUDGET_MS %p",
+    (value) => {
+      expect(() => loadConfig({ ...gcp, QUICK_BUDGET_MS: value })).toThrow();
+    },
+  );
+});
+
+describe("parseAgentServices", () => {
+  test("maps job names to service URLs", () => {
+    expect(
+      parseAgentServices('{"a-agents":"http://a:8080","b-agents":"https://b.run.app"}'),
+    ).toEqual({
+      "a-agents": "http://a:8080",
+      "b-agents": "https://b.run.app",
+    });
+  });
+
+  test.each([
+    "",
+    "not json",
+    "[]",
+    '"x"',
+    '{"a":1}',
+    '{"a":""}',
+    '{"":"http://a"}',
+    '{"a":"not a url"}',
+    '{"a":"file:///etc/passwd"}',
+    '{"a":"ftp://a"}',
+  ])("rejects %p", (value) => {
+    expect(() => parseAgentServices(value)).toThrow();
   });
 });
 

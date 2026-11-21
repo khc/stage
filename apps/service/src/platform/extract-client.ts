@@ -15,7 +15,7 @@ export type ExtractClientOptions = {
 };
 
 // Rejects when the signal aborts before the promise settles.
-const withinSignal = <T>(promise: Promise<T>, signal: AbortSignal) =>
+export const withinSignal = <T>(promise: Promise<T>, signal: AbortSignal) =>
   Promise.race([
     promise,
     new Promise<never>((_resolve, reject) =>

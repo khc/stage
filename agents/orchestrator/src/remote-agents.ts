@@ -10,6 +10,7 @@ import {
 import { RemoteA2AAgent, type RemoteA2AAgentConfig } from "@google/adk/a2a";
 import type { AgentRegistry, JsonSchema } from "@stage/agents/agent-registry";
 import { A2A_PARENT_KEY, parentRefSchema } from "@stage/agents/parent-ref";
+import { A2A_MODE_KEY, type RunMode } from "@stage/agents/run-mode";
 import { agentNameSchema } from "@stage/agents/spec";
 import { z } from "zod";
 
@@ -28,6 +29,10 @@ const inputHint = (schema: JsonSchema | undefined) => {
 const takesNoInput = (schema: JsonSchema | undefined) =>
   schema?.type === "object" &&
   Object.keys((schema.properties as object | undefined) ?? {}).length === 0;
+
+// What the model is told about the mode parameter of an agent that offers run modes.
+const modeHelp =
+  "quick = a lookup or a single answer: the call waits for the reply, within the platform's quick budget. workflow = multi-step, document-heavy or long work: it starts a background task and returns its task id, not the answer.";
 
 export type RemoteAgentsDeps = {
   // Built on first use, so importing the agent never touches Firestore.
@@ -98,35 +103,63 @@ export class RemoteAgentsToolset extends BaseToolset {
     // Every request names the task and the session of this run, so the gateway can record the task
     // it creates as a sub-task. A job runs under TASK_ID; without a valid one nothing is sent.
     const parent = parentRefSchema.safeParse({ taskId: env.TASK_ID, sessionId });
-    const beforeRequestCallbacks = parent.success
-      ? [
-          (_ctx: unknown, params: { message: { metadata?: Record<string, unknown> } }) => {
-            params.message.metadata = { ...params.message.metadata, [A2A_PARENT_KEY]: parent.data };
-          },
-        ]
-      : undefined;
+    // An agent with modes gets one remote agent per mode, because the callbacks are fixed per agent:
+    // parallel calls to the same agent in different modes must not share a mutable mode.
+    const callbacksFor = (mode?: RunMode) => {
+      const metadata = {
+        ...(parent.success && { [A2A_PARENT_KEY]: parent.data }),
+        ...(mode && { [A2A_MODE_KEY]: mode }),
+      };
+      if (!Object.keys(metadata).length) return undefined;
+      return [
+        (_ctx: unknown, params: { message: { metadata?: Record<string, unknown> } }) => {
+          params.message.metadata = { ...params.message.metadata, ...metadata };
+        },
+      ];
+    };
     const agents = await registry().listAll();
     return agents
       .filter(
         ({ jobName, name, inputSchema }) =>
           jobName !== env.JOB_NAME && isEndpointName(jobName, name) && !takesNoInput(inputSchema),
       )
-      .map(({ jobName, name, description, inputSchema }) => {
-        const agent = remoteAgent({
-          name: `${jobName}__${name}`,
-          description: `${description ?? `The ${name} agent of ${jobName}`}${inputHint(inputSchema)}`,
-          // The trailing slash matters: the SDK resolves `.well-known/agent-card.json` relative to this URL.
-          agentCard: `${gatewayUrl}/a2a/${jobName}/${name}/`,
-          messageSendConfig: { blocking: true },
-          ...(resolveAgentCardOptions && { resolveAgentCardOptions }),
-          ...(beforeRequestCallbacks && { beforeRequestCallbacks }),
-        });
+      .map(({ jobName, name, description, inputSchema, modes }) => {
+        const build = (mode?: RunMode) => {
+          const beforeRequestCallbacks = callbacksFor(mode);
+          return remoteAgent({
+            name: `${jobName}__${name}`,
+            description: `${description ?? `The ${name} agent of ${jobName}`}${inputHint(inputSchema)}${modes?.length ? `\nRun modes: ${modes.join(", ")} (choose with the mode parameter).` : ""}`,
+            // The trailing slash matters: the SDK resolves `.well-known/agent-card.json` relative to this URL.
+            agentCard: `${gatewayUrl}/a2a/${jobName}/${name}/`,
+            messageSendConfig: { blocking: true },
+            ...(resolveAgentCardOptions && { resolveAgentCardOptions }),
+            ...(beforeRequestCallbacks && { beforeRequestCallbacks }),
+          });
+        };
+        const requestSchema = z.string().describe("The request to send to this agent.");
+        if (modes?.length) {
+          // Built on first use, for the tools of this invocation.
+          const built = new Map<RunMode, RemoteA2AAgent>();
+          const agentFor = (mode: RunMode) => {
+            let agent = built.get(mode);
+            if (!agent) built.set(mode, (agent = build(mode)));
+            return agent;
+          };
+          return new FunctionTool({
+            name: `${jobName}__${name}`,
+            description: `${description ?? `The ${name} agent of ${jobName}`}${inputHint(inputSchema)}\nRun modes: ${modes.join(", ")} (choose with the mode parameter).`,
+            parameters: z.object({
+              request: requestSchema,
+              mode: z.enum(modes as [RunMode, ...RunMode[]]).describe(modeHelp),
+            }),
+            execute: ({ request, mode }) => callRemote(agentFor(mode), request),
+          });
+        }
+        const agent = build();
         return new FunctionTool({
           name: agent.name,
           description: agent.description,
-          parameters: z.object({
-            request: z.string().describe("The request to send to this agent."),
-          }),
+          parameters: z.object({ request: requestSchema }),
           execute: ({ request }) => callRemote(agent, request),
         });
       });

@@ -34,6 +34,8 @@ export const agentSet: AgentSet = {
       agent: assistantAgent,
       inputSchema: z.string().describe("A question or request, in plain text."),
       outputSchema: z.string().describe("The assistant's plain-text reply."),
+      // A question is quick; a long request can run as a background workflow.
+      modes: ["quick", "workflow"],
     },
     [documentAnalyserAgent.name]: {
       agent: documentAnalyserAgent,

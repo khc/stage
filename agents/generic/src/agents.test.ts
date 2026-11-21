@@ -30,3 +30,9 @@ test("the assistant is free-text: string input and output schemas", () => {
   });
   expect(info?.inputSchema).not.toHaveProperty("$schema");
 });
+
+test("the assistant supports both run modes and the document analyser stays job only", () => {
+  const infos = describeAgents(agentSet.agents);
+  expect(infos.find((info) => info.name === "assistant")?.modes).toEqual(["quick", "workflow"]);
+  expect(infos.find((info) => info.name === "document_analyser")).not.toHaveProperty("modes");
+});

@@ -2,6 +2,7 @@ import type { BaseAgent } from "@google/adk";
 import { z } from "zod";
 
 import type { AgentInfo, JsonSchema } from "./agent-registry";
+import type { RunMode } from "./run-mode";
 
 // ADK's rule for agent names: a letter or underscore first, then letters,
 // digits, underscores and hyphens (`haiku-poet`). The service validates with it too.
@@ -17,6 +18,8 @@ export type AgentSpec = {
   agent: BaseAgent;
   inputSchema: z.ZodType;
   outputSchema: z.ZodType;
+  // The run modes the agent supports; unset means job only.
+  modes?: RunMode[];
 };
 
 // The agents one job image holds. A task selects one by its `agentName`;
@@ -37,6 +40,7 @@ export const describeAgents = (agents: Record<string, AgentSpec>): AgentInfo[] =
     if (spec.agent.description) info.description = spec.agent.description;
     info.inputSchema = toJsonSchema(spec.inputSchema);
     info.outputSchema = toJsonSchema(spec.outputSchema);
+    if (spec.modes) info.modes = spec.modes;
     return info;
   });
 

@@ -61,3 +61,12 @@ test("agentNameSchema accepts hyphenated ADK names and rejects the rest", () => 
   for (const name of ["", "has space", "1abc", "-abc", "x".repeat(65)])
     expect(agentNameSchema.safeParse(name).success).toBe(false);
 });
+
+test("describeAgents copies an agent's modes and leaves them out otherwise", () => {
+  const [withModes, without] = describeAgents({
+    withModes: { ...text, modes: ["quick", "workflow"] },
+    without: text,
+  });
+  expect(withModes!.modes).toEqual(["quick", "workflow"]);
+  expect(without).not.toHaveProperty("modes");
+});

@@ -2,8 +2,16 @@ import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 
 import type { BaseLlm } from "@google/adk";
 
-import { createGetMessage, createGetMessageModel, main, registerMain } from "./cli";
+import {
+  createGetMessage,
+  createGetMessageModel,
+  main,
+  registerMain,
+  runTask,
+  serveMain,
+} from "./cli";
 import { ModelUnavailableError } from "./provider-models";
+import { createServeHandler } from "./serve";
 import type { TaskContract } from "./task-contract";
 
 const taskId = "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8";
@@ -270,4 +278,94 @@ test("createGetMessageModel reads the model queued for the session, under its ow
     userId: "user",
     sessionId: "s1",
   });
+});
+
+test("runTask runs a task for the given ids and returns the reply", async () => {
+  const { run, get } = setup();
+  expect(await runTask({ taskId }, run, get, noMessage)).toBe("reply");
+  expect(run).toHaveBeenCalledWith("  stored prompt  ", taskId, undefined, undefined);
+  expect(await runTask({ taskId, sessionId: "s1" }, run, get, async () => "m")).toBe("reply");
+  expect(run).toHaveBeenLastCalledWith("m", taskId, "s1", undefined);
+});
+
+test("runTask throws instead of returning a code, and forwards the abort signal", async () => {
+  const { run, get } = setup();
+  get.mockResolvedValue(undefined);
+  await expect(runTask({ taskId }, run, get, noMessage)).rejects.toThrow("contract not found");
+  expect(run).not.toHaveBeenCalled();
+
+  const signal = new AbortController().signal;
+  const ok = setup();
+  await runTask({ taskId }, ok.run, ok.get, noMessage, async () => undefined, undefined, signal);
+  expect(ok.run).toHaveBeenCalledWith(
+    "  stored prompt  ",
+    taskId,
+    undefined,
+    undefined,
+    undefined,
+    signal,
+  );
+});
+
+test("register mode drops quick unless AGENT_QUICK is true", async () => {
+  const register = mock(async (_job: string, _agents: unknown[]) => {});
+  const agents = [
+    { name: "both", modes: ["quick", "workflow"] as ("quick" | "workflow")[] },
+    { name: "only-quick", modes: ["quick"] as ("quick" | "workflow")[] },
+    { name: "plain" },
+  ];
+  await registerMain({ JOB_NAME: "j" }, register, agents);
+  expect(register).toHaveBeenLastCalledWith("j", [
+    { name: "both", modes: ["workflow"] },
+    { name: "only-quick" },
+    { name: "plain" },
+  ]);
+  await registerMain({ JOB_NAME: "j", AGENT_QUICK: "true" }, register, agents);
+  expect(register).toHaveBeenLastCalledWith("j", agents);
+});
+
+test("serve mode answers GET /health on PORT", async () => {
+  const server = serveMain(
+    { PORT: "0" },
+    createServeHandler(async () => "x"),
+  );
+  try {
+    const res = await fetch(`http://localhost:${server.port}/health`);
+    expect(res.status).toBe(200);
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test("serve mode refuses a request body far larger than a run request", async () => {
+  const server = serveMain(
+    { PORT: "0" },
+    createServeHandler(async () => "x"),
+  );
+  try {
+    const res = await fetch(`http://localhost:${server.port}/run`, {
+      method: "POST",
+      body: JSON.stringify({
+        taskId: "9eb6f136-55d6-4cfb-8b1e-71367d7fd6a8",
+        pad: "x".repeat(100_000),
+      }),
+    }).catch(() => undefined);
+    expect(res === undefined || res.status === 413).toBe(true);
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test("serve mode raises Bun's idle timeout above the longest quick run", async () => {
+  const serve = spyOn(Bun, "serve");
+  const server = serveMain(
+    { PORT: "0" },
+    createServeHandler(async () => "x"),
+  );
+  try {
+    expect(serve).toHaveBeenCalledWith(expect.objectContaining({ idleTimeout: 255 }));
+  } finally {
+    await server.stop(true);
+    serve.mockRestore();
+  }
 });

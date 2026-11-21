@@ -137,3 +137,40 @@ test("lists the agents of every job with their job name, ordered by job then nam
     { jobName: "poet-agents", name: "limerick-poet" },
   ]);
 });
+
+test("stores modes only when set and non-empty, and reads back the valid ones", async () => {
+  const { db, batch } = registerSetup([]);
+  await createAgentRegistry(db).register("my-job", [
+    { name: "both", modes: ["quick", "workflow"] },
+    { name: "none" },
+    { name: "empty", modes: [] },
+  ]);
+  const sets = batch.set.mock.calls as [unknown, Record<string, unknown>][];
+  expect(sets[0]![1].modes).toEqual(["quick", "workflow"]);
+  expect(sets[1]![1]).not.toHaveProperty("modes");
+  expect(sets[2]![1]).not.toHaveProperty("modes");
+
+  const docs = [
+    { name: "both", modes: ["quick", "workflow"] },
+    { name: "mixed", modes: ["quick", "bogus", 3] },
+    { name: "invalid", modes: ["bogus"] },
+    { name: "notarray", modes: "quick" },
+    { name: "none" },
+  ].map((d) => ({ get: (f: string) => (d as Record<string, unknown>)[f] }));
+  const where = mock((..._a: unknown[]) => ({ get: async () => ({ docs }) }));
+  const listed = await createAgentRegistry({ collection: () => ({ where }) } as never).list("j");
+  expect(listed).toEqual([
+    { name: "both", modes: ["quick", "workflow"] },
+    { name: "invalid" },
+    { name: "mixed", modes: ["quick"] },
+    { name: "none" },
+    { name: "notarray" },
+  ]);
+});
+
+test("toAgentCard carries the modes under x-stage", () => {
+  expect(toAgentCard("j", { name: "a", modes: ["quick"] })["x-stage"]).toMatchObject({
+    modes: ["quick"],
+  });
+  expect(toAgentCard("j", { name: "a" })["x-stage"]).not.toHaveProperty("modes");
+});

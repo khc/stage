@@ -343,3 +343,25 @@ test("a model that cannot be resolved fails the run on the session, before any L
   expect(runAsync).not.toHaveBeenCalled();
   expect(sessionService.finishRun).toHaveBeenCalledWith(expect.anything(), failure.message);
 });
+
+test("forwards an abort signal to the runner and records the aborted run as failed", async () => {
+  const signal = AbortSignal.abort();
+  const runAsync = mock(async function* (_request: unknown) {});
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })), ...runs() };
+  const run = createTaskAgent({ sessionService, runAsync } as never);
+
+  await expect(run("hi", undefined, undefined, undefined, undefined, signal)).rejects.toThrow(
+    "stopped at its time budget",
+  );
+  expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ abortSignal: signal }));
+  expect(sessionService.finishRun).toHaveBeenCalledWith(expect.anything(), expect.any(String));
+});
+
+test("passes no abort signal to the runner when none is given", async () => {
+  const runAsync = mock(async function* (_request: unknown) {
+    yield reply("ok");
+  });
+  const sessionService = { createSession: mock(async () => ({ id: "s1" })), ...runs() };
+  await createTaskAgent({ sessionService, runAsync } as never)("hi");
+  expect(runAsync.mock.calls[0]![0]).not.toHaveProperty("abortSignal");
+});

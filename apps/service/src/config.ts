@@ -1,3 +1,4 @@
+import { TypeCompiler } from "@sinclair/typebox/compiler";
 import { createConfigLoader, serverConfig, serverDefaults } from "@stage/http/config";
 import { t } from "elysia";
 
@@ -27,6 +28,12 @@ export const loadConfig = createConfigLoader(
     SCHEDULER_TARGET_URL: t.Optional(t.String({ minLength: 1 })),
     // The service account Scheduler signs its ID token as. Set on GCP; leave it unset for Floci, which sends no credentials.
     SCHEDULER_INVOKER: t.Optional(t.String({ minLength: 1 })),
+    // A JSON object of job name to the URL of that job's quick service (see parseAgentServices). Without it, quick runs are unavailable.
+    AGENT_SERVICES: t.Optional(t.String({ minLength: 1 })),
+    // Set on GCP, where the agent services are internal-only and need a Google ID token for their URL. Leave it unset for Floci and local runs, which send no credentials.
+    AGENT_SERVICES_ID_TOKEN: t.Optional(t.BooleanString()),
+    // How long a quick run may take, in milliseconds (60 000 when unset). Keep it below the Cloud Run timeout of the agent services; the maximum keeps a quick run inside the 255 s idle limit of the A2A route.
+    QUICK_BUDGET_MS: t.Optional(t.Numeric({ minimum: 1000, maximum: 240_000, multipleOf: 1 })),
   },
   serverDefaults(3000),
 );
@@ -41,3 +48,20 @@ export const parseAllowedJobs = (value: string): ReadonlySet<string> | undefined
           .map((job) => job.trim())
           .filter(Boolean),
       );
+
+const agentServices = TypeCompiler.Compile(
+  t.Record(t.String({ pattern: "^.+$" }), t.String({ minLength: 1 }), {
+    additionalProperties: false,
+  }),
+);
+
+// The quick services by job name: AGENT_SERVICES is a JSON object of job name to service URL.
+export const parseAgentServices = (value: string): Record<string, string> => {
+  const parsed: unknown = JSON.parse(value);
+  if (!agentServices.Check(parsed))
+    throw new Error("AGENT_SERVICES must be a JSON object of job name to URL");
+  for (const url of Object.values(parsed))
+    if (!URL.canParse(url) || !/^https?:$/.test(new URL(url).protocol))
+      throw new Error("AGENT_SERVICES URLs must be http or https URLs");
+  return parsed;
+};

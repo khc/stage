@@ -17,6 +17,8 @@ export type RunAgent = (
   sessionId?: string,
   agentName?: string,
   resolveModel?: ResolveRunModel,
+  // Stops the run when aborted (a quick run's budget); the run is then recorded as failed.
+  abortSignal?: AbortSignal,
 ) => Promise<string>;
 type RunnerLike = Pick<Runner, "runAsync"> & {
   sessionService: Pick<
@@ -49,12 +51,14 @@ const runSession = async (
   message: string,
   taskId?: string,
   publish?: PublishEvent,
+  abortSignal?: AbortSignal,
 ) => {
   let reply = "";
   for await (const event of runner.runAsync({
     userId: owner.userId,
     sessionId,
     newMessage: { role: "user", parts: [{ text: message }] },
+    ...(abortSignal && { abortSignal }),
   })) {
     await publish?.(event, { sessionId, taskId }).catch((err) =>
       console.error("Failed to publish event", err),
@@ -63,7 +67,13 @@ const runSession = async (
       reply = stringifyContent(event).trim();
     }
   }
-  if (!reply) throw new Error("Agent returned no final response");
+  // ADK ends an aborted run silently, so say why there is no reply.
+  if (!reply)
+    throw new Error(
+      abortSignal?.aborted
+        ? "The run was stopped at its time budget"
+        : "Agent returned no final response",
+    );
   return reply;
 };
 
@@ -74,7 +84,7 @@ export const createTaskAgent =
     owner: Owner = defaultOwner,
     validateFirstTurn?: (message: string) => void,
   ): RunAgent =>
-  async (message, taskId, sessionId, _agentName, resolveModel) => {
+  async (message, taskId, sessionId, _agentName, resolveModel, abortSignal) => {
     let session;
     if (sessionId) {
       session = await resumeSession(runner.sessionService, owner, sessionId, taskId);
@@ -98,7 +108,8 @@ export const createTaskAgent =
     let reply: string;
     try {
       const llm = await resolveModel?.();
-      const run = () => runSession(runner, owner, session.id, message, taskId, publish);
+      const run = () =>
+        runSession(runner, owner, session.id, message, taskId, publish, abortSignal);
       reply = await (llm ? runWithModel(llm, run) : run());
     } catch (err) {
       await runner.sessionService
@@ -124,7 +135,7 @@ export const createRunAgent = (
   const sessionService = new FirestoreSessionService(db);
   sessionService.onUserEvent = async (event, { id, taskId }) =>
     publish?.(event, { sessionId: id, taskId });
-  return async (message, taskId, sessionId, agentName, resolveModel) => {
+  return async (message, taskId, sessionId, agentName, resolveModel, abortSignal) => {
     const spec = agents[agentName ?? defaultAgent];
     if (!spec) throw new Error(`Unknown agent: ${agentName}`);
     const { agent } = spec;
@@ -135,6 +146,6 @@ export const createRunAgent = (
     // Turn 1 validates against `inputSchema` (even on pre-created empty sessions); follow-ups are free text.
     return createTaskAgent({ sessionService, runAsync }, publish, owner, (text) =>
       checkInput(spec, text),
-    )(message, taskId, sessionId, agentName, resolveModel);
+    )(message, taskId, sessionId, agentName, resolveModel, abortSignal);
   };
 };

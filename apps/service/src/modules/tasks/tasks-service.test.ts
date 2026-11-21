@@ -3,6 +3,7 @@ import { describe, expect, mock, spyOn, test } from "bun:test";
 import { MessageQueuedError, RunInProgressError } from "@stage/agents/session-service";
 
 import { DependencyError } from "../../errors";
+import { QuickTimeoutError, RunFailedError } from "../../platform/agent-services-client";
 import { createTasksService, type TasksServiceDeps } from "./tasks-service";
 
 const taskId = "5f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a10";
@@ -135,6 +136,7 @@ describe("tasks service run", () => {
       session?: unknown;
       queue?: () => Promise<boolean>;
       allowedJobs?: ReadonlySet<string>;
+      agentServices?: { has: (job: string) => boolean; run: (...args: never[]) => Promise<void> };
     } = {},
   ) => {
     const runJob = mock(async (..._args: unknown[]) => "op-1");
@@ -154,8 +156,16 @@ describe("tasks service run", () => {
       cloudRunJobs: { run: runJob },
       sessionsStore: { create, delete: del, get, queueMessage, clearMessage },
       allowedJobs: overrides.allowedJobs,
+      agentServices: overrides.agentServices,
     } as unknown as TasksServiceDeps);
-    return { service, getTask, runJob, create, del, queueMessage, clearMessage };
+    return { service, getTask, runJob, create, del, queueMessage, clearMessage, getSession: get };
+  };
+  const quickServices = (run: (...args: unknown[]) => Promise<void> = async () => {}) => {
+    const runService = mock(run);
+    return {
+      runService,
+      agentServices: { has: (job: string) => job === "my-job", run: runService },
+    };
   };
   const resume = { sessionId: "s1", message: "answer" };
   const rejection = (promise: Promise<unknown>) =>
@@ -282,6 +292,156 @@ describe("tasks service run", () => {
         .code,
     ).toBe("job_error");
     expect(failing.del).toHaveBeenCalledWith(taskId, "s-new");
+  });
+
+  describe("in quick mode", () => {
+    const setup = (run?: (...args: unknown[]) => Promise<void>) => {
+      const { runService, agentServices } = quickServices(run);
+      return { ...setupRun({ agentServices }), runService };
+    };
+
+    test("is unavailable without a service for the job, before any session is created", async () => {
+      const none = setupRun({});
+      expect(await none.service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "quick_unavailable",
+      });
+      const other = setupRun({ agentServices: { has: () => false, run: async () => {} } });
+      expect(await other.service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "quick_unavailable",
+      });
+      for (const { create, runJob } of [none, other]) {
+        expect(create).not.toHaveBeenCalled();
+        expect(runJob).not.toHaveBeenCalled();
+      }
+    });
+
+    test("runs a new session on the service instead of the job", async () => {
+      const { service, runService, runJob, queueMessage } = setup();
+      expect(await service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "started",
+        operation: "service",
+        sessionId: "s-new",
+      });
+      expect(queueMessage).toHaveBeenCalledWith(taskId, "s-new", "hi", undefined);
+      expect(runService).toHaveBeenCalledWith("my-job", taskId, "s-new");
+      expect(runJob).not.toHaveBeenCalled();
+    });
+
+    test("resumes a session on the service", async () => {
+      const { service, runService, runJob } = setup();
+      expect(await service.run(taskId, resume, "quick")).toEqual({
+        status: "started",
+        operation: "service",
+      });
+      expect(runService).toHaveBeenCalledWith("my-job", taskId, "s1");
+      expect(runJob).not.toHaveBeenCalled();
+    });
+
+    test("workflow and the default keep running the job", async () => {
+      for (const mode of [undefined, "workflow" as const]) {
+        const { service, runService, runJob } = setup();
+        expect(await service.run(taskId, resume, mode)).toEqual({
+          status: "started",
+          operation: "op-1",
+        });
+        expect(runJob).toHaveBeenCalledWith("my-job", taskId, "s1");
+        expect(runService).not.toHaveBeenCalled();
+      }
+    });
+
+    test("a timeout is quick_timeout and keeps the session and the message: the run has started", async () => {
+      const fresh = setup(async () => Promise.reject(new QuickTimeoutError()));
+      expect(await fresh.service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "quick_timeout",
+        sessionId: "s-new",
+      });
+      expect(fresh.del).not.toHaveBeenCalled();
+
+      const resumed = setup(async () => Promise.reject(new QuickTimeoutError()));
+      expect(await resumed.service.run(taskId, resume, "quick")).toEqual({
+        status: "quick_timeout",
+        sessionId: "s1",
+      });
+      expect(resumed.clearMessage).not.toHaveBeenCalled();
+    });
+
+    test("a run that started and failed is a started run: its failed session stays to be read", async () => {
+      const fail = async () => Promise.reject(new RunFailedError());
+      const fresh = setupRun({
+        agentServices: quickServices(fail).agentServices,
+        session: { id: "s-new", run: { status: "failed" } },
+      });
+      expect(await fresh.service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "started",
+        operation: "service",
+        sessionId: "s-new",
+      });
+      expect(fresh.del).not.toHaveBeenCalled();
+
+      const resumed = setupRun({
+        agentServices: quickServices(fail).agentServices,
+        session: { id: "s1", run: { status: "failed" } },
+      });
+      expect(await resumed.service.run(taskId, resume, "quick")).toEqual({
+        status: "started",
+        operation: "service",
+      });
+      expect(resumed.clearMessage).not.toHaveBeenCalled();
+    });
+
+    test("a run that failed before it started leaves no failure to read, so it is a service_error and cleaned up", async () => {
+      const fail = async () => Promise.reject(new RunFailedError());
+      const fresh = setupRun({
+        agentServices: quickServices(fail).agentServices,
+        session: { id: "s-new" },
+      });
+      const err = await rejection(fresh.service.run(taskId, { message: "hi" }, "quick"));
+      expect(err).toBeInstanceOf(DependencyError);
+      expect((err as DependencyError).code).toBe("service_error");
+      expect(fresh.del).toHaveBeenCalledWith(taskId, "s-new");
+
+      const resumed = setupRun({
+        agentServices: quickServices(fail).agentServices,
+        session: { id: "s1" },
+      });
+      await rejection(resumed.service.run(taskId, resume, "quick"));
+      expect(resumed.clearMessage).toHaveBeenCalledWith(taskId, "s1");
+
+      const unreadable = setupRun({ agentServices: quickServices(fail).agentServices });
+      unreadable.getSession
+        .mockResolvedValueOnce({ id: "s1" })
+        .mockRejectedValue(new Error("firestore down"));
+      expect(
+        ((await rejection(unreadable.service.run(taskId, resume, "quick"))) as DependencyError)
+          .code,
+      ).toBe("service_error");
+    });
+
+    test("a lease conflict is run_in_progress and is cleaned up like a job that did not start", async () => {
+      const fresh = setup(async () => Promise.reject(new RunInProgressError()));
+      expect(await fresh.service.run(taskId, { message: "hi" }, "quick")).toEqual({
+        status: "run_in_progress",
+      });
+      expect(fresh.del).toHaveBeenCalledWith(taskId, "s-new");
+
+      const resumed = setup(async () => Promise.reject(new RunInProgressError()));
+      expect(await resumed.service.run(taskId, resume, "quick")).toEqual({
+        status: "run_in_progress",
+      });
+      expect(resumed.clearMessage).toHaveBeenCalledWith(taskId, "s1");
+    });
+
+    test("any other failure is a service_error dependency failure and is cleaned up", async () => {
+      const fresh = setup(async () => Promise.reject(new Error("service down")));
+      const err = await rejection(fresh.service.run(taskId, { message: "hi" }, "quick"));
+      expect(err).toBeInstanceOf(DependencyError);
+      expect((err as DependencyError).code).toBe("service_error");
+      expect(fresh.del).toHaveBeenCalledWith(taskId, "s-new");
+
+      const resumed = setup(async () => Promise.reject(new Error("service down")));
+      await rejection(resumed.service.run(taskId, resume, "quick"));
+      expect(resumed.clearMessage).toHaveBeenCalledWith(taskId, "s1");
+    });
   });
 });
 

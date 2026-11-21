@@ -1,5 +1,6 @@
 import type { AgentRegistry } from "@stage/agents/agent-registry";
 import { isSelectableModel, type ModelRef } from "@stage/agents/model-ref";
+import type { RunMode } from "@stage/agents/run-mode";
 import {
   MessageQueuedError,
   RunInProgressError,
@@ -7,6 +8,11 @@ import {
 } from "@stage/agents/session-service";
 
 import { DependencyError, guard } from "../../errors";
+import {
+  QuickTimeoutError,
+  RunFailedError,
+  type AgentServices,
+} from "../../platform/agent-services-client";
 import type { CloudRunJobs } from "../../platform/cloud-run-jobs-client";
 import { isJobName } from "../agents/agents-model";
 import type { ProvidersStore } from "../providers/providers-store";
@@ -19,6 +25,8 @@ export type TasksServiceDeps = {
   agentRegistry: Pick<AgentRegistry, "list">;
   providersStore: Pick<ProvidersStore, "get">;
   cloudRunJobs: Pick<CloudRunJobs, "run">;
+  // The quick services of the jobs that have one; without it, every quick run is unavailable.
+  agentServices?: Pick<AgentServices, "has" | "run">;
   sessionsStore: SessionsStore;
   documentsStore?: Pick<DocumentsStore, "release">;
   // The jobs a task may use; undefined allows any valid job name.
@@ -31,8 +39,11 @@ export type CreateTaskResult =
 
 export type RunTaskResult =
   | { status: "started"; operation: string; sessionId?: string }
+  // The quick run's budget ran out; it has started and may still finish, so its session stays.
+  | { status: "quick_timeout"; sessionId?: string }
   | {
       status:
+        | "quick_unavailable"
         | "task_not_found"
         | "task_not_executable"
         | "session_not_found"
@@ -54,8 +65,10 @@ export type TasksService = {
   list: () => Promise<TaskContract[]>;
   get: (taskId: string) => Promise<TaskContract | undefined>;
   // Starts a new session of the task, or resumes one: the message is queued on the
-  // session in Firestore and the job gets only the session id.
-  run: (taskId: string, resume?: Resume) => Promise<RunTaskResult>;
+  // session in Firestore and the job gets only the session id. In `workflow` mode (the default)
+  // the run is a Cloud Run job started in the background; in `quick` mode it runs on the job's
+  // service and the call returns when it has finished.
+  run: (taskId: string, resume?: Resume, mode?: RunMode) => Promise<RunTaskResult>;
   // Deletes the task with its sessions, then releases the documents nobody else uses.
   delete: (taskId: string) => Promise<"deleted" | "not_found" | "too_many_subtasks">;
 };
@@ -65,6 +78,7 @@ export const createTasksService = ({
   agentRegistry,
   providersStore,
   cloudRunJobs,
+  agentServices,
   sessionsStore,
   documentsStore,
   allowedJobs,
@@ -89,11 +103,13 @@ export const createTasksService = ({
       }),
     list: () => guard("task_error", tasksStore.list),
     get: (taskId) => guard("task_error", () => tasksStore.get(taskId)),
-    async run(taskId, resume) {
+    async run(taskId, resume, mode = "workflow") {
       const task = await guard("task_error", () => tasksStore.get(taskId));
       if (!task) return { status: "task_not_found" };
       if (!isJobName(task.jobName ?? "") || (allowedJobs && !allowedJobs.has(task.jobName!)))
         return { status: "task_not_executable" };
+      if (mode === "quick" && !agentServices?.has(task.jobName!))
+        return { status: "quick_unavailable" };
       if (resume?.model && !(await isUsable(resume.model))) return { status: "unknown_model" };
 
       let targetSessionId = resume?.sessionId;
@@ -135,15 +151,38 @@ export const createTasksService = ({
       }
 
       try {
-        const operation = targetSessionId
-          ? await cloudRunJobs.run(task.jobName!, taskId, targetSessionId)
-          : await cloudRunJobs.run(task.jobName!, taskId);
+        const operation =
+          mode === "quick"
+            ? await agentServices!.run(task.jobName!, taskId, targetSessionId).then(() => "service")
+            : targetSessionId
+              ? await cloudRunJobs.run(task.jobName!, taskId, targetSessionId)
+              : await cloudRunJobs.run(task.jobName!, taskId);
         return {
           status: "started",
           operation,
           ...(createdSession && { sessionId: targetSessionId }),
         };
       } catch (err) {
+        // The service has the run: it may still finish, so its session and message stay.
+        if (err instanceof QuickTimeoutError)
+          return {
+            status: "quick_timeout",
+            ...(targetSessionId && { sessionId: targetSessionId }),
+          };
+        // The service ran it and the run failed: its session records the failure for the caller to
+        // read. A run that failed before it started recorded nothing, so that is a service failure.
+        if (err instanceof RunFailedError && targetSessionId) {
+          const failed = await sessionsStore
+            .get(taskId, targetSessionId)
+            .then((session) => session?.run?.status === "failed")
+            .catch(() => false);
+          if (failed)
+            return {
+              status: "started",
+              operation: "service",
+              ...(createdSession && { sessionId: targetSessionId }),
+            };
+        }
         if (createdSession && targetSessionId) {
           await sessionsStore
             .delete(taskId, targetSessionId)
@@ -153,7 +192,8 @@ export const createTasksService = ({
             .clearMessage(taskId, resume.sessionId)
             .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
         }
-        throw new DependencyError("job_error", err);
+        if (err instanceof RunInProgressError) return { status: "run_in_progress" };
+        throw new DependencyError(mode === "quick" ? "service_error" : "job_error", err);
       }
     },
 

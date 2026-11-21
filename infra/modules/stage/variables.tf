@@ -93,6 +93,49 @@ variable "agent_timeout" {
   description = "Maximum execution duration per agent task attempt."
 }
 
+variable "agent_service_apps" {
+  type        = set(string)
+  default     = []
+  description = "The agent_apps that also get a quick host: a Cloud Run service of the same image, named <name_prefix><name>-agents-svc, started with the `serve` argument. The orchestrator runs an agent there for a request/response run within QUICK_BUDGET_MS; the job stays the host of background (workflow) runs."
+}
+
+variable "agent_service_ingress" {
+  type    = string
+  default = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+
+  validation {
+    condition     = contains(["INGRESS_TRAFFIC_ALL", "INGRESS_TRAFFIC_INTERNAL_ONLY", "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"], var.agent_service_ingress)
+    error_message = "agent_service_ingress must be a valid Cloud Run v2 ingress setting."
+  }
+}
+
+variable "agent_service_timeout" {
+  type        = string
+  default     = "90s"
+  description = "Request timeout of the agent services. Keep it above the platform service's QUICK_BUDGET_MS (60 s by default): the service stops a run at the budget, and Cloud Run would otherwise cut the request first."
+}
+
+variable "agent_service_scaling" {
+  type = object({
+    min_instance_count = optional(number, 0)
+    max_instance_count = optional(number, 5)
+  })
+  default     = {}
+  description = "Instance scaling bounds for the agent services. A cold start counts against the quick budget; set min_instance_count to 1 to avoid it."
+}
+
+variable "agent_service_concurrency" {
+  type        = number
+  default     = 10
+  description = "Concurrent requests (quick runs) one instance of an agent service takes; Cloud Run's own default is 80, far more LLM runs than one small instance should hold."
+}
+
+variable "set_agent_services_audience" {
+  type        = bool
+  default     = false
+  description = "When true, sets AGENT_SERVICES_ID_TOKEN on the HTTP service so it attaches a Google ID token (the service URL as audience) to its calls to the agent services. Set it wherever the agent services are IAM-protected."
+}
+
 variable "extract_service_account" {
   type    = string
   default = null
