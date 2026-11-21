@@ -141,7 +141,7 @@ function Shell() {
                   >
                     <RefreshCw className={refreshing ? "animate-spin" : ""} />
                   </Button>
-                  {!isSettings && (
+                  {section === "/jobs" && (
                     <Button onClick={() => void openCreate()}>
                       <Plus />
                       New task

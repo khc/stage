@@ -26,6 +26,7 @@ A component used by two features moves to `src/components/`. Tests sit next to t
 
 - Every page inside the shell has one `<h1>` (the page title). The Assistant uses its conversation title. Do not add a second `<main>`: `SidebarInset` already renders it.
 - A list page is a `Card` with a header (icon, title, count `Badge`, `SearchInput`), a body and a `CardFooter`.
+- A list page's create action is a filled button in the card header next to the search (Tasks: New task, Providers: Add provider); the page header holds only Refresh. Jobs keeps the page-level New task because its rows create tasks per job.
 - The footer is always the same: a count on the left, how the data stays fresh on the right (see Lists).
 - The Assistant is the one full-height page. It has no page header or footer and owns its scrolling.
 - Details open in a `Sheet` (task, job) and creation in a `Dialog`. State that decides what is open lives in the URL (`/tasks/$taskId`, `?job=`, `?new=`), through `useNav`.

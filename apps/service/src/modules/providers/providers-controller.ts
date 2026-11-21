@@ -37,6 +37,29 @@ export const providersController = (providersService: ProvidersService) =>
       },
     )
     .post(
+      "/models",
+      async ({ body, status }) => {
+        const result = await providersService.fetchModels(body);
+        if (result.status === "ok") return { models: result.models };
+        if (result.status === "provider_not_found")
+          return status(404, { error: "provider_not_found" });
+        return status(400, { error: result.status });
+      },
+      {
+        body: ProvidersModel.fetchModelsBody,
+        ...doc(tag, "Fetch available models from a provider API", {
+          200: { description: "Available model identifiers.", schema: ProvidersModel.modelsResponse },
+          400: {
+            description:
+              "Invalid input, `invalid_base_url`, `invalid_api_key`, or `api_key_required`.",
+            schema: errors.invalid.schema,
+          },
+          404: providerNotFound,
+          502: errors.dependency,
+        }),
+      },
+    )
+    .post(
       "",
       async ({ body, status }) => {
         const result = await providersService.create(body);

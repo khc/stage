@@ -73,6 +73,9 @@ const messages: Record<string, string> = {
   unknown_agent: "This job has no such registered agent.",
   provider_not_found: "This provider could not be found.",
   provider_error: "Providers could not be loaded or saved. Try again in a moment.",
+  provider_models_error: "Could not fetch models from the provider API. Check the API key and Base URL.",
+  api_key_required: "Enter an API key (or save one on this provider) before fetching models.",
+  invalid_api_key: "API key contains unsupported control characters.",
   invalid_base_url: "Base URL must be a valid http:// or https:// address.",
   invalid_request: "The request could not be read. Check the entered values and try again.",
   invalid_resume: "A reply needs a session and a message that is not blank.",
@@ -141,6 +144,12 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
       },
     ) => unwrap(provider(id).patch(input)),
     deleteProvider: (id: string) => unwrapVoid(provider(id).delete()),
+    fetchProviderModels: (input: {
+      kind: "google" | "openai";
+      providerId?: string;
+      apiKey?: string;
+      baseUrl?: string | null;
+    }) => unwrap(client.providers.models.post(input)),
     task: (id: string) => unwrap(task(id).get()),
     create: (input: { name: string; prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),

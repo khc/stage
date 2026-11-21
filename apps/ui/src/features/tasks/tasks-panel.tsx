@@ -198,7 +198,13 @@ export function TasksPanel({ title, limit }: { title: string; limit?: number }) 
           {title}
           {tasksQuery.data && <Badge variant="secondary">{total}</Badge>}
         </CardTitle>
-        <SearchInput label="Search tasks" value={search} onChange={setSearch} />
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput label="Search tasks" value={search} onChange={setSearch} />
+          <Button onClick={() => void openCreate()}>
+            <Plus />
+            New task
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="px-0">
         {tasksQuery.isPending ? (

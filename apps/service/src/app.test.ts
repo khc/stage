@@ -123,6 +123,13 @@ const providersService = (overrides: Partial<ProvidersService> = {}): ProvidersS
         }
       : { status: "not_found" },
   delete: async (id) => id === provider.providerId,
+  fetchModels: async (input) =>
+    input.providerId && input.providerId !== provider.providerId
+      ? { status: "provider_not_found" }
+      : {
+          status: "ok",
+          models: input.kind === "google" ? ["gemini-2.5-flash"] : ["gpt-4o", "gpt-4o-mini"],
+        },
   ...overrides,
 });
 // The real A2A service over fakes: a haiku agent in poet-agents whose run succeeds at once.
@@ -990,5 +997,33 @@ describe("providers", () => {
     );
     expect(res).toEqual({ status: 502, body: { error: "provider_error" } });
     spy.mockRestore();
+  });
+
+  test("POST /providers/models fetches models or maps status codes", async () => {
+    expect(
+      await call(appWith(), "/providers/models", json({ kind: "openai", apiKey: "sk-1234" })),
+    ).toEqual({ status: 200, body: { models: ["gpt-4o", "gpt-4o-mini"] } });
+
+    expect(
+      await call(appWith(), "/providers/models", json({ kind: "openai", providerId: task.taskId })),
+    ).toEqual({ status: 404, body: { error: "provider_not_found" } });
+
+    expect(
+      await call(
+        appWith({}, {}, {}, { providers: { fetchModels: async () => ({ status: "api_key_required" }) } }),
+        "/providers/models",
+        json({ kind: "google" }),
+      ),
+    ).toEqual({ status: 400, body: { error: "api_key_required" } });
+
+    expect(
+      (
+        await call(
+          appWith(),
+          "/providers/models",
+          json({ kind: "openai", apiKey: "sk-bad\r\nheader" }),
+        )
+      ).status,
+    ).toBe(400);
   });
 });

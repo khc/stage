@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, Save } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { KeyRound, Plus, RefreshCw, Save } from "lucide-react";
+import { useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { ErrorBox } from "@/components/states";
@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import { api, type Provider, type ProviderKind } from "@/lib/api";
 
 export type ProviderFormState = {
@@ -34,18 +33,11 @@ export type ProviderFormState = {
   clearApiKey: boolean;
   baseUrl: string;
   defaultModel: string;
-  modelsText: string;
+  models: string[];
   enabled: boolean;
 };
 
-export const parseModelsInput = (text: string) => [
-  ...new Set(
-    text
-      .split(/[\n,]+/)
-      .map((item) => item.trim())
-      .filter(Boolean),
-  ),
-];
+const NO_DEFAULT_MODEL = "__none";
 
 export const validateBaseUrl = (value: string): string | undefined => {
   const trimmed = value.trim();
@@ -62,18 +54,26 @@ export const validateBaseUrl = (value: string): string | undefined => {
   }
 };
 
+export const hasEndpointChanged = (form: ProviderFormState, provider?: Provider) =>
+  !!provider && (form.kind !== provider.kind || form.baseUrl.trim() !== (provider.baseUrl ?? ""));
+
+export const canFetchModels = (form: ProviderFormState, provider?: Provider) => {
+  if (validateBaseUrl(form.baseUrl)) return false;
+  const savedKeyUsable = !!provider?.hasApiKey && !form.clearApiKey && !hasEndpointChanged(form, provider);
+  return !!form.apiKey.trim() || !!form.baseUrl.trim() || savedKeyUsable;
+};
+
 export const buildCreatePayload = (form: ProviderFormState) => {
   const apiKey = form.apiKey.trim();
   const baseUrl = form.baseUrl.trim();
   const defaultModel = form.defaultModel.trim();
-  const models = parseModelsInput(form.modelsText);
   return {
     name: form.name.trim(),
     kind: form.kind,
     ...(apiKey && { apiKey }),
     ...(baseUrl && { baseUrl }),
     ...(defaultModel && { defaultModel }),
-    ...(models.length > 0 && { models }),
+    ...(form.models.length > 0 && { models: form.models }),
     enabled: form.enabled,
   };
 };
@@ -82,7 +82,6 @@ export const buildUpdatePayload = (provider: Provider, form: ProviderFormState) 
   const apiKey = form.apiKey.trim();
   const baseUrl = form.baseUrl.trim();
   const defaultModel = form.defaultModel.trim();
-  const models = parseModelsInput(form.modelsText);
   return {
     name: form.name.trim(),
     kind: form.kind,
@@ -93,8 +92,8 @@ export const buildUpdatePayload = (provider: Provider, form: ProviderFormState) 
       : provider.defaultModel !== undefined
         ? { defaultModel: null }
         : {}),
-    ...(models.length > 0
-      ? { models }
+    ...(form.models.length > 0
+      ? { models: form.models }
       : provider.models !== undefined
         ? { models: null }
         : {}),
@@ -109,7 +108,7 @@ const initialForm = (provider?: Provider): ProviderFormState => ({
   clearApiKey: false,
   baseUrl: provider?.baseUrl ?? "",
   defaultModel: provider?.defaultModel ?? "",
-  modelsText: provider?.models?.join(", ") ?? "",
+  models: provider?.models ?? [],
   enabled: provider?.enabled ?? true,
 });
 
@@ -142,11 +141,43 @@ export function ProviderDialog({
   );
 }
 
-function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () => void }) {
+export function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () => void }) {
   const editing = !!provider;
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ProviderFormState>(() => initialForm(provider));
+  const [fetchedOnce, setFetchedOnce] = useState(false);
+  const fetchGenRef = useRef(0);
   const baseUrlError = validateBaseUrl(form.baseUrl);
+  const endpointChanged = hasEndpointChanged(form, provider);
+  const fetchAllowed = canFetchModels(form, provider);
+  const modelOptions = [
+    ...new Set([...form.models, ...(form.defaultModel ? [form.defaultModel] : [])]),
+  ];
+
+  const fetchMutation = useMutation({
+    mutationFn: async (gen: number) => {
+      const apiKey = form.apiKey.trim();
+      const baseUrl = form.baseUrl.trim();
+      const useSavedCredentials = !!provider && !form.clearApiKey && !endpointChanged;
+      const result = await api.fetchProviderModels({
+        kind: form.kind,
+        ...(useSavedCredentials && { providerId: provider.providerId }),
+        ...(apiKey && { apiKey }),
+        ...(baseUrl ? { baseUrl } : provider?.baseUrl !== undefined && useSavedCredentials ? { baseUrl: null } : {}),
+      });
+      return { ...result, gen };
+    },
+    onSuccess: ({ models, gen }) => {
+      if (gen !== fetchGenRef.current) return;
+      setFetchedOnce(true);
+      setForm((f) => ({
+        ...f,
+        models,
+        defaultModel: f.defaultModel && models.includes(f.defaultModel) ? f.defaultModel : "",
+      }));
+    },
+  });
+
   const submitReason = !form.name.trim()
     ? "Enter a provider name to continue."
     : baseUrlError
@@ -208,7 +239,12 @@ function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () 
           value={form.kind}
           items={KIND_OPTIONS}
           onValueChange={(next) => {
-            if (next === "google" || next === "openai") setForm((f) => ({ ...f, kind: next }));
+            if (next === "google" || next === "openai") {
+              fetchGenRef.current += 1;
+              fetchMutation.reset();
+              setFetchedOnce(false);
+              setForm((f) => ({ ...f, kind: next, models: [], defaultModel: "" }));
+            }
           }}
         >
           <SelectTrigger id="provider-kind" className="w-full">
@@ -240,24 +276,30 @@ function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () 
               : "Paste an API key"
           }
           value={form.apiKey}
-          onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+          onChange={(e) => {
+            fetchGenRef.current += 1;
+            setForm((f) => ({ ...f, apiKey: e.target.value }));
+          }}
           maxLength={1000}
         />
         <p className="text-xs text-muted-foreground">
-          Stored write-only; responses only expose whether a key is saved and its last characters.
+          {editing && provider.hasApiKey && endpointChanged && !form.clearApiKey && !form.apiKey.trim()
+            ? "Provider type or Base URL changed — enter a new API key to keep authentication, or saving will clear the stored key."
+            : "Stored write-only; responses only expose whether a key is saved and its last characters."}
         </p>
         {editing && provider.hasApiKey && (
           <div className="mt-1 flex items-center gap-2">
             <Checkbox
               id="provider-clear-api-key"
               checked={form.clearApiKey}
-              onCheckedChange={(checked) =>
+              onCheckedChange={(checked) => {
+                fetchGenRef.current += 1;
                 setForm((f) => ({
                   ...f,
                   clearApiKey: checked === true,
                   ...(checked === true && { apiKey: "" }),
-                }))
-              }
+                }));
+              }}
             />
             <Label
               htmlFor="provider-clear-api-key"
@@ -277,7 +319,10 @@ function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () 
           id="provider-base-url"
           placeholder="https://api.openai.com/v1"
           value={form.baseUrl}
-          onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
+          onChange={(e) => {
+            fetchGenRef.current += 1;
+            setForm((f) => ({ ...f, baseUrl: e.target.value }));
+          }}
           maxLength={500}
           aria-invalid={baseUrlError ? true : undefined}
         />
@@ -295,32 +340,62 @@ function ProviderForm({ provider, onClose }: { provider?: Provider; onClose: () 
         <Label htmlFor="provider-default-model" className="justify-between">
           Default model<span className="text-xs font-normal text-muted-foreground">Optional</span>
         </Label>
-        <Input
-          id="provider-default-model"
-          placeholder={form.kind === "google" ? "gemini-2.5-flash" : "gpt-4o"}
-          value={form.defaultModel}
-          onChange={(e) => setForm((f) => ({ ...f, defaultModel: e.target.value }))}
-          maxLength={200}
-        />
+        <div className="flex items-center gap-2">
+          <Select
+            value={form.defaultModel || NO_DEFAULT_MODEL}
+            disabled={modelOptions.length === 0 || fetchMutation.isPending}
+            items={[
+              {
+                value: NO_DEFAULT_MODEL,
+                label: modelOptions.length ? "No default model" : "Fetch models first",
+              },
+              ...modelOptions.map((model) => ({ value: model, label: model })),
+            ]}
+            onValueChange={(next) =>
+              setForm((f) => ({
+                ...f,
+                defaultModel: !next || next === NO_DEFAULT_MODEL ? "" : next,
+              }))
+            }
+          >
+            <SelectTrigger id="provider-default-model" className="min-w-0 flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_DEFAULT_MODEL}>
+                {modelOptions.length ? "No default model" : "Fetch models first"}
+              </SelectItem>
+              {modelOptions.map((model) => (
+                <SelectItem key={model} value={model}>
+                  {model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span title={!fetchAllowed ? "Enter an API key or Base URL first" : undefined}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!fetchAllowed || fetchMutation.isPending}
+              onClick={() => fetchMutation.mutate(++fetchGenRef.current)}
+            >
+              {fetchMutation.isPending ? <Spinner /> : <RefreshCw />}
+              Fetch models
+            </Button>
+          </span>
+        </div>
         <p className="text-xs text-muted-foreground">
-          Default model ID selected for this provider.
+          {!fetchAllowed
+            ? "Enter an API key or Base URL to fetch models from the provider API."
+            : fetchedOnce
+              ? form.models.length
+                ? `Loaded ${form.models.length} model${form.models.length === 1 ? "" : "s"} from the provider API.`
+                : "The provider API returned no models."
+              : form.models.length
+                ? `${form.models.length} saved model${form.models.length === 1 ? "" : "s"} available. Click Fetch models to refresh.`
+                : "Click Fetch models to load available models from the provider API."}
         </p>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="provider-models" className="justify-between">
-          Models<span className="text-xs font-normal text-muted-foreground">Optional</span>
-        </Label>
-        <Textarea
-          id="provider-models"
-          rows={2}
-          placeholder="gemini-2.5-flash, gemini-2.5-pro"
-          value={form.modelsText}
-          onChange={(e) => setForm((f) => ({ ...f, modelsText: e.target.value }))}
-        />
-        <p className="text-xs text-muted-foreground">
-          Comma- or newline-separated model identifiers offered by this provider.
-        </p>
+        {fetchMutation.isError && <ErrorBox error={fetchMutation.error} />}
       </div>
 
       <div className="flex flex-col gap-1">

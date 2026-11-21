@@ -217,4 +217,59 @@ describe("providers store", () => {
     expect(await store.get(created.providerId)).toBeUndefined();
     expect(await store.delete(created.providerId)).toBe(false);
   });
+
+  test("getCredentials returns stored kind, apiKey, and baseUrl internally without exposing on summaries", async () => {
+    const { firestore } = fakeDb();
+    const store = createProvidersStore(firestore);
+
+    expect(await store.getCredentials("missing")).toBeUndefined();
+    const created = await store.create({
+      name: "OpenAI",
+      kind: "openai",
+      apiKey: "sk-internal-123456",
+      baseUrl: "https://api.openai.com/v1",
+    });
+    expect(await store.getCredentials(created.providerId)).toEqual({
+      kind: "openai",
+      apiKey: "sk-internal-123456",
+      baseUrl: "https://api.openai.com/v1",
+    });
+  });
+
+  test("update clears saved apiKey when kind or baseUrl changes without a new apiKey", async () => {
+    const { firestore, stored } = fakeDb();
+    const store = createProvidersStore(firestore);
+
+    const created = await store.create({
+      name: "OpenAI",
+      kind: "openai",
+      apiKey: "sk-internal-123456",
+      baseUrl: "https://api.openai.com/v1",
+    });
+
+    // Updating unrelated fields while keeping kind/baseUrl identical preserves apiKey.
+    const untouchedEndpoint = await store.update(created.providerId, {
+      name: "Renamed",
+      kind: "openai",
+      baseUrl: "https://api.openai.com/v1",
+    });
+    expect(untouchedEndpoint?.hasApiKey).toBe(true);
+    expect(stored.get(created.providerId)?.apiKey).toBe("sk-internal-123456");
+
+    // Changing baseUrl without specifying apiKey clears stored apiKey.
+    const urlChanged = await store.update(created.providerId, {
+      baseUrl: "https://other-proxy.example/v1",
+    });
+    expect(urlChanged?.hasApiKey).toBe(false);
+    expect(urlChanged?.apiKeyHint).toBeUndefined();
+    expect(stored.get(created.providerId)?.apiKey).toBeUndefined();
+
+    // Changing kind with a new apiKey saves the new key cleanly.
+    const withNewKey = await store.update(created.providerId, {
+      kind: "google",
+      apiKey: "AIza-new-key-1234",
+    });
+    expect(withNewKey?.hasApiKey).toBe(true);
+    expect(stored.get(created.providerId)?.apiKey).toBe("AIza-new-key-1234");
+  });
 });

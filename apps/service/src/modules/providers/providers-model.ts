@@ -1,7 +1,10 @@
 import { t } from "elysia";
 
 const providerKind = t.Union([t.Literal("google"), t.Literal("openai")]);
-const nonBlank = (maxLength: number) => t.String({ pattern: "\\S", maxLength });
+export const MAX_MODEL_ID_LENGTH = 200;
+export const MAX_PROVIDER_MODELS = 500;
+const nonBlank = (maxLength: number) =>
+  t.String({ pattern: "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$", maxLength });
 
 export const ProvidersModel = {
   kind: providerKind,
@@ -11,8 +14,8 @@ export const ProvidersModel = {
     kind: providerKind,
     apiKey: t.Optional(nonBlank(1000)),
     baseUrl: t.Optional(nonBlank(500)),
-    defaultModel: t.Optional(nonBlank(200)),
-    models: t.Optional(t.Array(nonBlank(200), { maxItems: 100 })),
+    defaultModel: t.Optional(nonBlank(MAX_MODEL_ID_LENGTH)),
+    models: t.Optional(t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS })),
     enabled: t.Optional(t.Boolean()),
   }),
   updateBody: t.Object({
@@ -20,9 +23,20 @@ export const ProvidersModel = {
     kind: t.Optional(providerKind),
     apiKey: t.Optional(t.Union([nonBlank(1000), t.Null()])),
     baseUrl: t.Optional(t.Union([nonBlank(500), t.Null()])),
-    defaultModel: t.Optional(t.Union([nonBlank(200), t.Null()])),
-    models: t.Optional(t.Union([t.Array(nonBlank(200), { maxItems: 100 }), t.Null()])),
+    defaultModel: t.Optional(t.Union([nonBlank(MAX_MODEL_ID_LENGTH), t.Null()])),
+    models: t.Optional(
+      t.Union([t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS }), t.Null()]),
+    ),
     enabled: t.Optional(t.Boolean()),
+  }),
+  fetchModelsBody: t.Object({
+    kind: providerKind,
+    providerId: t.Optional(t.String({ format: "uuid" })),
+    apiKey: t.Optional(nonBlank(1000)),
+    baseUrl: t.Optional(t.Union([nonBlank(500), t.Null()])),
+  }),
+  modelsResponse: t.Object({
+    models: t.Array(t.String()),
   }),
   // Response shape: apiKey is write-only and never serialized out of the service.
   provider: t.Object({

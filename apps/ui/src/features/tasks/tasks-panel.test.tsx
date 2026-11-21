@@ -23,6 +23,11 @@ test("the overview shows `limit` tasks and links to the full list", async () => 
   expect(html).not.toContain("Task 8<");
 });
 
+test("the New task button sits in the table header", async () => {
+  const html = await render(tasks(1));
+  expect(html).toContain("New task");
+});
+
 test("the tasks page pages by ten and shows the page controls", async () => {
   const html = await render(tasks(11));
   expect(html).toContain("10 of 11 tasks shown");

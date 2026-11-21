@@ -3,12 +3,14 @@ import { describe, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import { Dialog } from "@/components/ui/dialog";
 import { api, type Provider } from "@/lib/api";
 
 import {
   buildCreatePayload,
   buildUpdatePayload,
-  parseModelsInput,
+  canFetchModels,
+  ProviderForm,
   validateBaseUrl,
 } from "./provider-dialog";
 import { ProvidersPage, providerMatches } from "./providers-page";
@@ -80,7 +82,32 @@ describe("ProvidersPage", () => {
   });
 });
 
-describe("ProviderDialog payload helpers", () => {
+describe("ProviderForm", () => {
+  test("renders Fetch models and Default model selector without a manual models textarea", () => {
+    const client = new QueryClient();
+    const editHtml = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <Dialog open>
+          <ProviderForm provider={sample} onClose={() => {}} />
+        </Dialog>
+      </QueryClientProvider>,
+    );
+    expect(editHtml).toContain("Fetch models");
+    expect(editHtml).toContain("Default model");
+    expect(editHtml).not.toContain("<textarea");
+
+    const addHtml = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <Dialog open>
+          <ProviderForm onClose={() => {}} />
+        </Dialog>
+      </QueryClientProvider>,
+    );
+    expect(addHtml).toContain("Fetch models");
+    expect(addHtml).toContain("Default model");
+    expect(addHtml).not.toContain("<textarea");
+  });
+
   test("normalizes create payload and omits blank optional fields", () => {
     expect(
       buildCreatePayload({
@@ -89,8 +116,8 @@ describe("ProviderDialog payload helpers", () => {
         apiKey: "   ",
         clearApiKey: false,
         baseUrl: "",
-        defaultModel: "  gemini-2.5-flash  ",
-        modelsText: "gemini-2.5-flash, gemini-2.5-pro\ngemini-2.5-flash",
+        defaultModel: "gemini-2.5-flash",
+        models: ["gemini-2.5-flash", "gemini-2.5-pro"],
         enabled: true,
       }),
     ).toEqual({
@@ -111,7 +138,7 @@ describe("ProviderDialog payload helpers", () => {
         clearApiKey: false,
         baseUrl: "",
         defaultModel: "",
-        modelsText: "",
+        models: [],
         enabled: false,
       }),
     ).toEqual({
@@ -131,18 +158,106 @@ describe("ProviderDialog payload helpers", () => {
         clearApiKey: true,
         baseUrl: "https://api.openai.com/v1",
         defaultModel: "gpt-4o",
-        modelsText: "gpt-4o",
+        models: ["gpt-4o"],
         enabled: true,
       }),
     ).toMatchObject({ apiKey: null });
   });
 
-  test("validates baseUrl and parses models", () => {
+  test("validates baseUrl and checks fetch readiness", () => {
     expect(validateBaseUrl("")).toBeUndefined();
     expect(validateBaseUrl("https://api.openai.com/v1")).toBeUndefined();
     expect(validateBaseUrl("ftp://bad")).toContain("http://");
     expect(validateBaseUrl("https://user:pass@api.openai.com/v1")).toContain("credentials");
     expect(validateBaseUrl("not a url")).toContain("valid URL");
-    expect(parseModelsInput(" a, b \n a , ")).toEqual(["a", "b"]);
+
+    expect(
+      canFetchModels({
+        name: "",
+        kind: "google",
+        apiKey: "",
+        clearApiKey: false,
+        baseUrl: "",
+        defaultModel: "",
+        models: [],
+        enabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      canFetchModels(
+        {
+          name: "Saved",
+          kind: "openai",
+          apiKey: "",
+          clearApiKey: false,
+          baseUrl: sample.baseUrl!,
+          defaultModel: "",
+          models: [],
+          enabled: true,
+        },
+        sample,
+      ),
+    ).toBe(true);
+    // Clearing saved baseUrl or checking clearApiKey prevents reusing stored credentials.
+    expect(
+      canFetchModels(
+        {
+          name: "Saved",
+          kind: "openai",
+          apiKey: "",
+          clearApiKey: true,
+          baseUrl: sample.baseUrl!,
+          defaultModel: "",
+          models: [],
+          enabled: true,
+        },
+        sample,
+      ),
+    ).toBe(true);
+    expect(
+      canFetchModels(
+        {
+          name: "Saved without baseUrl",
+          kind: "google",
+          apiKey: "",
+          clearApiKey: true,
+          baseUrl: "",
+          defaultModel: "",
+          models: [],
+          enabled: true,
+        },
+        { ...sample, kind: "google", baseUrl: undefined },
+      ),
+    ).toBe(false);
+    expect(
+      canFetchModels(
+        {
+          name: "Changed baseUrl without key",
+          kind: "openai",
+          apiKey: "",
+          clearApiKey: false,
+          baseUrl: "",
+          defaultModel: "",
+          models: [],
+          enabled: true,
+        },
+        sample,
+      ),
+    ).toBe(false);
+    expect(
+      canFetchModels(
+        {
+          name: "Changed kind without key",
+          kind: "google",
+          apiKey: "",
+          clearApiKey: false,
+          baseUrl: "",
+          defaultModel: "",
+          models: [],
+          enabled: true,
+        },
+        { ...sample, baseUrl: undefined },
+      ),
+    ).toBe(false);
   });
 });

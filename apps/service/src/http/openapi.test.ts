@@ -39,6 +39,7 @@ const documented = {
   "/tasks/{taskId}/sessions/{sessionId}/messages": ["get"],
   "/events": ["get"],
   "/providers": ["get", "post"],
+  "/providers/models": ["post"],
   "/providers/{providerId}": ["delete", "get", "patch"],
   // The card route (`.../.well-known/agent-card.json`) is served but the generator leaves it out of the document.
   "/a2a/{jobName}/{agentName}": ["post"],
