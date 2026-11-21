@@ -1,8 +1,8 @@
 # Cloud Run Job image for one ADK agent app (agents/<APP>/src/main.ts):
-#   docker build -f docker/Dockerfile.agents --build-arg APP=generic -t stage-generic .
-#   docker build -f docker/Dockerfile.agents --build-arg APP=poet -t stage-poet .
-#   docker build -f docker/Dockerfile.agents --build-arg APP=knowledge -t stage-knowledge .
-# The HTTP service image is ./docker/Dockerfile.service.
+#   docker build -f docker/Dockerfile.agents --build-arg APP=generic -t stage-generic-agents .
+#   docker build -f docker/Dockerfile.agents --build-arg APP=poet -t stage-poet-agents .
+#   docker build -f docker/Dockerfile.agents --build-arg APP=knowledge -t stage-knowledge-agents .
+# The HTTP service image is ./docker/Dockerfile.control-service.
 # Runtime configuration is supplied only via environment variables at execution
 # time; nothing is baked in: TASK_ID (required UUID), Firestore project/credentials, AGENT_MODEL and GOOGLE_GENAI_USE_VERTEXAI (optional),
 # and the Gemini credentials. With the argument `register` the container records
@@ -25,7 +25,7 @@ COPY agents/poet/package.json ./agents/poet/package.json
 COPY agents/knowledge/package.json ./agents/knowledge/package.json
 COPY agents/orchestrator/package.json ./agents/orchestrator/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
-COPY apps/service/package.json ./apps/service/package.json
+COPY apps/control-service/package.json ./apps/control-service/package.json
 RUN bun install --frozen-lockfile --production --filter "./agents/${APP}" \
  && mkdir -p packages/ingestion/node_modules packages/tools/node_modules \
  && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete

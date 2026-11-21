@@ -14,7 +14,7 @@ COPY agents/poet/package.json ./agents/poet/package.json
 COPY agents/knowledge/package.json ./agents/knowledge/package.json
 COPY agents/orchestrator/package.json ./agents/orchestrator/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
-COPY apps/service/package.json ./apps/service/package.json
+COPY apps/control-service/package.json ./apps/control-service/package.json
 # Elysia's optional peers (typescript, bun-types) get installed but are not used at runtime.
 RUN bun install --frozen-lockfile --production --filter "./apps/extract-service" \
  && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete \

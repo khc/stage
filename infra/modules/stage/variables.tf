@@ -20,7 +20,7 @@ variable "name_prefix" {
 
 variable "agent_apps" {
   type        = set(string)
-  description = "One Cloud Run job per agents/<name> app, named <name_prefix><name>-agents from image stage-<name>:<tag>."
+  description = "One Cloud Run job per agents/<name> app, named <name_prefix><name>-agents from image stage-<name>-agents:<tag>."
 }
 
 variable "agent_events_topic" {
@@ -197,7 +197,7 @@ variable "deletion_protection" {
 variable "deploy_service" {
   type        = bool
   default     = false
-  description = "Deploy the Elysia HTTP service (apps/service) as a Cloud Run service."
+  description = "Deploy the Elysia HTTP service (apps/control-service) as a Cloud Run service."
 }
 
 variable "service_service_account" {

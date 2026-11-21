@@ -48,11 +48,11 @@ Validation and error mapping:
 
 ## Code layout
 
-- `apps/service/src/platform/cloud-scheduler-client.ts`: `CloudScheduler` type and `createCloudScheduler(client, config)` with `get`, `create`, `update`, `delete`. Same shape as `cloud-run-jobs-client.ts`, including an emulator branch with no auth.
+- `apps/control-service/src/platform/cloud-scheduler-client.ts`: `CloudScheduler` type and `createCloudScheduler(client, config)` with `get`, `create`, `update`, `delete`. Same shape as `cloud-run-jobs-client.ts`, including an emulator branch with no auth.
   - Built on Google's `@google-cloud/scheduler` (`CloudSchedulerClient`), a GAPIC client like the `@google-cloud/run` one already used. The factory takes a `Pick<CloudSchedulerClient, "getJob" | "createJob" | "updateJob" | "deleteJob" | "locationPath" | "jobPath">`, so tests pass a plain fake. `pauseJob` and `resumeJob` are there for later.
   - Emulator: copy `createJobsClient` (`fallback: "rest"`, host and port from an env var, `protocol: "http"`, the `noAuth` stub). Not yet tried against Floci.
   - Errors: the client throws errors with a gRPC status `code` (5 `NOT_FOUND`, 6 `ALREADY_EXISTS`, 3 `INVALID_ARGUMENT`). In REST fallback mode it is unclear whether `err.code` is the gRPC number or the HTTP status. Before writing the client, run a throwaway script against Floci (`createJob`, `getJob`, a duplicate `createJob`) and print `err.code` and `err.message`. If REST fallback works and errors are mappable, use the library; otherwise a plain `fetch` to the REST API avoids the dependency but means hand-built paths and auth.
-- `apps/service/src/modules/tasks/schedules/`: `schedules-model.ts`, `schedules-service.ts`, `schedules-controller.ts`.
+- `apps/control-service/src/modules/tasks/schedules/`: `schedules-model.ts`, `schedules-service.ts`, `schedules-controller.ts`.
   - The controller takes `tasksService` and uses `tasksGuard(tasksService)`, as `sessionsController` does; the handler gets the `task` from the guard.
   - The service takes `cloudScheduler` and the base URL and invoker account from config. It returns a status for every expected outcome and throws `DependencyError` on failure.
   - The executability check lives in the service, using the same `jobName` / `allowedJobs` rule as `TasksService.run`. Export a small function from the tasks service module that takes the task and `allowedJobs`, and have both `run` and the schedules service call it.
@@ -100,7 +100,7 @@ A **Schedule** tab in the task details pane ([task-sheet.tsx](../apps/ui/src/fea
 4. Model, service and controller with tests; route tests in `app.test.ts`.
 5. Schedule deletion in `TasksService.delete`, with a test for the failure order.
 6. UI: API client and messages, `TaskSchedule` and the tab, tests. The types need no generation step: they come from `import type { App }`, so this follows step 4 once the routes are mounted.
-7. Update [apps/service/PLAN.md](../apps/service/PLAN.md) and the README.
+7. Update [apps/control-service/PLAN.md](../apps/control-service/PLAN.md) and the README.
 
 ## Floci spike results
 

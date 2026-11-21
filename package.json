@@ -8,9 +8,9 @@
   ],
   "type": "module",
   "scripts": {
-    "start": "bun --filter @stage/service start",
+    "start": "bun --filter @stage/control-service start",
     "dev": "bun --filter '@stage/*' dev",
-    "dev:service": "bun --filter @stage/service dev",
+    "dev:service": "bun --filter @stage/control-service dev",
     "dev:ui": "bun --filter @stage/ui dev",
     "test": "bun test",
     "typecheck": "bun check scripts && bun --filter '*' typecheck",

@@ -59,7 +59,7 @@
     },
     {
       // Sequential awaits are deliberate here: ordered deletes, a streaming loop, migrations.
-      "files": ["apps/service/**", "scripts/**"],
+      "files": ["apps/control-service/**", "scripts/**"],
       "rules": { "eslint/no-await-in-loop": "off" }
     }
   ],

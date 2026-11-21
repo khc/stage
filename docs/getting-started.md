@@ -91,7 +91,7 @@ task list-jobs
 
 ## 4. Start the API service and dashboard
 
-Run the HTTP API (`apps/service`) and web dashboard (`apps/ui`) in two terminals:
+Run the HTTP API (`apps/control-service`) and web dashboard (`apps/ui`) in two terminals:
 
 ```bash
 # Terminal 1: HTTP API on http://localhost:3000 (Scalar API docs at /docs)

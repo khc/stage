@@ -8,19 +8,19 @@ tasks:
     desc: Build the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
       - for: { var: JOBS }
-        cmd: docker build -f docker/Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}:latest .
+        cmd: docker build -f docker/Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}-agents:latest .
       - docker image prune -f
 
   build:extract-service:
-    desc: Build the extract service image (stage-extract:latest, the name infra/ deploys)
+    desc: Build the extract service image (stage-extract-service:latest, the name infra/ deploys)
     cmds:
-      - docker build -f docker/Dockerfile.extract-service -t stage-extract:latest .
+      - docker build -f docker/Dockerfile.extract-service -t stage-extract-service:latest .
       - docker image prune -f
 
   build:service:
-    desc: Build the Elysia HTTP service image (stage-service:latest)
+    desc: Build the Elysia HTTP service image (stage-control-service:latest)
     cmds:
-      - docker build -f docker/Dockerfile.service -t stage-service:latest .
+      - docker build -f docker/Dockerfile.control-service -t stage-control-service:latest .
       - docker image prune -f
 
   build:ui:

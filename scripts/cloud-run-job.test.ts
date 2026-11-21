@@ -239,7 +239,7 @@ test("update stops without patching when the existing job cannot be read", async
 });
 
 test("the task template turns retries off and keeps the other task settings", () => {
-  const containers = [{ image: "stage-poet:latest" }];
+  const containers = [{ image: "stage-poet-agents:latest" }];
   expect(jobTaskTemplate(containers)).toEqual({ maxRetries: 0, containers });
   expect(jobTaskTemplate(containers, { maxRetries: 3, timeout: { seconds: 600 } })).toEqual({
     maxRetries: 0,
@@ -251,7 +251,7 @@ test("the task template turns retries off and keeps the other task settings", ()
 test("jobTarget derives the job and image from JOB_APP and lets JOB_NAME and JOB_IMAGE override", () => {
   expect(jobTarget({ JOB_APP: "poet" })).toEqual({
     job: "poet-agents",
-    image: "stage-poet:latest",
+    image: "stage-poet-agents:latest",
   });
   expect(jobTarget({ JOB_APP: "poet", JOB_NAME: "other", JOB_IMAGE: "img:1" })).toEqual({
     job: "other",

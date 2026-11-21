@@ -54,7 +54,7 @@ tasks:
       - terraform -chdir=infra/envs/local output -raw extract_url
 
   create-service:
-    desc: Create or update the Elysia HTTP service (apps/service) as a Cloud Run service in Floci with Terraform; prints its URL (run build:service first)
+    desc: Create or update the Elysia HTTP service (apps/control-service) as a Cloud Run service in Floci with Terraform; prints its URL (run build:service first)
     cmds:
       - task: apply
       - terraform -chdir=infra/envs/local output -raw service_url

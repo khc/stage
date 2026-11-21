@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-for (const workspace of ["service"]) {
+for (const workspace of ["control-service"]) {
   test(`${workspace} start/dev scripts load the repository-root env from the workspace directory`, async () => {
     const root = await mkdtemp(join(tmpdir(), "workspace-env-"));
     try {

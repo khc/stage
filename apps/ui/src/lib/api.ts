@@ -1,5 +1,5 @@
 import { treaty } from "@elysiajs/eden";
-import type { App } from "@stage/service/app";
+import type { App } from "@stage/control-service/app";
 
 // Cloud Run timestamps and durations arrive as { seconds, nanos }.
 // On the wire `seconds` is a string or a number; the generated types also allow a Long.

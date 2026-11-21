@@ -139,7 +139,7 @@ variable "extract_invokers" {
 variable "deploy_service" {
   type        = bool
   default     = false
-  description = "Deploy the Elysia HTTP service (apps/service) and its workload IAM bindings."
+  description = "Deploy the Elysia HTTP service (apps/control-service) and its workload IAM bindings."
 }
 
 variable "service_ingress" {

@@ -23,11 +23,11 @@ export const jobEnvironment = (env: Env, project: string) => {
 };
 
 // The job and image a run of this script targets. JOB_APP (generic, poet) gives
-// both by convention (<app>-agents and stage-<app>:latest); JOB_NAME and
+// both by convention (<app>-agents and stage-<app>-agents:latest); JOB_NAME and
 // JOB_IMAGE override either. Nothing is guessed when neither is set.
 export const jobTarget = (env: Env) => {
   const job = env.JOB_NAME || (env.JOB_APP ? `${env.JOB_APP}-agents` : undefined);
-  const image = env.JOB_IMAGE || (env.JOB_APP ? `stage-${env.JOB_APP}:latest` : undefined);
+  const image = env.JOB_IMAGE || (env.JOB_APP ? `stage-${env.JOB_APP}-agents:latest` : undefined);
   if (!job || !image)
     throw new Error("Set JOB_APP (for example generic), or JOB_NAME and JOB_IMAGE");
   return { job, image };

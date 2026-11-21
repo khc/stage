@@ -62,7 +62,7 @@ resource "google_cloud_run_v2_job" "agents" {
       service_account = var.agent_service_account
 
       containers {
-        image = "${var.image_prefix}stage-${each.key}${local.image_sep}${var.image_tag}"
+        image = "${var.image_prefix}stage-${each.key}-agents${local.image_sep}${var.image_tag}"
 
         resources {
           limits = {
@@ -97,7 +97,7 @@ resource "google_cloud_run_v2_job" "agents" {
 }
 
 # The quick host of an agent app: the job's image run as an HTTP service with the `serve` argument, on the
-# same env and secrets as the job. It answers POST /run for the platform service (apps/service).
+# same env and secrets as the job. It answers POST /run for the platform service (apps/control-service).
 resource "google_cloud_run_v2_service" "agent_services" {
   for_each            = var.agent_service_apps
   name                = "${var.name_prefix}${each.key}-agents-svc"
@@ -123,7 +123,7 @@ resource "google_cloud_run_v2_service" "agent_services" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-${each.key}${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage-${each.key}-agents${local.image_sep}${var.image_tag}"
       args  = ["serve"]
 
       ports {
@@ -187,7 +187,7 @@ resource "google_cloud_run_v2_service" "extract" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-extract${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage-extract-service${local.image_sep}${var.image_tag}"
 
       ports {
         container_port = 8080
@@ -224,7 +224,7 @@ resource "google_cloud_run_v2_service" "extract" {
   }
 }
 
-# The Elysia HTTP service (apps/service). The image listens on 0.0.0.0:3000.
+# The Elysia HTTP service (apps/control-service). The image listens on 0.0.0.0:3000.
 resource "google_cloud_run_v2_service" "service" {
   count               = var.deploy_service ? 1 : 0
   name                = "${var.name_prefix}service"
@@ -257,7 +257,7 @@ resource "google_cloud_run_v2_service" "service" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-service${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage-control-service${local.image_sep}${var.image_tag}"
 
       ports {
         container_port = 3000

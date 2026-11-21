@@ -1,4 +1,4 @@
-# HTTP service image (apps/service, the Elysia service). The agent job images
+# HTTP service image (apps/control-service, the Elysia service). The agent job images
 # are built from ./docker/Dockerfile.agents.
 # Runtime configuration is supplied via environment variables, nothing is baked in:
 # GCP_PROJECT and GCP_REGION (required), PORT (optional, default 3000 here), EXTRACT_URL,
@@ -19,8 +19,8 @@ COPY agents/poet/package.json ./agents/poet/package.json
 COPY agents/knowledge/package.json ./agents/knowledge/package.json
 COPY agents/orchestrator/package.json ./agents/orchestrator/package.json
 COPY apps/extract-service/package.json ./apps/extract-service/package.json
-COPY apps/service/package.json ./apps/service/package.json
-RUN bun install --frozen-lockfile --production --filter "./apps/service" \
+COPY apps/control-service/package.json ./apps/control-service/package.json
+RUN bun install --frozen-lockfile --production --filter "./apps/control-service" \
  && find node_modules \( -name "*.map" -o -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.md" \) -delete
 
 FROM ${BUN_IMAGE} AS runtime
@@ -32,14 +32,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY packages/agents ./packages/agents
 COPY packages/http ./packages/http
-COPY apps/service ./apps/service
+COPY apps/control-service ./apps/control-service
 COPY --from=deps /app/packages/agents/node_modules ./packages/agents/node_modules
 COPY --from=deps /app/packages/http/node_modules ./packages/http/node_modules
-COPY --from=deps /app/apps/service/node_modules ./apps/service/node_modules
+COPY --from=deps /app/apps/control-service/node_modules ./apps/control-service/node_modules
 
 USER 1000:1000
 EXPOSE 3000
 # The distroless image's entrypoint is `bun`; the preload registers the tracer provider (see
-# apps/service/src/telemetry-init.ts).
-ENTRYPOINT ["bun", "--preload", "/app/apps/service/src/telemetry-init.ts"]
-CMD ["apps/service/src/index.ts"]
+# apps/control-service/src/telemetry-init.ts).
+ENTRYPOINT ["bun", "--preload", "/app/apps/control-service/src/telemetry-init.ts"]
+CMD ["apps/control-service/src/index.ts"]

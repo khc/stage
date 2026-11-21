@@ -2,7 +2,7 @@
 
 The Elysia HTTP service, a rebuild of the Hono service it replaced, laid out by feature and driven by the platform's shape, not by the Hono code.
 
-Status: the rebuild is done and the Hono service has been removed (two parity passes found no response that differs in status; see the results below). Its last version is in git history, in `apps/service` of the commit before the rename, if a comparison is ever needed. This app was `apps/service2` while both existed; `infra/` was renamed with it (the Cloud Run service `service`, `deploy_service`, the image `stage-service`). It listens on `127.0.0.1:3000`. What is still open is the GCP deployment (see "Still to do")
+Status: the rebuild is done and the Hono service has been removed (two parity passes found no response that differs in status; see the results below). Its last version is in git history, in `apps/control-service` of the commit before the rename, if a comparison is ever needed. This app was `apps/service2` while both existed; `infra/` was renamed with it (the Cloud Run service `service`, `deploy_service`, the image `stage-service`). It listens on `127.0.0.1:3000`. What is still open is the GCP deployment (see "Still to do")
 
 ## Goal
 
@@ -21,7 +21,7 @@ Status: the rebuild is done and the Hono service has been removed (two parity pa
 ## Layout
 
 ```
-apps/service/src/
+apps/control-service/src/
   index.ts  app.ts  config.ts
   http/        errors.ts                                      # the shared handler plus the service's own errors (the plugins are in packages/http)
   platform/    firestore-client.ts  cloud-run-jobs-client.ts  pubsub-client.ts  extract-client.ts
@@ -96,13 +96,13 @@ Done and verified against the local Floci stack (unit tests, the Firestore-backe
 - Request ids and telemetry (now the plugins in `packages/http`, shared with extract-service): every response carries `x-request-id` (the caller's id if short and plain, else a UUID; also in the error log and on the span). Each request is one OpenTelemetry server span, continuing a caller's `traceparent`, named after the route, with the status, an error status and the exception on 5xx, and the handler's own Firestore and Cloud Run calls as children (Elysia's `wrap` runs the whole pipeline inside the span). Traces are exported only when an `OTEL_EXPORTER_OTLP_*ENDPOINT` is set, through the same `setupTelemetry` the jobs use, registered by `src/telemetry-init.ts` as a `bun --preload` (`start`, `dev`, and the image entrypoint). Checked with a local OTLP receiver: the exported batch had `service.name` `stage-service`, the span `GET /health` and the request id.
 - `/docs` (Scalar) and `/openapi.json` (OpenAPI 3.1) from `@elysiajs/openapi`, generated from the routes. The document has the same 15 paths and methods as the Hono service; every operation has a tag, a summary and documented responses (`doc(...)` in `http/openapi.ts`, documentation only, no runtime response validation). The paths are clean (`/tasks`, not `/tasks/`) because the collection routes use `""` under their prefix.
 
-Eden in `apps/ui` (done): `apps/ui/src/lib/api.ts` now builds its `api` object on `treaty<App>` with `App` imported as a type from `@stage/service/app`, so paths, bodies and replies are typed by the service's routes and the UI components did not change (the UI type-checks with no errors). The five server-shape types (`Task`, `DocumentSummary`, `SessionSummary`, `RunState`, `SessionStats`) are derived from the replies; `Job`, `Session`, `SessionEvent`, `AgentInfo` and `JsonSchema` stay UI-shaped (loose views of Cloud Run, ADK and JSON Schema data), and the replies that carry them are cast. Findings: Eden does not encode path parameters, so the facade does (session ids can hold any character); the three `erasableSyntaxOnly` constructs (`event-feed.ts` and the `FirestoreSessionService` constructor) became plain fields; `Dockerfile.ui` copies `packages/agents` and `apps/service` into the build stage for the type check (the image is the same 55 MB, and the bundle grew by 7.9 KB for Eden's runtime); `api.ts` went from 450 to 431 lines, so the gain is type safety, not size. The UI's real `createApi` ran against the live service: health, jobs, agents, create, get, list, upload, detach, delete and the error mapping all passed. Eden types a validation failure as 422 while the service answers 400, and the `run` and `documents` bodies are untyped because those routes read the body themselves.
+Eden in `apps/ui` (done): `apps/ui/src/lib/api.ts` now builds its `api` object on `treaty<App>` with `App` imported as a type from `@stage/control-service/app`, so paths, bodies and replies are typed by the service's routes and the UI components did not change (the UI type-checks with no errors). The five server-shape types (`Task`, `DocumentSummary`, `SessionSummary`, `RunState`, `SessionStats`) are derived from the replies; `Job`, `Session`, `SessionEvent`, `AgentInfo` and `JsonSchema` stay UI-shaped (loose views of Cloud Run, ADK and JSON Schema data), and the replies that carry them are cast. Findings: Eden does not encode path parameters, so the facade does (session ids can hold any character); the three `erasableSyntaxOnly` constructs (`event-feed.ts` and the `FirestoreSessionService` constructor) became plain fields; `Dockerfile.ui` copies `packages/agents` and `apps/control-service` into the build stage for the type check (the image is the same 55 MB, and the bundle grew by 7.9 KB for Eden's runtime); `api.ts` went from 450 to 431 lines, so the gain is type safety, not size. The UI's real `createApi` ran against the live service: health, jobs, agents, create, get, list, upload, detach, delete and the error mapping all passed. Eden types a validation failure as 422 while the service answers 400, and the `run` and `documents` bodies are untyped because those routes read the body themselves.
 
 - The UI type-checks the service sources with its own flags, and `erasableSyntaxOnly` rejects three parameter properties: `service/src/utils/event-feed.ts` and two in `packages/agents/src/session-service.ts` (the `FirestoreSessionService` constructor). Those would have to become plain fields, or the UI would consume emitted `.d.ts` files instead.
 - Eden's types say a validation failure is `422`, while the error handler answers 400 `invalid_request`. The documented types and the runtime disagree until that mapping is declared on the routes.
 - Rough saving in `apps/ui/src/lib/api.ts` (450 lines): the server-shape types (`Task`, `DocumentSummary`, `Job`, `SessionSummary`, `SessionStats`, `AgentInfo`, `Session`, about 80 lines) and the `api` object with `request` (about 60 lines) would shrink to a small error-mapping helper. That is an estimate, not a migration.
 
-Packaging (Phase 4): `Dockerfile.service` (distroless Bun base, per-workspace production install, non-root UID, `HOST=0.0.0.0`, 221 MB) and `task build:service`. The container ran against Floci: `/health`, `/docs`, `/openapi.json` (15 paths), the Cloud Run job list, creating, reading and deleting a task in Firestore, and the 501 answers without `EXTRACT_URL` and `PLATFORM_EVENTS_TOPIC`.
+Packaging (Phase 4): `Dockerfile.control-service` (distroless Bun base, per-workspace production install, non-root UID, `HOST=0.0.0.0`, 221 MB) and `task build:service`. The container ran against Floci: `/health`, `/docs`, `/openapi.json` (15 paths), the Cloud Run job list, creating, reading and deleting a task in Firestore, and the 501 answers without `EXTRACT_URL` and `PLATFORM_EVENTS_TOPIC`.
 
 Terraform: `infra/modules/stage` has an optional `service` Cloud Run service (`deploy_service`, default off), which `infra/envs/local` turns on with the emulator hosts. `terraform validate` passes and `terraform plan` against Floci shows one resource to add and nothing else changing. It has not been applied. `envs/gcp` leaves it off until the service account and IAM are decided (Firestore, Pub/Sub, running the agent jobs with overrides, invoking extract).
 
@@ -131,7 +131,7 @@ Known differences from the Hono service, to settle in the parity run (Phase 5):
 
 **Phase 1: skeleton.**
 
-- `package.json`, `tsconfig` and the workspace entry for `apps/service`.
+- `package.json`, `tsconfig` and the workspace entry for `apps/control-service`.
 - `config.ts`: one validated environment schema (same variables as the Hono service).
 - `platform/` clients, `http/errors.ts`, the request id and telemetry plugins (now in `packages/http`), the `health` module, `index.ts` and `app.ts`.
 - Test: `app.handle` on `/health` and an error-mapping case.
@@ -151,7 +151,7 @@ Known differences from the Hono service, to settle in the parity run (Phase 5):
 
 **Phase 4: packaging.**
 
-- `Dockerfile.service` (distroless Bun base like `Dockerfile.service`), `task build:service`.
+- `Dockerfile.control-service` (distroless Bun base like `Dockerfile.control-service`), `task build:service`.
 - Terraform: Cloud Run service, service account, IAM, `EXTRACT_URL` from the extract output, in `infra/modules/stage`.
 
 **Phase 5: parity and decision.**

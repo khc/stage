@@ -81,8 +81,8 @@
         "@types/bun": "^1.4.4",
       },
     },
-    "apps/service": {
-      "name": "@stage/service",
+    "apps/control-service": {
+      "name": "@stage/control-service",
       "version": "0.1.0",
       "dependencies": {
         "@a2a-js/sdk": "0.3.14",
@@ -563,7 +563,7 @@
 
     "@stage/poet-agents": ["@stage/poet-agents@workspace:agents/poet"],
 
-    "@stage/service": ["@stage/service@workspace:apps/service"],
+    "@stage/control-service": ["@stage/control-service@workspace:apps/control-service"],
 
     "@stage/tools": ["@stage/tools@workspace:packages/tools"],
 

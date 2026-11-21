@@ -40,7 +40,7 @@ Use `bun check` to type check the project. It reads `tsconfig.json` and reports 
 
 ## Frontend
 
-`apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. Its API types come from the service: `src/lib/api.ts` builds an Eden client from `import type { App } from "@stage/service/app"`, so a change to a route is a type error in the UI. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
+`apps/ui` is a React SPA built and served with Vite (`bun run dev:ui`); it is the one place Vite is used. Its API types come from the service: `src/lib/api.ts` builds an Eden client from `import type { App } from "@stage/control-service/app"`, so a change to a route is a type error in the UI. A new frontend served by Bun uses HTML imports with `Bun.serve()` instead of adding another Vite app.
 
 Build and change `apps/ui` by the rules in [docs/ui-guidelines.md](docs/ui-guidelines.md): shadcn and AI Elements components only, Data Tables for lists, `Trace` for agent output, color tokens, and the accessibility and responsive checklist. Read it before touching the UI.
 
@@ -49,7 +49,7 @@ Build and change `apps/ui` by the rules in [docs/ui-guidelines.md](docs/ui-guide
 ## File naming
 
 - File names are kebab-case: `tasks-store.ts`, `tasks-service.ts`. Tests sit next to the file they test and end in `.test.ts`. App-level tests that go through `createApp` sit in `src` root (`app.test.ts`).
-- `apps/service` and `apps/extract-service` are Elysia apps laid out by feature (the latter has one module, `extractions`, plus `health`), following [Elysia's best practice](https://elysiajs.com/essential/best-practice.html) for the folder structure. Each `modules/<module>/` folder holds `<module>-controller.ts` (the Elysia controller), `<module>-service.ts`, `<module>-model.ts` and, where it owns a collection, `<module>-store.ts`. A module's children live inside it (`tasks/sessions/`, `tasks/documents/`).
+- `apps/control-service` and `apps/extract-service` are Elysia apps laid out by feature (the latter has one module, `extractions`, plus `health`), following [Elysia's best practice](https://elysiajs.com/essential/best-practice.html) for the folder structure. Each `modules/<module>/` folder holds `<module>-controller.ts` (the Elysia controller), `<module>-service.ts`, `<module>-model.ts` and, where it owns a collection, `<module>-store.ts`. A module's children live inside it (`tasks/sessions/`, `tasks/documents/`).
 - A file's role is a suffix on its name, because editors, quick-open and stack traces show only the file name, and the same module name appears in several roles. Files and symbols are named after the module, in the plural, like its folder (`tasks-controller.ts`, `sessions-store.ts`, `TasksService`, `createTasksStore`); `health` has no plural.
 - Code that both Elysia apps need lives in `packages/http` (`@stage/http`, imported as `@stage/http/<file>`): `request-id`, `telemetry` (the request span plugin), `otel` (`setupTelemetry`, shared with the agent jobs), `config` (`createConfigLoader`, `serverConfig`, `serverDefaults`) and `errors` (the base `errorHandler`). An app wires them in `createApp` in this order: `requestId()`, `requestTelemetry()`, `.wrap(inRequestSpan)` (Elysia applies `wrap` only on the instance it is called on), then `errorHandler()`. Move code into the package only when a second app needs it, and keep it free of Firestore, GCP and ADK dependencies, so the lighter apps' images stay small.
 - Clients of external systems live in `platform/`, named after the system they wrap (`cloud-run-jobs-client.ts`, `firestore-client.ts`, `session-event-stream.ts`, `topic-subscriber.ts`). Cross-cutting Elysia plugins live in `http/`, small helpers in `utils/`, and the entry is `index.ts` with `app.ts`.
@@ -65,9 +65,9 @@ Build and change `apps/ui` by the rules in [docs/ui-guidelines.md](docs/ui-guide
 - A controller is an Elysia instance (one per file, a factory taking the services it needs), never a class, mounted with `.use()`; handlers destructure what they need and call the service, and a service never receives Elysia's `Context`. Keep `createApp` one unbroken chain so Eden can read its type, and register `errorHandler` before the routes it covers.
 - Schemas live in the module's `<module>-model.ts` (TypeBox, `t` from `elysia`); the OpenAPI document and the UI's types are generated from the routes.
 
-## Layout of `apps/service`
+## Layout of `apps/control-service`
 
-Controllers call services (and the module's `tasksGuard`); services call stores and platform clients; stores and platform clients call no module; only a module's parent mounts its controller. Decisions, the parity checks against the Hono service this replaced and what is still open are in [apps/service/PLAN.md](apps/service/PLAN.md).
+Controllers call services (and the module's `tasksGuard`); services call stores and platform clients; stores and platform clients call no module; only a module's parent mounts its controller. Decisions, the parity checks against the Hono service this replaced and what is still open are in [apps/control-service/PLAN.md](apps/control-service/PLAN.md).
 
 ## Code naming
 
