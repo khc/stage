@@ -59,13 +59,15 @@ docker compose up -d floci-gcp floci-ui mlflow
 
 ## 3. Build images, provision Floci, and register agents
 
-Build the container images that Terraform deploys into Floci (`task build:service` is needed because `infra/envs/local/main.tf` sets `deploy_service = true`):
+Build the container images that Terraform deploys into Floci (`task build:control-service` is needed because `infra/envs/local/main.tf` sets `deploy_service = true`):
 
 ```bash
 task build:agents
 task build:extract-service
-task build:service
+task build:control-service
 ```
+
+`task build` runs all of them (and `build:ui`, the dashboard image, which Terraform does not deploy).
 
 Initialize and apply the local Terraform configuration (`infra/envs/local`), then record each agent app's agents in Firestore:
 

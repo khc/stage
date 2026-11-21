@@ -57,4 +57,4 @@ State files are gitignored, and GCP roots use `backend "gcs" {}` with restricted
 
 Only `terraform fmt` / `terraform validate` have run against the GCP modules: nothing has been planned or applied to a live GCP project yet, and the Pub/Sub, Scheduler, and IAM condition expressions have not been verified against a project.
 
-Floci's Firestore needs no resource (documents only). Images are built by `task build:agents`, `task build:extract-service` and `task build:service`.
+Floci's Firestore needs no resource (documents only). Images are built by `task build:agents`, `task build:extract-service` and `task build:control-service`.

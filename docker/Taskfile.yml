@@ -1,9 +1,17 @@
 version: "3"
 
-# Included by the root Taskfile with `flatten: true`, so `task build:service` keeps its name. Tasks run from the
+# Included by the root Taskfile with `flatten: true`, so the tasks keep their `build:` names. Tasks run from the
 # repo root (the build context); JOBS comes from the root Taskfile.
 
 tasks:
+  build:
+    desc: Build every image - the agents, the extract service, the control service and the dashboard (add a build:* task here when you add an image)
+    cmds:
+      - task: build:agents
+      - task: build:extract-service
+      - task: build:control-service
+      - task: build:ui
+
   build:agents:
     desc: Build the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
@@ -17,7 +25,7 @@ tasks:
       - docker build -f docker/Dockerfile.extract-service -t stage-extract-service:latest .
       - docker image prune -f
 
-  build:service:
+  build:control-service:
     desc: Build the Elysia HTTP service image (stage-control-service:latest)
     cmds:
       - docker build -f docker/Dockerfile.control-service -t stage-control-service:latest .
