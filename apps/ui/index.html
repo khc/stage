@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/stage.svg" />
     <link rel="icon" type="image/png" href="/stage.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stage</title>
@@ -9,6 +10,13 @@
       name="description"
       content="Manage agent tasks, Cloud Run jobs, and execution sessions."
     />
+    <script>
+      // Apply the saved color theme before first paint (see ThemeProvider); unknown values fall back to violet in CSS.
+      try {
+        const palette = localStorage.getItem("palette");
+        if (palette) document.documentElement.dataset.palette = palette;
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

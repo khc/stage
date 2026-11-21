@@ -40,7 +40,7 @@ test("AppSidebar renders the Assistant link on top of the left side panel before
   const assistantLink = html.match(/<a[^>]*>(?:(?!<\/a>).)*>Assistant<\/span><\/a>/)?.[0];
   expect(assistantLink).toContain('href="/"');
   expect(assistantLink).toContain('data-active=""');
-  expect(html).toContain('src="/stage.png"');
+  expect(html).toContain('src="/stage.svg"');
   const homeLink = html.match(
     /<a(?=[^>]*aria-label="Stage home")(?=[^>]*href="\/")[^>]*>(.*?)<\/a>/,
   );

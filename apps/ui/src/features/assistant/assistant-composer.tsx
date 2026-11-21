@@ -185,7 +185,7 @@ export function AssistantComposer({
                   />
                 }
               >
-                <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
+                <img src="/stage.svg" alt="" aria-hidden className="size-3.5" />
                 <span className="truncate">
                   {selectItems.find((item) => item.value === selectedId)?.label ??
                     "No agents available"}

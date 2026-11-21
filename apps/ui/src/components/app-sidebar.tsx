@@ -89,7 +89,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                     isActive={isAssistant}
                     render={<Link to="/" activeOptions={{ exact: true }} />}
                   >
-                    <img src="/stage.png" alt="" className="size-4 shrink-0 rounded-[4px]" />
+                    <img src="/stage.svg" alt="" className="size-4 shrink-0" />
                     <span>Assistant</span>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>

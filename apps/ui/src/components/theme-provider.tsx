@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { defaultPalette, isPalette, type Palette } from "@/lib/palettes";
+
 type Theme = "dark" | "light" | "system";
 type ResolvedTheme = "dark" | "light";
 
@@ -7,12 +9,15 @@ type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
+  paletteStorageKey?: string;
   disableTransitionOnChange?: boolean;
 };
 
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  palette: Palette;
+  setPalette: (palette: Palette) => void;
 };
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
@@ -76,6 +81,7 @@ export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "theme",
+  paletteStorageKey = "palette",
   disableTransitionOnChange = true,
   ...props
 }: ThemeProviderProps) {
@@ -87,6 +93,23 @@ export function ThemeProvider({
 
     return defaultTheme;
   });
+
+  const [palette, setPaletteState] = React.useState<Palette>(() => {
+    const storedPalette = localStorage.getItem(paletteStorageKey);
+    return isPalette(storedPalette) ? storedPalette : defaultPalette;
+  });
+
+  const setPalette = React.useCallback(
+    (nextPalette: Palette) => {
+      localStorage.setItem(paletteStorageKey, nextPalette);
+      setPaletteState(nextPalette);
+    },
+    [paletteStorageKey],
+  );
+
+  React.useEffect(() => {
+    document.documentElement.dataset.palette = palette;
+  }, [palette]);
 
   const setTheme = React.useCallback(
     (nextTheme: Theme) => {
@@ -177,6 +200,11 @@ export function ThemeProvider({
         return;
       }
 
+      if (event.key === paletteStorageKey) {
+        setPaletteState(isPalette(event.newValue) ? event.newValue : defaultPalette);
+        return;
+      }
+
       if (event.key !== storageKey) {
         return;
       }
@@ -194,14 +222,16 @@ export function ThemeProvider({
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [defaultTheme, storageKey]);
+  }, [defaultTheme, storageKey, paletteStorageKey]);
 
   const value = React.useMemo(
     () => ({
       theme,
       setTheme,
+      palette,
+      setPalette,
     }),
-    [theme, setTheme],
+    [theme, setTheme, palette, setPalette],
   );
 
   return (

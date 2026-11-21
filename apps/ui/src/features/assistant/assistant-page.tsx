@@ -235,7 +235,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
-              <img src="/stage.png" alt="" aria-hidden className="size-4 rounded-[4px]" />
+              <img src="/stage.svg" alt="" aria-hidden className="size-4" />
               Conversations
             </SheetTitle>
           </SheetHeader>
@@ -279,7 +279,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           </h1>
           {activeLabel && (
             <Badge variant="secondary" className="hidden font-mono text-xs sm:inline-flex">
-              <img src="/stage.png" alt="" aria-hidden className="size-3.5 rounded-[3px]" />
+              <img src="/stage.svg" alt="" aria-hidden className="size-3.5" />
               {activeLabel}
             </Badge>
           )}

@@ -60,8 +60,10 @@ Anything an agent does is shown with the AI Elements patterns, built on `Trace`.
 
 ## Visual rules
 
-- Colors come from tokens in `src/index.css`: `primary`, `muted`, `destructive`, `success`, `warning` and so on. Do not use raw Tailwind palette colors (`emerald-500`) for meaning. The JSON tree's syntax colors are the only exception.
-- Add a new status color as a token with light and dark values, then map it in `@theme inline`.
+- Colors come from tokens: `primary`, `muted`, `destructive`, `success`, `warning` and so on. Do not use raw Tailwind palette colors (`emerald-500`) for meaning. The JSON tree's syntax colors are the only exception.
+- Color themes live in `src/themes/<id>.css`, one file per palette (`stage`, `violet`, `mono`), chosen with `data-palette` on `<html>` by the theme picker. Each file defines the same tokens in a light block and a `.dark` block; `src/lib/palettes.test.ts` fails when a token is missing. `stage` is the default: its file also owns the `:root` and `.dark` fallback and is imported first. To add a theme, copy a file, add its id to `src/lib/palettes.ts` and import it in `src/index.css`.
+- Status colors (`destructive`, `success`, `warning`) and `--radius` are shared and stay in `src/index.css`. Add a new status color there with light and dark values, then map it in `@theme inline`. Add a new theme token to every palette file.
+- Keep muted text at 4.5:1 in every palette. `violet` (the original theme) has a few pairs just under that; fix them when you next touch it.
 - Use the Tailwind type scale (`text-xs`, `text-sm`, `text-base`). No `text-[13px]`.
 - Truncate single lines with `truncate` (with `min-w-0` on every flex parent), not `line-clamp-1`.
 - Icons are lucide, sized by the component (`size-4`) unless there is a reason.

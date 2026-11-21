@@ -27,6 +27,7 @@ import {
 import { useEffect } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { ThemePicker } from "@/components/theme-picker";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,6 +114,7 @@ function Shell() {
                 New chat
               </Button>
             )}
+            <ThemePicker />
             <ThemeToggle />
           </div>
         </header>
