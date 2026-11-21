@@ -198,7 +198,7 @@ export function AssistantThread({
               return (
                 <MessageScrollerItem key={turn.id} messageId={turn.id}>
                   <Message align="start" className="items-start gap-3">
-                    <img src="/stage.svg" alt="" aria-hidden className="size-8 shrink-0" />
+                    <img src="/stage.svg" alt="" aria-hidden className="size-6 shrink-0" />
                     <MessageContent className="gap-3 pt-0.75">
                       <Activity turn={turn} active={isLast && isRunning} />
                       {turn.textSegments.map((segment, segIdx) =>
@@ -236,7 +236,7 @@ export function AssistantThread({
             {showWorkingIndicator && (
               <MessageScrollerItem messageId="assistant-working">
                 <Message align="start" className="items-center gap-3">
-                  <img src="/stage.svg" alt="" aria-hidden className="size-8 shrink-0" />
+                  <img src="/stage.svg" alt="" aria-hidden className="size-6 shrink-0" />
                   <MessageContent>
                     <Trace>
                       <WorkingLine label="Working on it" />
