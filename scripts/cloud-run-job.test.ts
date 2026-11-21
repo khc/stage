@@ -170,6 +170,7 @@ test("update preserves the existing template and merges the agent environment", 
         GEMINI_API_KEY: "new-key",
         AGENT_MODEL: "",
         GOOGLE_GENAI_USE_VERTEXAI: "",
+        PUBSUB_TOPIC: "",
         JOB_FIRESTORE_EMULATOR_HOST: "floci-gcp:4588",
       },
       stdout: "pipe",
@@ -239,7 +240,7 @@ test("update stops without patching when the existing job cannot be read", async
 });
 
 test("the task template turns retries off and keeps the other task settings", () => {
-  const containers = [{ image: "stage-poet-agents:latest" }];
+  const containers = [{ image: "stage/poet-agents:latest" }];
   expect(jobTaskTemplate(containers)).toEqual({ maxRetries: 0, containers });
   expect(jobTaskTemplate(containers, { maxRetries: 3, timeout: { seconds: 600 } })).toEqual({
     maxRetries: 0,
@@ -250,8 +251,12 @@ test("the task template turns retries off and keeps the other task settings", ()
 
 test("jobTarget derives the job and image from JOB_APP and lets JOB_NAME and JOB_IMAGE override", () => {
   expect(jobTarget({ JOB_APP: "poet" })).toEqual({
-    job: "poet-agents",
-    image: "stage-poet-agents:latest",
+    job: "stage--poet-agents--job-lcl",
+    image: "stage/poet-agents:latest",
+  });
+  expect(jobTarget({ JOB_APP: "poet", JOB_ENV: "dev" })).toEqual({
+    job: "stage--poet-agents--job-dev",
+    image: "stage/poet-agents:latest",
   });
   expect(jobTarget({ JOB_APP: "poet", JOB_NAME: "other", JOB_IMAGE: "img:1" })).toEqual({
     job: "other",

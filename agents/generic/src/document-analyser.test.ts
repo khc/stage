@@ -28,7 +28,7 @@ test("fails clearly when the task has no documents", async () => {
 });
 
 test("is registered with no input and the summary/category/bulletpoints output", () => {
-  const info = describeAgents(agentSet.agents).find((a) => a.name === "document_analyser");
+  const info = describeAgents(agentSet.agents).find((a) => a.name === "document-analyser");
   expect(info?.inputSchema).toMatchObject({ type: "object", properties: {} });
   expect(info?.outputSchema).toMatchObject({
     type: "object",

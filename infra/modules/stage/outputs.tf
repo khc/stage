@@ -7,7 +7,7 @@ output "extract_name" {
 }
 
 output "agent_events_topic" {
-  value = google_pubsub_topic.events[var.agent_events_topic].name
+  value = google_pubsub_topic.events[local.agent_events_topic].name
 }
 
 output "service_url" {
@@ -23,7 +23,7 @@ output "agent_job_names" {
 }
 
 output "platform_events_topic" {
-  value = google_pubsub_topic.events[var.platform_events_topic].name
+  value = google_pubsub_topic.events[local.platform_events_topic].name
 }
 
 output "agent_service_urls" {

@@ -97,7 +97,7 @@ test("tells the model to send JSON for an agent with a structured input, and ski
         { jobName: "generic-agents", name: "assistant", inputSchema: { type: "string" } },
         {
           jobName: "generic-agents",
-          name: "document_analyser",
+          name: "document-analyser",
           inputSchema: { type: "object", properties: {} },
         },
         {

@@ -67,6 +67,10 @@ services:
 
 volumes:
   floci-gcp-data:
+    name: stage--floci-gcp--vol-lcl
   mlflow-data:
+    name: stage--mlflow--vol-lcl
   qdrant-data:
+    name: stage--qdrant--vol-lcl
   neo4j-data:
+    name: stage--neo4j--vol-lcl

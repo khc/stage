@@ -251,7 +251,7 @@ export const taskTitle = (task: Task) => {
   const title = task.name?.trim();
   if (title) return title;
   if (task.prompt.trim() !== "{}") return task.prompt;
-  const name = task.agentName?.replaceAll("_", " ");
+  const name = task.agentName?.replace(/[_-]+/g, " ");
   return name ? name[0]!.toUpperCase() + name.slice(1) : "Untitled task";
 };
 export const parseJsonObject = (text: string) => {

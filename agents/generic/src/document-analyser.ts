@@ -23,7 +23,7 @@ export const renderInstruction = (documents: Awaited<ReturnType<LoadTaskDocument
 
 export const createDocumentAnalyser = (load: LoadTaskDocuments) =>
   new LlmAgent({
-    name: "document_analyser",
+    name: "document-analyser",
     model: createModel(process.env),
     description: "Summarises and categorises the documents uploaded to the task.",
     instruction: async (context) => {

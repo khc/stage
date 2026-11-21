@@ -7,7 +7,7 @@ const JOB_NAME_PATTERN = "^[a-z]([-a-z0-9]*[a-z0-9])?$";
 export const jobName = t.String({ pattern: JOB_NAME_PATTERN, maxLength: 63 });
 const jobNameCheck = TypeCompiler.Compile(jobName);
 export const isJobName = (value: string) => jobNameCheck.Check(value);
-export const agentName = t.String({ pattern: "^[A-Za-z_][A-Za-z0-9_-]*$", maxLength: 64 });
+export const agentName = t.String({ pattern: "^[a-z]([a-z0-9-]*[a-z0-9])?$", maxLength: 64 });
 
 export const AgentsModel = {
   jobParams: t.Object({ jobName }),

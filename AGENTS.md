@@ -77,7 +77,7 @@ Controllers call services (and the module's `tasksGuard`); services call stores 
 
 ## Infrastructure
 
-- Every new cloud resource (Cloud Run job or service, Pub/Sub topic, secret, service account, and so on) is added through Terraform in [infra/](infra/README.md): shared resources in `infra/modules/stage`, and target-specific ones in `infra/envs/local` (Floci) or `infra/envs/gcp`.
+- Every new cloud resource (Cloud Run job or service, Pub/Sub topic, secret, service account, and so on) is added through Terraform in [infra/](infra/README.md): shared resources in `infra/modules/stage`, and target-specific ones in `infra/envs/local` (Floci) or `infra/envs/gcp`. Follow [docs/naming-rules.md](docs/naming-rules.md) when naming GCP resources, Docker images, and ADK agents.
 - Do not create or change infrastructure with direct Floci or GCP calls: no `curl` against Floci's REST API, no `gcloud` resource commands, no scripts that call the Cloud Run or Pub/Sub APIs to create resources. Direct calls leave resources outside the state and cause 409 `alreadyExists` errors on the next apply.
 - Run Terraform through the `tf:*` tasks (`task tf:init`, `task tf:apply`) or `terraform -chdir=infra/envs/<env>`.
 - A resource that already exists outside Terraform is adopted with `task tf:import`, not recreated.

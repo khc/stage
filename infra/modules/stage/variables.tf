@@ -7,20 +7,19 @@ variable "region" {
   default = "us-central1"
 }
 
-variable "name_prefix" {
+variable "env" {
   type        = string
-  default     = ""
-  description = "Optional prefix prepended to Cloud Run service and job names (e.g. stage-dev-)."
+  description = "3-letter environment code (lcl, dev, uat, stg, prd)."
 
   validation {
-    condition     = var.name_prefix == "" || can(regex("^[a-z][a-z0-9-]*-$", var.name_prefix))
-    error_message = "name_prefix must be empty or lowercase alphanumeric/hyphens ending with a hyphen."
+    condition     = contains(["lcl", "dev", "uat", "stg", "prd"], var.env)
+    error_message = "env must be one of: lcl, dev, uat, stg, prd."
   }
 }
 
 variable "agent_apps" {
   type        = set(string)
-  description = "One Cloud Run job per agents/<name> app, named <name_prefix><name>-agents from image stage-<name>-agents:<tag>."
+  description = "One Cloud Run job per agents/<name> app, named stage--<name>-agents--job-<env> from image stage/<name>-agents:<tag>."
 }
 
 variable "agent_events_topic" {
@@ -96,7 +95,7 @@ variable "agent_timeout" {
 variable "agent_service_apps" {
   type        = set(string)
   default     = []
-  description = "The agent_apps that also get a quick host: a Cloud Run service of the same image, named <name_prefix><name>-agents-svc, started with the `serve` argument. The orchestrator runs an agent there for a request/response run within QUICK_BUDGET_MS; the job stays the host of background (workflow) runs."
+  description = "The agent_apps that also get a quick host: a Cloud Run service of the same image, named stage--<name>-agents--svc-<env>, started with the `serve` argument. The orchestrator runs an agent there for a request/response run within QUICK_BUDGET_MS; the job stays the host of background (workflow) runs."
 }
 
 variable "agent_service_ingress" {

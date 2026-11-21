@@ -1,5 +1,4 @@
 locals {
-  prefix      = "stage-${var.environment}-"
   role_prefix = "stage${title(var.environment)}"
 }
 
@@ -18,13 +17,13 @@ resource "google_project_service" "apis" {
 }
 
 resource "google_compute_network" "vpc" {
-  name                    = "${local.prefix}vpc"
+  name                    = "stage--main--vpc-${var.environment}"
   auto_create_subnetworks = false
   depends_on              = [google_project_service.apis]
 }
 
 resource "google_compute_subnetwork" "run" {
-  name                     = "${local.prefix}run-subnet"
+  name                     = "stage--run--subnet-${var.environment}"
   ip_cidr_range            = var.subnet_cidr
   region                   = var.region
   network                  = google_compute_network.vpc.id
@@ -44,25 +43,25 @@ resource "google_firestore_database" "default" {
 }
 
 resource "google_service_account" "agents" {
-  account_id   = "${local.prefix}agents"
+  account_id   = "stage--agents--sa-${var.environment}"
   display_name = "Stage ${var.environment} agent jobs"
   depends_on   = [google_project_service.apis]
 }
 
 resource "google_service_account" "extract" {
-  account_id   = "${local.prefix}extract"
+  account_id   = "stage--extract--sa-${var.environment}"
   display_name = "Stage ${var.environment} extract service"
   depends_on   = [google_project_service.apis]
 }
 
 resource "google_service_account" "service" {
-  account_id   = "${local.prefix}service"
+  account_id   = "stage--control--sa-${var.environment}"
   display_name = "Stage ${var.environment} HTTP service"
   depends_on   = [google_project_service.apis]
 }
 
 resource "google_service_account" "scheduler" {
-  account_id   = "${local.prefix}scheduler"
+  account_id   = "stage--scheduler--sa-${var.environment}"
   display_name = "Stage ${var.environment} task schedules"
   depends_on   = [google_project_service.apis]
 }
@@ -77,7 +76,7 @@ resource "google_project_iam_member" "agents_firestore" {
 # The secret holds no value here, so the key never enters Terraform state.
 # Add it once: printf %s "$KEY" | gcloud secrets versions add <secret_id> --data-file=-
 resource "google_secret_manager_secret" "gemini" {
-  secret_id = "${local.prefix}gemini-api-key"
+  secret_id = "stage--gemini-api-key--sec-${var.environment}"
   replication {
     auto {}
   }

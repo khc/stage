@@ -55,10 +55,20 @@ test("checkInput accepts any text for free-text agents and validates JSON for st
   expect(() => checkInput(structured, '{"n":"x"}')).toThrow("does not match");
 });
 
-test("agentNameSchema accepts hyphenated ADK names and rejects the rest", () => {
-  for (const name of ["assistant", "haiku-poet", "_x", "a1-b_2"])
+test("agentNameSchema accepts lowercase kebab-case ADK names and rejects the rest", () => {
+  for (const name of ["assistant", "haiku-poet", "a", "a1-b2"])
     expect(agentNameSchema.safeParse(name).success).toBe(true);
-  for (const name of ["", "has space", "1abc", "-abc", "x".repeat(65)])
+  for (const name of [
+    "",
+    "has space",
+    "1abc",
+    "-abc",
+    "abc-",
+    "_x",
+    "a1-b_2",
+    "Bad",
+    "x".repeat(65),
+  ])
     expect(agentNameSchema.safeParse(name).success).toBe(false);
 });
 

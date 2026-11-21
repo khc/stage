@@ -14,8 +14,8 @@ variable "foundation_state_bucket" {
 
 variable "foundation_state_prefix" {
   type        = string
-  default     = "stage/prod/foundation"
-  description = "GCS prefix holding the prod foundation Terraform state."
+  default     = "stage/prd/foundation"
+  description = "GCS prefix holding the prd foundation Terraform state."
 }
 
 variable "image_prefix" {

@@ -417,6 +417,9 @@ test("taskTitle prefers the task name and falls back for legacy tasks", () => {
   expect(taskTitle({ taskId: "t", prompt: "Write a haiku", agentName: "haiku" })).toBe(
     "Write a haiku",
   );
+  expect(taskTitle({ taskId: "t", prompt: "{}", agentName: "document-analyser" })).toBe(
+    "Document analyser",
+  );
   expect(taskTitle({ taskId: "t", prompt: "{}", agentName: "document_analyser" })).toBe(
     "Document analyser",
   );

@@ -3,6 +3,7 @@ module "stage" {
 
   project               = var.project
   region                = var.region
+  env                   = "lcl"
   agent_apps            = var.agent_apps
   agent_events_topic    = var.agent_events_topic
   platform_events_topic = var.platform_events_topic
@@ -38,7 +39,7 @@ module "stage" {
     orchestrator = {
       GATEWAY_URL            = var.gateway_url
       GATEWAY_ALLOW_INSECURE = "true"
-      JOB_NAME               = "orchestrator-agents"
+      JOB_NAME               = "stage--orchestrator-agents--job-lcl"
     }
     knowledge = merge(
       var.knowledge_env,

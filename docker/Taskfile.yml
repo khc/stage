@@ -3,6 +3,9 @@ version: "3"
 # Included by the root Taskfile with `flatten: true`, so the tasks keep their `build:` names. Tasks run from the
 # repo root (the build context); JOBS comes from the root Taskfile.
 
+vars:
+  TAG: latest
+
 tasks:
   build:
     desc: Build every image - the agents, the extract service, the control service and the dashboard (add a build:* task here when you add an image)
@@ -16,23 +19,23 @@ tasks:
     desc: Build the agent images, one per job in JOBS; run register-agents afterwards if the agents changed
     cmds:
       - for: { var: JOBS }
-        cmd: docker build -f docker/Dockerfile.agents --build-arg APP={{.ITEM}} -t stage-{{.ITEM}}-agents:latest .
+        cmd: docker build -f docker/Dockerfile.agents --build-arg APP={{.ITEM}} -t stage/{{.ITEM}}-agents:{{.TAG}} .
       - docker image prune -f
 
   build:extract-service:
-    desc: Build the extract service image (stage-extract-service:latest, the name infra/ deploys)
+    desc: Build the extract service image (stage/extract-service:latest, the name infra/ deploys)
     cmds:
-      - docker build -f docker/Dockerfile.extract-service -t stage-extract-service:latest .
+      - docker build -f docker/Dockerfile.extract-service -t stage/extract-service:{{.TAG}} .
       - docker image prune -f
 
   build:control-service:
-    desc: Build the Elysia HTTP service image (stage-control-service:latest)
+    desc: Build the Elysia HTTP service image (stage/control-service:latest)
     cmds:
-      - docker build -f docker/Dockerfile.control-service -t stage-control-service:latest .
+      - docker build -f docker/Dockerfile.control-service -t stage/control-service:{{.TAG}} .
       - docker image prune -f
 
   build:ui:
-    desc: Build the dashboard image (stage-ui:latest)
+    desc: Build the dashboard image (stage/ui:latest)
     cmds:
-      - docker build -f docker/Dockerfile.ui -t stage-ui:latest .
+      - docker build -f docker/Dockerfile.ui -t stage/ui:{{.TAG}} .
       - docker image prune -f

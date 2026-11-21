@@ -1,10 +1,12 @@
 locals {
-  image_sep = startswith(var.image_tag, "sha256:") ? "@" : ":"
+  image_sep             = startswith(var.image_tag, "sha256:") ? "@" : ":"
+  agent_events_topic    = "stage--${var.agent_events_topic}--ps-${var.env}"
+  platform_events_topic = "stage--${var.platform_events_topic}--ps-${var.env}"
 
   agent_env = merge(
     {
       GOOGLE_CLOUD_PROJECT = var.project
-      PUBSUB_TOPIC         = var.agent_events_topic
+      PUBSUB_TOPIC         = local.agent_events_topic
     },
     var.agent_env,
     var.agent_model == null ? {} : { AGENT_MODEL = var.agent_model },
@@ -24,7 +26,7 @@ locals {
   # Job name => URL of its agent service: the platform service's AGENT_SERVICES.
   agent_services = {
     for app, service in google_cloud_run_v2_service.agent_services :
-    "${var.name_prefix}${app}-agents" => service.uri
+    "stage--${app}-agents--job-${var.env}" => service.uri
   }
 
   service_env = merge(
@@ -33,8 +35,8 @@ locals {
       GCP_REGION            = var.region
       GOOGLE_CLOUD_PROJECT  = var.project
       EXTRACT_URL           = google_cloud_run_v2_service.extract.uri
-      PUBSUB_TOPIC          = var.agent_events_topic
-      PLATFORM_EVENTS_TOPIC = var.platform_events_topic
+      PUBSUB_TOPIC          = local.agent_events_topic
+      PLATFORM_EVENTS_TOPIC = local.platform_events_topic
     },
     var.set_extract_audience ? { EXTRACT_AUDIENCE = google_cloud_run_v2_service.extract.uri } : {},
     length(local.agent_services) > 0 ? { AGENT_SERVICES = jsonencode(local.agent_services) } : {},
@@ -44,14 +46,14 @@ locals {
 }
 
 resource "google_pubsub_topic" "events" {
-  for_each = toset([var.agent_events_topic, var.platform_events_topic])
+  for_each = toset([local.agent_events_topic, local.platform_events_topic])
   name     = each.key
 }
 
 # Runs are not safe to repeat, so tasks never retry (matches scripts/cloud-run-job.ts).
 resource "google_cloud_run_v2_job" "agents" {
   for_each            = var.agent_apps
-  name                = "${var.name_prefix}${each.key}-agents"
+  name                = "stage--${each.key}-agents--job-${var.env}"
   location            = var.region
   deletion_protection = var.deletion_protection
 
@@ -62,7 +64,7 @@ resource "google_cloud_run_v2_job" "agents" {
       service_account = var.agent_service_account
 
       containers {
-        image = "${var.image_prefix}stage-${each.key}-agents${local.image_sep}${var.image_tag}"
+        image = "${var.image_prefix}stage/${each.key}-agents${local.image_sep}${var.image_tag}"
 
         resources {
           limits = {
@@ -100,7 +102,7 @@ resource "google_cloud_run_v2_job" "agents" {
 # same env and secrets as the job. It answers POST /run for the platform service (apps/control-service).
 resource "google_cloud_run_v2_service" "agent_services" {
   for_each            = var.agent_service_apps
-  name                = "${var.name_prefix}${each.key}-agents-svc"
+  name                = "stage--${each.key}-agents--svc-${var.env}"
   location            = var.region
   ingress             = var.agent_service_ingress
   deletion_protection = var.deletion_protection
@@ -123,7 +125,7 @@ resource "google_cloud_run_v2_service" "agent_services" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-${each.key}-agents${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage/${each.key}-agents${local.image_sep}${var.image_tag}"
       args  = ["serve"]
 
       ports {
@@ -172,7 +174,7 @@ resource "google_cloud_run_v2_service_iam_member" "agent_services_invoker" {
 }
 
 resource "google_cloud_run_v2_service" "extract" {
-  name                = "${var.name_prefix}extract"
+  name                = "stage--extract-service--svc-${var.env}"
   location            = var.region
   ingress             = var.extract_ingress
   deletion_protection = var.deletion_protection
@@ -187,7 +189,7 @@ resource "google_cloud_run_v2_service" "extract" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-extract-service${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage/extract-service${local.image_sep}${var.image_tag}"
 
       ports {
         container_port = 8080
@@ -227,7 +229,7 @@ resource "google_cloud_run_v2_service" "extract" {
 # The Elysia HTTP service (apps/control-service). The image listens on 0.0.0.0:3000.
 resource "google_cloud_run_v2_service" "service" {
   count               = var.deploy_service ? 1 : 0
-  name                = "${var.name_prefix}service"
+  name                = "stage--control-service--svc-${var.env}"
   location            = var.region
   ingress             = var.service_ingress
   deletion_protection = var.deletion_protection
@@ -257,7 +259,7 @@ resource "google_cloud_run_v2_service" "service" {
     }
 
     containers {
-      image = "${var.image_prefix}stage-control-service${local.image_sep}${var.image_tag}"
+      image = "${var.image_prefix}stage/control-service${local.image_sep}${var.image_tag}"
 
       ports {
         container_port = 3000

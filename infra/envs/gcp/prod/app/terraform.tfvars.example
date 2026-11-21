@@ -2,9 +2,9 @@
 project                 = "your-prod-gcp-project"
 region                  = "us-central1"
 foundation_state_bucket = "your-terraform-state-bucket"
-foundation_state_prefix = "stage/prod/foundation"
+foundation_state_prefix = "stage/prd/foundation"
 
-image_prefix     = "us-central1-docker.pkg.dev/your-prod-gcp-project/stage/"
+image_prefix     = "us-central1-docker.pkg.dev/your-prod-gcp-project/stage--containers--ar-prd/"
 image_tag        = "sha256:replace-with-digest" # pin a version or sha256: digest, not latest
 extract_invokers = []
 

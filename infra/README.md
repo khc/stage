@@ -9,7 +9,7 @@ envs/gcp/dev/            GCP dev environment split into foundation/ and app/ roo
 envs/gcp/prod/           GCP prod environment split into foundation/ and app/ roots (remote GCS backend)
 ```
 
-Each environment and lifecycle layer is its own Terraform root with its own state, so foundation/stateful resources (`foundation/`) are isolated from routine application deploys (`app/`), and `local`, `dev`, and `prod` never share state or collide on resource names. Tasks `tf:apply`, `tf:create-job`, `tf:update-job`, `tf:create-extract` and `tf:remove-extract` run Terraform in `envs/local`; they do not narrow by `JOBS`.
+Each environment and lifecycle layer is its own Terraform root with its own state, so foundation/stateful resources (`foundation/`) are isolated from routine application deploys (`app/`), and `local`, `dev`, and `prod` never share state or collide on resource names. Tasks `tf:apply`, `tf:create-job`, `tf:update-job`, `tf:create-extract` and `tf:remove-extract` run Terraform in `envs/local`; they do not narrow by `JOBS`. See [docs/naming-rules.md](../docs/naming-rules.md) for GCP and Docker resource naming conventions.
 
 ## Floci
 
@@ -31,10 +31,10 @@ Floci's Cloud Run emulation rejects secret references (`valueSource`), so the jo
 
 Each GCP environment has two roots under `envs/gcp/<env>/`:
 
-1. **`foundation/`** — enables GCP APIs, creates the VPC and Private Google Access subnet for Cloud Run Direct VPC egress, creates Firestore (`prevent_destroy = true`), creates `<prefix>gemini-api-key` in Secret Manager (no secret value in Terraform state), and provisions all service accounts and permanent custom IAM roles.
+1. **`foundation/`** — enables GCP APIs, creates the VPC and Private Google Access subnet for Cloud Run Direct VPC egress, creates Firestore (`prevent_destroy = true`), creates `stage--gemini-api-key--sec-<env>` in Secret Manager (no secret value in Terraform state), and provisions all service accounts and permanent custom IAM roles.
 2. **`app/`** — reads `foundation` outputs via `terraform_remote_state`, deploys `modules/stage` (with Direct VPC egress `ALL_TRAFFIC` on `service` so it can call internal-only `extract`), and binds topic/job/service-scoped IAM.
 
-Bootstrap an environment (`env=dev` or `env=prod`) without `-target`:
+Bootstrap an environment (`env=dev` or `env=prd`) without `-target`:
 
     # 1. Foundation layer
     cd envs/gcp/dev/foundation
@@ -44,7 +44,7 @@ Bootstrap an environment (`env=dev` or `env=prod`) without `-target`:
     terraform apply
 
     # 2. Populate Secret Manager once (out of Terraform state)
-    printf %s "$GEMINI_API_KEY" | gcloud secrets versions add stage-dev-gemini-api-key --data-file=-
+    printf %s "$GEMINI_API_KEY" | gcloud secrets versions add stage--gemini-api-key--sec-dev --data-file=-
 
     # 3. Application layer
     cd ../app

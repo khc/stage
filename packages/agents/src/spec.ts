@@ -4,11 +4,11 @@ import { z } from "zod";
 import type { AgentInfo, JsonSchema } from "./agent-registry";
 import type { RunMode } from "./run-mode";
 
-// ADK's rule for agent names: a letter or underscore first, then letters,
-// digits, underscores and hyphens (`haiku-poet`). The service validates with it too.
+// ADK agent names: lowercase kebab-case (`haiku-poet`, `document-analyser`).
+// The control service validates with the same rule.
 export const agentNameSchema = z
   .string()
-  .regex(/^[A-Za-z_][A-Za-z0-9_-]*$/)
+  .regex(/^[a-z]([a-z0-9-]*[a-z0-9])?$/)
   .max(64);
 
 // An agent with the contract it is registered under: what a task's message to

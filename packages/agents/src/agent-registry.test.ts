@@ -119,7 +119,7 @@ test("toAgentCard treats string or missing schemas as plain text", () => {
 test("lists the agents of every job with their job name, ordered by job then name", async () => {
   const stored = [
     { jobName: "poet-agents", name: "limerick-poet" },
-    { jobName: "generic-agents", name: "document_analyser", description: "Reads documents" },
+    { jobName: "generic-agents", name: "document-analyser", description: "Reads documents" },
     {
       jobName: "generic-agents",
       name: "assistant",
@@ -133,7 +133,7 @@ test("lists the agents of every job with their job name, ordered by job then nam
 
   expect(await createAgentRegistry(db).listAll()).toEqual([
     { jobName: "generic-agents", name: "assistant", outputSchema: { type: "string" } },
-    { jobName: "generic-agents", name: "document_analyser", description: "Reads documents" },
+    { jobName: "generic-agents", name: "document-analyser", description: "Reads documents" },
     { jobName: "poet-agents", name: "limerick-poet" },
   ]);
 });

@@ -31,8 +31,8 @@ Edit `.env` for local development:
    ```
 3. **Enable live event streaming (recommended for the dashboard)**:
    ```dotenv
-   PUBSUB_TOPIC=agent-events
-   PLATFORM_EVENTS_TOPIC=platform-events
+   PUBSUB_TOPIC=stage--agent-events--ps-lcl
+   PLATFORM_EVENTS_TOPIC=stage--platform-events--ps-lcl
    ```
 4. **Optional local tracing**:
    - Uncomment the `OTEL_EXPORTER_OTLP_TRACES_*` lines to send OpenTelemetry traces to MLflow.
@@ -77,7 +77,7 @@ task tf:apply
 task register-agents
 ```
 
-`task tf:apply` creates the Pub/Sub topics (`agent-events`, `platform-events`), the Cloud Run jobs (`generic-agents`, `poet-agents`, `knowledge-agents`), the `extract` and `service` Cloud Run services, and the local `imdb` Cloud SQL instance. When developing the API on the host in Step 4 (`bun run dev:service`, which reads `AGENT_JOBS=*` from `.env`), you interact with the host process rather than the Floci-deployed `service` container (you can also remove the Floci `service` container with `task tf:remove-service`).
+`task tf:apply` creates the Pub/Sub topics (`stage--agent-events--ps-lcl`, `stage--platform-events--ps-lcl`), the Cloud Run jobs (`stage--generic-agents--job-lcl`, `stage--poet-agents--job-lcl`, `stage--knowledge-agents--job-lcl`, `stage--orchestrator-agents--job-lcl`), the `stage--extract-service--svc-lcl` and `stage--control-service--svc-lcl` Cloud Run services, and the local `imdb` Cloud SQL instance. When developing the API on the host in Step 4 (`bun run dev:service`, which reads `AGENT_JOBS=*` from `.env`), you interact with the host process rather than the Floci-deployed `stage--control-service--svc-lcl` container (you can also remove the Floci control service container with `task tf:remove-service`).
 
 > **Optional — document uploads in host dev mode:** Copy the deployed extract service URL into `.env` (`EXTRACT_URL`) so `bun run dev:service` can extract uploaded documents:
 >
@@ -113,7 +113,7 @@ You can create and run tasks from the dashboard at `http://localhost:5173`, or w
 # 1. Create a task contract
 curl -X POST http://localhost:3000/tasks \
   -H 'content-type: application/json' \
-  -d '{"prompt":"What time is it in Tokyo?","jobName":"generic-agents"}'
+  -d '{"prompt":"What time is it in Tokyo?","jobName":"stage--generic-agents--job-lcl"}'
 ```
 
 Copy the returned `taskId` and run it:

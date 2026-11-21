@@ -10,10 +10,6 @@ output "environment" {
   value = var.environment
 }
 
-output "name_prefix" {
-  value = local.prefix
-}
-
 output "vpc_id" {
   value = google_compute_network.vpc.id
 }

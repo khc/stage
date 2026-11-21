@@ -5,8 +5,9 @@ vars:
   FLOCI_HOST: localhost:4588
   PROJECT: floci-local
   REGION: us-central1
+  ENV: lcl
   # One Cloud Run job per agent app (agents/<name>). The image is
-  # stage-<name>:latest and the job is named <name>-agents (generic-agents).
+  # stage/<name>-agents:latest and the job is named stage--<name>-agents--job-<env> (stage--generic-agents--job-lcl).
   # Override to pick some, e.g. `task build:agents JOBS=poet`.
   JOBS: generic poet knowledge orchestrator
   SERVICES_URL: "{{.FLOCI}}/v2/projects/{{.PROJECT | urlquery}}/locations/{{.REGION | urlquery}}/services"
@@ -25,10 +26,10 @@ env:
 
 tasks:
   register-agents:
-    desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT)
+    desc: Record each agent app's agents in the registry, straight into Floci's Firestore (no Cloud Run execution; override JOBS, FLOCI_HOST, PROJECT, ENV)
     cmds:
       - for: { var: JOBS }
-        cmd: JOB_NAME={{.ITEM}}-agents FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun --preload ./packages/agents/src/telemetry-init.ts agents/{{.ITEM}}/src/main.ts register
+        cmd: JOB_NAME=stage--{{.ITEM}}-agents--job-{{.ENV}} FIRESTORE_EMULATOR_HOST={{.FLOCI_HOST}} GOOGLE_CLOUD_PROJECT={{.PROJECT}} bun --preload ./packages/agents/src/telemetry-init.ts agents/{{.ITEM}}/src/main.ts register
 
   list-jobs:
     desc: List the Cloud Run jobs in Floci as JSON (pipe to jq; override PROJECT, REGION, FLOCI)
@@ -37,7 +38,7 @@ tasks:
       - curl -fsS {{.JOBS_URL | shellQuote}}
 
   remove-job:
-    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=generic-agents, --yes to skip the prompt)
+    desc: Delete a Cloud Run job from Floci, after confirmation (JOB=stage--generic-agents--job-lcl, --yes to skip the prompt)
     requires:
       vars: [JOB]
     prompt: Remove job {{.JOB}} from Floci?

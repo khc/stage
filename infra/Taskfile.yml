@@ -31,10 +31,10 @@ tasks:
         export TF_VAR_gemini_api_key="$(yq -p props -oy '.GEMINI_API_KEY // ""' ../../../.env)"
         import() { terraform state show "$1" >/dev/null 2>&1 || terraform import "$1" "$2"; }
         for topic in agent-events platform-events; do
-          import "module.stage.google_pubsub_topic.events[\"$topic\"]" "projects/{{.PROJECT}}/topics/$topic"
+          import "module.stage.google_pubsub_topic.events[\"stage--$topic--ps-{{.ENV}}\"]" "projects/{{.PROJECT}}/topics/stage--$topic--ps-{{.ENV}}"
         done
         for app in {{.JOBS}}; do
-          import "module.stage.google_cloud_run_v2_job.agents[\"$app\"]" "projects/{{.PROJECT}}/locations/{{.REGION}}/jobs/$app-agents"
+          import "module.stage.google_cloud_run_v2_job.agents[\"$app\"]" "projects/{{.PROJECT}}/locations/{{.REGION}}/jobs/stage--$app-agents--job-{{.ENV}}"
         done
 
   create-job:

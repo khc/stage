@@ -1,9 +1,7 @@
 locals {
-  scheduler_enabled          = var.deploy_service && var.scheduler_target_url != null
-  agent_events_topic_name    = "${var.name_prefix}${var.agent_events_topic}"
-  platform_events_topic_name = "${var.name_prefix}${var.platform_events_topic}"
-  service_member             = "serviceAccount:${var.service_service_account_email}"
-  scheduler_member           = "serviceAccount:${var.scheduler_service_account_email}"
+  scheduler_enabled = var.deploy_service && var.scheduler_target_url != null
+  service_member    = "serviceAccount:${var.service_service_account_email}"
+  scheduler_member  = "serviceAccount:${var.scheduler_service_account_email}"
 }
 
 module "stage" {
@@ -11,10 +9,10 @@ module "stage" {
 
   project               = var.project
   region                = var.region
-  name_prefix           = var.name_prefix
+  env                   = var.env
   agent_apps            = var.agent_apps
-  agent_events_topic    = local.agent_events_topic_name
-  platform_events_topic = local.platform_events_topic_name
+  agent_events_topic    = var.agent_events_topic
+  platform_events_topic = var.platform_events_topic
   image_prefix          = var.image_prefix
   image_tag             = var.image_tag
   agent_model           = var.agent_model
@@ -62,13 +60,10 @@ resource "google_pubsub_topic_iam_member" "service_platform_publisher" {
 }
 
 resource "google_pubsub_topic_iam_member" "service_topic_attach" {
-  for_each = var.deploy_service ? {
-    agent_events    = local.agent_events_topic_name
-    platform_events = local.platform_events_topic_name
-  } : {}
-  topic  = each.key == "agent_events" ? module.stage.agent_events_topic : module.stage.platform_events_topic
-  role   = var.service_pubsub_topic_role_id
-  member = local.service_member
+  for_each = var.deploy_service ? toset(["agent_events", "platform_events"]) : toset([])
+  topic    = each.key == "agent_events" ? module.stage.agent_events_topic : module.stage.platform_events_topic
+  role     = var.service_pubsub_topic_role_id
+  member   = local.service_member
 }
 
 resource "google_project_iam_member" "service_pubsub_subscriptions" {
@@ -113,7 +108,7 @@ resource "google_project_iam_member" "service_run_list" {
 
 resource "google_cloud_run_v2_job_iam_member" "service_job_viewer" {
   for_each = var.deploy_service ? var.agent_apps : toset([])
-  name     = "${var.name_prefix}${each.key}-agents"
+  name     = "stage--${each.key}-agents--job-${var.env}"
   location = var.region
   role     = "roles/run.viewer"
   member   = local.service_member
@@ -123,7 +118,7 @@ resource "google_cloud_run_v2_job_iam_member" "service_job_viewer" {
 
 resource "google_cloud_run_v2_job_iam_member" "service_executor" {
   for_each = var.deploy_service ? var.agent_apps : toset([])
-  name     = "${var.name_prefix}${each.key}-agents"
+  name     = "stage--${each.key}-agents--job-${var.env}"
   location = var.region
   role     = "roles/run.jobsExecutorWithOverrides"
   member   = local.service_member

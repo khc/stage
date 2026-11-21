@@ -3,7 +3,7 @@ module "foundation" {
 
   project               = var.project
   region                = var.region
-  environment           = "prod"
+  environment           = "prd"
   subnet_cidr           = var.subnet_cidr
   manage_firestore      = var.manage_firestore
   firestore_database_id = var.firestore_database_id

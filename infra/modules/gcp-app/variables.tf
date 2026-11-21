@@ -12,13 +12,13 @@ variable "region" {
   }
 }
 
-variable "name_prefix" {
+variable "env" {
   type        = string
-  description = "Environment prefix from foundation (e.g. stage-dev-)."
+  description = "3-letter environment code from foundation (lcl, dev, uat, stg, prd)."
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]*-$", var.name_prefix))
-    error_message = "name_prefix must be lowercase alphanumeric/hyphens ending with a hyphen."
+    condition     = contains(["lcl", "dev", "uat", "stg", "prd"], var.env)
+    error_message = "env must be one of: lcl, dev, uat, stg, prd."
   }
 }
 
@@ -72,7 +72,7 @@ variable "service_run_list_role_id" {
 
 variable "image_prefix" {
   type        = string
-  description = "Artifact Registry prefix for images, e.g. us-central1-docker.pkg.dev/<project>/stage/."
+  description = "Artifact Registry prefix for images, e.g. us-central1-docker.pkg.dev/<project>/containers/."
 
   validation {
     condition     = can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9._-]+/$", var.image_prefix))

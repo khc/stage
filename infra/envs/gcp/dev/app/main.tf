@@ -11,7 +11,7 @@ module "app" {
 
   project                              = var.project
   region                               = var.region
-  name_prefix                          = data.terraform_remote_state.foundation.outputs.name_prefix
+  env                                  = data.terraform_remote_state.foundation.outputs.environment
   vpc_id                               = data.terraform_remote_state.foundation.outputs.vpc_id
   run_subnet_id                        = data.terraform_remote_state.foundation.outputs.run_subnet_id
   gemini_secret_id                     = data.terraform_remote_state.foundation.outputs.gemini_secret_id

@@ -14,11 +14,11 @@ variable "region" {
 
 variable "environment" {
   type        = string
-  description = "Short environment identifier (e.g. dev, prod) used to namespace resources."
+  description = "3-letter environment identifier (lcl, dev, uat, stg, prd) used to namespace resources."
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9]{0,9}$", var.environment))
-    error_message = "environment must be 1-10 lowercase alphanumeric characters starting with a letter."
+    condition     = contains(["lcl", "dev", "uat", "stg", "prd"], var.environment)
+    error_message = "environment must be one of: lcl, dev, uat, stg, prd."
   }
 }
 

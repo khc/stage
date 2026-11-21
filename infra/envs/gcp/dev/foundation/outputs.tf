@@ -10,10 +10,6 @@ output "environment" {
   value = module.foundation.environment
 }
 
-output "name_prefix" {
-  value = module.foundation.name_prefix
-}
-
 output "vpc_id" {
   value = module.foundation.vpc_id
 }
