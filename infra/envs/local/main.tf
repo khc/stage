@@ -17,6 +17,8 @@ module "stage" {
   agent_service_ingress = "INGRESS_TRAFFIC_ALL"
 
   service_env = {
+    # Required by the service; the open state is a choice, and `*` is the local one.
+    AGENT_JOBS              = "*"
     FIRESTORE_EMULATOR_HOST = var.emulator_host
     PUBSUB_EMULATOR_HOST    = var.emulator_host
     CLOUD_RUN_EMULATOR_HOST = var.emulator_host
