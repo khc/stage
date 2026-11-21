@@ -4,9 +4,16 @@ import {
   shortJobName,
   type AgentInfo,
   type Job,
+  type RunMode,
   type SessionEvent,
   type Task,
 } from "@/lib/api";
+
+export const isQuickServiceAvailable = (jobs: Job[], jobName?: string): boolean =>
+  !!jobName && !!jobs.find((job) => shortJobName(job) === jobName)?.quickService;
+
+export const resolveEffectiveRunMode = (mode: RunMode, serviceAvailable: boolean): RunMode =>
+  serviceAvailable ? mode : "workflow";
 
 export type AssistantTarget = {
   jobName: string;

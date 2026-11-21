@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, MessageSquare, PanelLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { ErrorBox } from "@/components/states";
@@ -9,14 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { api, taskTitle, type ModelRef, type Task } from "@/lib/api";
+import { ApiError, api, taskTitle, type ModelRef, type RunMode, type Task } from "@/lib/api";
 import { modelOptions, pickedModel, type ModelPick } from "@/lib/models";
 import { NEW_CHAT_EVENT, useNav } from "@/lib/nav";
 import { useProviders, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 import { AssistantComposer } from "./assistant-composer";
-import { childTaskCountMap, groupChatTurns, rootChatTasks } from "./assistant-model";
+import {
+  childTaskCountMap,
+  groupChatTurns,
+  isQuickServiceAvailable,
+  resolveEffectiveRunMode,
+  rootChatTasks,
+} from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 import { useAssistantChat } from "./use-assistant-chat";
 
@@ -125,6 +132,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   // the last pick; the pick is not written back to the task.
   const [modelPick, setModelPick] = useState<ModelPick | null>(null);
   const [lastModel, setLastModel] = useState<ModelRef | undefined>();
+  const [runMode, setRunMode] = useState<RunMode>("workflow");
   const models = modelOptions(useProviders().data?.providers ?? []);
 
   useEffect(() => {
@@ -160,11 +168,17 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const isLoadingSession =
     !!chatId && !!chat.activeSessionId && chat.sessionQuery.isPending && !chat.sessionQuery.data;
 
+  const serviceAvailable = isQuickServiceAvailable(
+    chat.targets.jobsQuery.data?.jobs ?? [],
+    chat.activeTarget?.jobName,
+  );
+  const effectiveRunMode = resolveEffectiveRunMode(runMode, serviceAvailable);
+
   const disabledReason = !chat.activeTarget
     ? chat.targets.isPending
       ? "Loading workspace agents…"
       : "No Cloud Run jobs are configured yet."
-    : runStatus === "running"
+    : runStatus === "running" || chat.sendMutation.isPending
       ? "The assistant is still responding…"
       : undefined;
 
@@ -178,9 +192,21 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     if (!chat.activeTarget || !draft.trim()) return;
     const text = draft;
     chat.sendMutation.mutate(
-      { text, target: chat.activeTarget, files: chat.stagedFiles, model },
+      {
+        text,
+        target: chat.activeTarget,
+        files: chat.stagedFiles,
+        model,
+        mode: effectiveRunMode,
+      },
       {
         onSuccess: () => setDraft(""),
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 504) {
+            setDraft("");
+            if (!chatId) toast.warning(err.message);
+          }
+        },
       },
     );
   };
@@ -325,6 +351,9 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
             setLastModel(next);
           }}
           hasHistory={turns.length > 0}
+          runMode={effectiveRunMode}
+          onRunModeChange={setRunMode}
+          serviceAvailable={serviceAvailable}
           stagedFiles={chat.stagedFiles}
           documents={chat.documentsQuery.data?.documents ?? []}
           onAttachFiles={(files) => {

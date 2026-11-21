@@ -117,6 +117,32 @@ test("starting a session with a message posts message to the run route", async (
   expect(JSON.parse(calls[0]!.body as string)).toEqual({ message: "hello" });
 });
 
+test("quick mode appends ?mode=quick to the run route for startSession and resume", async () => {
+  const { api, calls } = replying({ operation: "service", sessionId: "s-quick" }, 202);
+  await api.startSession("task-1", "hello", undefined, "quick");
+  await api.resume("task-1", "s-quick", "follow up", undefined, "quick");
+  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/run?mode=quick");
+  expect(calls[1]!.url).toBe("http://localhost/tasks/task-1/run?mode=quick");
+});
+
+test.each([
+  [409, "quick_unavailable", "no Cloud Run service configured"],
+  [504, "quick_timeout", "exceeded its time budget"],
+  [502, "service_error", "Cloud Run service could not complete"],
+  [429, "too_many_quick_runs", "Too many service runs"],
+] as const)(
+  "maps %s to a readable message and preserves sessionId",
+  async (status, code, snippet) => {
+    const { api } = replying({ error: code, sessionId: "s-err" }, status);
+    await expect(api.startSession("task-1", "hello", undefined, "quick")).rejects.toMatchObject({
+      status,
+      code,
+      sessionId: "s-err",
+      message: expect.stringContaining(snippet),
+    });
+  },
+);
+
 test("withEvent appends new events once and updates the session time", () => {
   const session = {
     id: "s1",

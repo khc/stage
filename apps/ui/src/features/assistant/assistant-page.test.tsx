@@ -154,3 +154,40 @@ test("AssistantComposer shows the agent and model pickers as the same pill, and 
     /disabled=""|data-disabled/,
   );
 });
+
+test("AssistantComposer renders the Job/Service toggle and disables Service when unavailable", () => {
+  const base = {
+    value: "hi",
+    onChange: () => {},
+    onSubmit: () => {},
+    target: { jobName: "orchestrator", agentName: "orchestrator" },
+    targetOptions: [],
+    onTargetChange: () => {},
+    modelOptions: [],
+    onModelChange: () => {},
+    onAttachFiles: () => {},
+  };
+
+  const tabTag = (html: string, titleSubstring: string) =>
+    html.match(new RegExp(`<button[^>]*title="[^"]*${titleSubstring}[^"]*"[^>]*>`))?.[0] ?? "";
+
+  const unavailableHtml = renderToStaticMarkup(
+    <AssistantComposer {...base} runMode="quick" serviceAvailable={false} />,
+  );
+  expect(unavailableHtml).toContain('aria-label="Execution mode"');
+  expect(unavailableHtml).toContain("Job");
+  expect(unavailableHtml).toContain("Service");
+  expect(unavailableHtml).toContain("No Cloud Run service configured for this job");
+  const disabledServiceTab = tabTag(unavailableHtml, "No Cloud Run service");
+  expect(disabledServiceTab).toMatch(/disabled=""|data-disabled/);
+  // Falls back to Job when service is unavailable.
+  const jobTabWhenUnavailable = tabTag(unavailableHtml, "Cloud Run job");
+  expect(jobTabWhenUnavailable).toContain('aria-selected="true"');
+
+  const availableHtml = renderToStaticMarkup(
+    <AssistantComposer {...base} runMode="quick" serviceAvailable />,
+  );
+  const enabledServiceTab = tabTag(availableHtml, "Cloud Run service");
+  expect(enabledServiceTab).toContain('aria-selected="true"');
+  expect(enabledServiceTab).not.toMatch(/disabled=""|data-disabled/);
+});

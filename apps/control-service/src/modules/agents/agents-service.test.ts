@@ -90,6 +90,25 @@ describe("agents service", () => {
     ]);
   });
 
+  test("marks jobs with a configured quick service", async () => {
+    const service = createAgentsService({
+      cloudRunJobs: {
+        list: async () => [
+          { name: "projects/p/locations/l/jobs/orchestrator-agents" },
+          { name: "projects/p/locations/l/jobs/poet-agents" },
+        ],
+      },
+      agentRegistry: { list: async () => [] },
+      agentServices: { has: (jobName: string) => jobName === "orchestrator-agents" },
+    } as never);
+    expect(
+      (await service.listJobs()).map((job) => ({ name: job.name, quickService: job.quickService })),
+    ).toEqual([
+      { name: "projects/p/locations/l/jobs/orchestrator-agents", quickService: true },
+      { name: "projects/p/locations/l/jobs/poet-agents", quickService: false },
+    ]);
+  });
+
   test("does not register a job outside the allowed jobs", async () => {
     let called = false;
     const service = createAgentsService({

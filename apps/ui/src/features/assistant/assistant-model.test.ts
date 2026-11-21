@@ -6,17 +6,20 @@ import {
   buildTargetOptions,
   childTaskCountMap,
   groupChatTurns,
+  isQuickServiceAvailable,
   parseDelegation,
   parseTargetKey,
   resolveDefaultTarget,
+  resolveEffectiveRunMode,
   rootChatTasks,
   targetKey,
   toChatTitle,
   turnCopyText,
 } from "./assistant-model";
 
-const job = (shortName: string): Job => ({
+const job = (shortName: string, extra: Partial<Job> = {}): Job => ({
   name: `projects/p/locations/l/jobs/${shortName}`,
+  ...extra,
 });
 
 test("resolveDefaultTarget prioritizes exact orchestrator job and agent", () => {
@@ -199,4 +202,17 @@ test("a tool named <job>__<agent> is a delegation to that agent", () => {
   expect(parseDelegation("search_docs")).toBeUndefined();
   expect(parseDelegation("__agent")).toBeUndefined();
   expect(parseDelegation("job__")).toBeUndefined();
+});
+
+test("isQuickServiceAvailable and resolveEffectiveRunMode enforce job quickService availability", () => {
+  const jobs = [
+    job("stage--orchestrator-agents--job-lcl", { quickService: true }),
+    job("stage--poet-agents--job-lcl", { quickService: false }),
+  ] as never;
+  expect(isQuickServiceAvailable(jobs, "stage--orchestrator-agents--job-lcl")).toBe(true);
+  expect(isQuickServiceAvailable(jobs, "stage--poet-agents--job-lcl")).toBe(false);
+  expect(isQuickServiceAvailable(jobs, undefined)).toBe(false);
+  expect(resolveEffectiveRunMode("quick", true)).toBe("quick");
+  expect(resolveEffectiveRunMode("quick", false)).toBe("workflow");
+  expect(resolveEffectiveRunMode("workflow", true)).toBe("workflow");
 });

@@ -46,16 +46,25 @@ export type Session = SessionSummary & {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  sessionId?: string;
+  constructor(status: number, message: string, code?: string, sessionId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.sessionId = sessionId;
   }
 }
 // The model a task or a message is given: a provider and one of its models. Derived from the service
 // client, not from `Api`, which would make the types refer to each other.
 type Client = ReturnType<typeof treaty<App>>;
 export type ModelRef = NonNullable<Parameters<Client["tasks"]["post"]>[0]["defaultModel"]>;
+export type RunMode = NonNullable<
+  NonNullable<
+    NonNullable<Parameters<ReturnType<Client["tasks"]>["run"]["post"]>[1]>["query"]
+  >["mode"]
+>;
 
 const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
@@ -64,6 +73,12 @@ const messages: Record<string, string> = {
   session_not_found: "This session could not be found for this task.",
   message_pending: "Your previous message is still being delivered. Try again in a minute.",
   run_in_progress: "This session is still running. Wait for it to finish before continuing.",
+  quick_unavailable: "This agent has no Cloud Run service configured. Switch to Job mode.",
+  quick_timeout: "The service run exceeded its time budget and may still finish in the background.",
+  too_many_quick_runs:
+    "Too many service runs are already in flight. Try again in a moment or switch to Job mode.",
+  service_error:
+    "Cloud Run service could not complete the request. Check the service configuration and try again.",
   job_error: "Cloud Run could not complete the request. Check the job configuration and try again.",
   task_error: "Tasks could not be loaded. Check the service connection and try again.",
   session_error: "Sessions could not be loaded. Try again in a moment.",
@@ -91,14 +106,17 @@ const messages: Record<string, string> = {
 // Throws an ApiError with a readable message for a failed call; returns its data otherwise.
 type Reply = { data: unknown; error: { status: unknown; value: unknown } | null; status: number };
 const fail = (reply: Reply): never => {
-  const body = reply.error?.value as { error?: unknown } | null;
+  const body = reply.error?.value as { error?: unknown; sessionId?: unknown } | null;
   const code = typeof body?.error === "string" ? body.error : "";
+  const sessionId = typeof body?.sessionId === "string" ? body.sessionId : undefined;
   throw new ApiError(
     reply.status,
     messages[code] ??
       (reply.status === 400
         ? "Check the entered values and try again."
         : `Request failed (${reply.status}). Please try again.`),
+    code || undefined,
+    sessionId,
   );
 };
 async function unwrap<R extends Reply>(call: Promise<R>): Promise<NonNullable<R["data"]>> {
@@ -145,10 +163,26 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
       defaultModel?: ModelRef;
     }) => unwrap(client.tasks.post(input)),
     run: (id: string) => unwrap(task(id).run.post()),
-    startSession: (taskId: string, message: string, model?: ModelRef) =>
-      unwrap(task(taskId).run.post({ message, ...(model && { model }) })),
-    resume: (taskId: string, sessionId: string, message: string, model?: ModelRef) =>
-      unwrap(task(taskId).run.post({ sessionId, message, ...(model && { model }) })),
+    startSession: (taskId: string, message: string, model?: ModelRef, mode?: RunMode) =>
+      unwrap(
+        task(taskId).run.post(
+          { message, ...(model && { model }) },
+          mode ? { query: { mode } } : undefined,
+        ),
+      ),
+    resume: (
+      taskId: string,
+      sessionId: string,
+      message: string,
+      model?: ModelRef,
+      mode?: RunMode,
+    ) =>
+      unwrap(
+        task(taskId).run.post(
+          { sessionId, message, ...(model && { model }) },
+          mode ? { query: { mode } } : undefined,
+        ),
+      ),
     registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),
     agents: (jobName: string) => unwrap(job(jobName).agents.get()),
     stats: (taskId: string, sessionId: string) => unwrap(session(taskId, sessionId).stats.get()),

@@ -8,6 +8,9 @@ const modelRef = t.Object({
   model: t.String({ pattern: "\\S", maxLength: 200 }),
 });
 
+// How a run executes: `workflow` starts a Cloud Run job in the background; `quick` calls the job's service.
+export const runMode = t.Union([t.Literal("quick"), t.Literal("workflow")]);
+
 export const TasksModel = {
   // `\S` rejects a blank name or prompt; the controller trims both.
   createBody: t.Object({
@@ -18,6 +21,7 @@ export const TasksModel = {
     defaultModel: t.Optional(modelRef),
   }),
   params: t.Object({ taskId: t.String({ format: "uuid" }) }),
+  runQuery: t.Object({ mode: t.Optional(runMode) }),
   // The body of a run that starts a session from a user message or resumes an existing one;
   // the controller trims the message.
   resume: t.Object({

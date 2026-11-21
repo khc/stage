@@ -73,7 +73,15 @@ describe("OpenAPI document", () => {
 
   test("documents the error statuses of a route", async () => {
     const run = (await spec()).paths["/tasks/{taskId}/run"]!.post!;
-    expect(Object.keys(run.responses!).toSorted()).toEqual(["202", "400", "404", "409", "502"]);
+    expect(Object.keys(run.responses!).toSorted()).toEqual([
+      "202",
+      "400",
+      "404",
+      "409",
+      "429",
+      "502",
+      "504",
+    ]);
   });
 
   test("path parameters and the request body schemas come from the models", async () => {

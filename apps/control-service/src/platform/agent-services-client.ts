@@ -23,7 +23,7 @@ export type AgentServices = {
   has: (job: string) => boolean;
   // Runs the task on the job's service and resolves when it has finished. Throws RunInProgressError
   // when the session is leased and QuickTimeoutError when the budget runs out.
-  run: (job: string, taskId: string, sessionId?: string) => Promise<void>;
+  run: (job: string, taskId: string, sessionId?: string, signal?: AbortSignal) => Promise<void>;
 };
 
 export type AgentServicesOptions = {
@@ -53,10 +53,11 @@ export const createAgentServices = (
   };
   return {
     has: (job) => Object.hasOwn(urls, job),
-    async run(job, taskId, sessionId) {
+    async run(job, taskId, sessionId, callerSignal) {
       const url = urls[job];
       if (!url) throw new Error(`No agent service for the job ${job}`);
-      const signal = AbortSignal.timeout(timeoutMs);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal;
       const source = headerSource(job, url);
       try {
         const res = await fetch(`${url.replace(/\/$/, "")}/run`, {
@@ -75,7 +76,7 @@ export const createAgentServices = (
           throw new RunFailedError();
         if (!res.ok) throw new Error(`agent service failed: HTTP ${res.status}`);
       } catch (err) {
-        if (err instanceof DOMException && err.name === "TimeoutError")
+        if (timeoutSignal.aborted || (err instanceof DOMException && err.name === "TimeoutError"))
           throw new QuickTimeoutError();
         throw err;
       }

@@ -90,6 +90,26 @@ test("the client's own timeout is a quick timeout", async () => {
   expect(err).toBeInstanceOf(QuickTimeoutError);
 });
 
+test("a caller abort aborts the upstream request without turning into QuickTimeoutError", async () => {
+  const controller = new AbortController();
+  spy = spyOn(globalThis, "fetch").mockImplementation(
+    ((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init.signal!.addEventListener("abort", () => reject(init.signal!.reason)),
+      )) as unknown as typeof globalThis.fetch,
+  );
+  const promise = createAgentServices({ job: "http://svc" }, { timeoutMs: 5000 }).run(
+    "job",
+    taskId,
+    "s1",
+    controller.signal,
+  );
+  controller.abort(new DOMException("Client disconnected", "AbortError"));
+  const err = await rejection(promise);
+  expect(err).not.toBeInstanceOf(QuickTimeoutError);
+  expect(err).toMatchObject({ name: "AbortError" });
+});
+
 test("a run that started and failed is a RunFailedError, not a service failure", async () => {
   respond(Response.json({ error: "run_failed" }, { status: 500 }));
   const err = await rejection(

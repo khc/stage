@@ -646,11 +646,64 @@ describe("POST /tasks/:taskId/run", () => {
     ["task_not_executable", 409],
     ["run_in_progress", 409],
     ["message_pending", 409],
+    ["quick_unavailable", 409],
+    ["too_many_quick_runs", 429],
   ] as const)("maps the status %s to %i", async (status, code) => {
     const app = appWith({ run: async () => ({ status }) });
     expect(await call(app, `/tasks/${task.taskId}/run`, { method: "POST" })).toEqual({
       status: code,
       body: { error: status },
+    });
+  });
+
+  test("passes mode query param and abort signal to tasksService.run, raises idle timeout, and maps quick_timeout to 504", async () => {
+    let seenMode: unknown;
+    let seenSignal: unknown;
+    const okApp = appWith({
+      run: async (_id, _resume, mode, signal) => (
+        (seenMode = mode),
+        (seenSignal = signal),
+        { status: "started", operation: "service", sessionId: "s-quick" }
+      ),
+    });
+    expect(
+      await call(okApp, `/tasks/${task.taskId}/run?mode=quick`, json({ message: "fast reply" })),
+    ).toEqual({ status: 202, body: { operation: "service", sessionId: "s-quick" } });
+    expect(seenMode).toBe("quick");
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+
+    const server = okApp.listen(0);
+    const timeoutSpy = spyOn(server.server!, "timeout");
+    try {
+      const res = await fetch(
+        `http://localhost:${server.server!.port}/tasks/${task.taskId}/run?mode=quick`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: "quick over http" }),
+        },
+      );
+      expect(res.status).toBe(202);
+      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Request), 255);
+    } finally {
+      timeoutSpy.mockRestore();
+      await server.stop(true);
+    }
+
+    const timeoutApp = appWith({
+      run: async () => ({ status: "quick_timeout", sessionId: "s-slow" }),
+    });
+    expect(
+      await call(timeoutApp, `/tasks/${task.taskId}/run?mode=quick`, json({ message: "slow" })),
+    ).toEqual({
+      status: 504,
+      body: { error: "quick_timeout", sessionId: "s-slow" },
+    });
+
+    expect(
+      await call(okApp, `/tasks/${task.taskId}/run?mode=invalid`, { method: "POST" }),
+    ).toMatchObject({
+      status: 400,
     });
   });
 

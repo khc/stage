@@ -137,6 +137,7 @@ describe("tasks service run", () => {
       queue?: () => Promise<boolean>;
       allowedJobs?: ReadonlySet<string>;
       agentServices?: { has: (job: string) => boolean; run: (...args: never[]) => Promise<void> };
+      maxQuickInFlight?: number;
     } = {},
   ) => {
     const runJob = mock(async (..._args: unknown[]) => "op-1");
@@ -150,14 +151,19 @@ describe("tasks service run", () => {
       (overrides.queue ?? (async () => true))(),
     );
     const clearMessage = mock(async (_t: string, _s: string) => {});
-    const service = createTasksService({
-      tasksStore: { get: getTask },
-      agentRegistry: { list: async () => [] },
-      cloudRunJobs: { run: runJob },
-      sessionsStore: { create, delete: del, get, queueMessage, clearMessage },
-      allowedJobs: overrides.allowedJobs,
-      agentServices: overrides.agentServices,
-    } as unknown as TasksServiceDeps);
+    const service = createTasksService(
+      {
+        tasksStore: { get: getTask },
+        agentRegistry: { list: async () => [] },
+        cloudRunJobs: { run: runJob },
+        sessionsStore: { create, delete: del, get, queueMessage, clearMessage },
+        allowedJobs: overrides.allowedJobs,
+        agentServices: overrides.agentServices,
+      } as unknown as TasksServiceDeps,
+      overrides.maxQuickInFlight !== undefined
+        ? { maxQuickInFlight: overrides.maxQuickInFlight }
+        : undefined,
+    );
     return { service, getTask, runJob, create, del, queueMessage, clearMessage, getSession: get };
   };
   const quickServices = (run: (...args: unknown[]) => Promise<void> = async () => {}) => {
@@ -363,6 +369,40 @@ describe("tasks service run", () => {
         sessionId: "s1",
       });
       expect(resumed.clearMessage).not.toHaveBeenCalled();
+    });
+
+    test("forwards caller signal and enforces maxQuickInFlight cap", async () => {
+      let entered!: () => void;
+      const reachedService = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      let release!: () => void;
+      const blocker = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { agentServices, runService } = quickServices(async () => {
+        entered();
+        await blocker;
+      });
+      const { service } = setupRun({ agentServices, maxQuickInFlight: 1 });
+      const controller = new AbortController();
+
+      const inFlight = service.run(taskId, { message: "one" }, "quick", controller.signal);
+      await reachedService;
+      expect(await service.run(taskId, { message: "two" }, "quick")).toEqual({
+        status: "too_many_quick_runs",
+      });
+      expect(runService).toHaveBeenCalledWith("my-job", taskId, "s-new", controller.signal);
+
+      release();
+      expect(await inFlight).toEqual({
+        status: "started",
+        operation: "service",
+        sessionId: "s-new",
+      });
+      expect(await service.run(taskId, { message: "three" }, "quick")).toMatchObject({
+        status: "started",
+      });
     });
 
     test("a run that started and failed is a started run: its failed session stays to be read", async () => {

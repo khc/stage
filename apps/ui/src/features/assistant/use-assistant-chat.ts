@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sessionRefetchInterval, useSessionStream } from "@/features/tasks/session-parts";
 import {
+  ApiError,
   api,
   shortJobName,
   type AgentInfo,
   type Api,
   type ModelRef,
+  type RunMode,
   type Session,
   type SessionSummary,
 } from "@/lib/api";
@@ -77,7 +79,9 @@ export async function executeNewChatSend({
   files,
   onCreated,
   onUploaded,
+  onQuickTimeout,
   model,
+  mode,
 }: {
   client: Pick<Api, "create" | "uploadDocument" | "startSession">;
   pending: PendingTask | null;
@@ -87,8 +91,10 @@ export async function executeNewChatSend({
   files: File[];
   onCreated?: (taskId: string) => void;
   onUploaded?: (taskId: string) => void;
+  onQuickTimeout?: (taskId: string, sessionId?: string) => void;
   // The model picked for the first message; it also becomes the new task's default.
   model?: ModelRef;
+  mode?: RunMode;
 }): Promise<{ taskId: string; sessionId?: string }> {
   let state = pending;
   if (!state) {
@@ -111,7 +117,20 @@ export async function executeNewChatSend({
     onUploaded?.(state.taskId);
   }
 
-  const started = await client.startSession(state.taskId, message, model);
+  let started: Awaited<ReturnType<Api["startSession"]>>;
+  try {
+    started = mode
+      ? await client.startSession(state.taskId, message, model, mode)
+      : await client.startSession(state.taskId, message, model);
+  } catch (err) {
+    // A 504 quick_timeout kept the started session and queued message on the server, so clear
+    // pending task reuse to avoid launching a duplicate session on retry and track the session.
+    if (err instanceof ApiError && err.status === 504) {
+      setPending(null);
+      onQuickTimeout?.(state.taskId, err.sessionId);
+    }
+    throw err;
+  }
   setPending(null);
   return { taskId: state.taskId, sessionId: started.sessionId };
 }
@@ -237,11 +256,13 @@ export function useAssistantChat(
       target,
       files,
       model,
+      mode,
     }: {
       text: string;
       target: AssistantTarget;
       files: File[];
       model?: ModelRef;
+      mode?: RunMode;
     }) => {
       const trimmed = text.trim();
       if (!chatId) {
@@ -255,21 +276,29 @@ export function useAssistantChat(
           message: trimmed,
           files,
           model,
+          mode,
           onCreated: () => {
             void queryClient.invalidateQueries({ queryKey: ["tasks"] });
           },
           onUploaded: (taskId) => {
             void queryClient.invalidateQueries({ queryKey: ["documents", taskId] });
           },
+          onQuickTimeout: (taskId, sessionId) => {
+            setStagedFiles([]);
+            if (sessionId) setStartingSession({ taskId, sessionId });
+            void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+            void queryClient.invalidateQueries({ queryKey: ["sessions", taskId] });
+            options?.onSessionStarted?.(taskId, sessionId);
+          },
         });
       }
 
       if (activeSessionId) {
-        await api.resume(chatId, activeSessionId, trimmed, model);
+        await api.resume(chatId, activeSessionId, trimmed, model, mode);
         return { taskId: chatId, sessionId: activeSessionId, resumed: true as const };
       }
 
-      const started = await api.startSession(chatId, trimmed, model);
+      const started = await api.startSession(chatId, trimmed, model, mode);
       return { taskId: chatId, sessionId: started.sessionId, resumed: false as const };
     },
     onSuccess: (result) => {

@@ -93,7 +93,12 @@ const tasksService = createTasksService({
   documentsStore,
   allowedJobs,
 });
-const agentsService = createAgentsService({ cloudRunJobs, agentRegistry, allowedJobs });
+const agentsService = createAgentsService({
+  cloudRunJobs,
+  agentRegistry,
+  agentServices,
+  allowedJobs,
+});
 const providersService = createProvidersService({ providersStore });
 
 const appDeps: AppDeps = {
