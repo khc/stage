@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus, RefreshCw, Save } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -59,7 +59,8 @@ export const hasEndpointChanged = (form: ProviderFormState, provider?: Provider)
 
 export const canFetchModels = (form: ProviderFormState, provider?: Provider) => {
   if (validateBaseUrl(form.baseUrl)) return false;
-  const savedKeyUsable = !!provider?.hasApiKey && !form.clearApiKey && !hasEndpointChanged(form, provider);
+  const savedKeyUsable =
+    !!provider?.hasApiKey && !form.clearApiKey && !hasEndpointChanged(form, provider);
   return !!form.apiKey.trim() || !!form.baseUrl.trim() || savedKeyUsable;
 };
 
@@ -114,8 +115,16 @@ const initialForm = (provider?: Provider): ProviderFormState => ({
 
 const KIND_OPTIONS: { value: ProviderKind; label: string }[] = [
   { value: "google", label: "Google" },
+  { value: "google-express", label: "Google Express" },
   { value: "openai", label: "OpenAI" },
 ];
+
+const EXPRESS = "google-express";
+const BASE_URL_PLACEHOLDER: Record<ProviderKind, string> = {
+  google: "https://generativelanguage.googleapis.com/v1beta",
+  "google-express": "https://aiplatform.googleapis.com/v1",
+  openai: "https://api.openai.com/v1",
+};
 
 export function ProviderDialog({
   open,
@@ -150,6 +159,14 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
   const baseUrlError = validateBaseUrl(form.baseUrl);
   const endpointChanged = hasEndpointChanged(form, provider);
   const fetchAllowed = canFetchModels(form, provider);
+  const express = form.kind === EXPRESS;
+  // Express keys cannot list models: the service returns the documented ones, with nothing to fetch.
+  const expressModels = useQuery({
+    queryKey: ["provider-models", EXPRESS],
+    queryFn: () => api.fetchProviderModels({ kind: EXPRESS }),
+    enabled: express,
+    staleTime: Infinity,
+  });
   const modelOptions = [
     ...new Set([...form.models, ...(form.defaultModel ? [form.defaultModel] : [])]),
   ];
@@ -163,7 +180,11 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
         kind: form.kind,
         ...(useSavedCredentials && { providerId: provider.providerId }),
         ...(apiKey && { apiKey }),
-        ...(baseUrl ? { baseUrl } : provider?.baseUrl !== undefined && useSavedCredentials ? { baseUrl: null } : {}),
+        ...(baseUrl
+          ? { baseUrl }
+          : provider?.baseUrl !== undefined && useSavedCredentials
+            ? { baseUrl: null }
+            : {}),
       });
       return { ...result, gen };
     },
@@ -239,11 +260,11 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
           value={form.kind}
           items={KIND_OPTIONS}
           onValueChange={(next) => {
-            if (next === "google" || next === "openai") {
+            if (KIND_OPTIONS.some((option) => option.value === next)) {
               fetchGenRef.current += 1;
               fetchMutation.reset();
               setFetchedOnce(false);
-              setForm((f) => ({ ...f, kind: next, models: [], defaultModel: "" }));
+              setForm((f) => ({ ...f, kind: next as ProviderKind, models: [], defaultModel: "" }));
             }
           }}
         >
@@ -283,9 +304,15 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
           maxLength={1000}
         />
         <p className="text-xs text-muted-foreground">
-          {editing && provider.hasApiKey && endpointChanged && !form.clearApiKey && !form.apiKey.trim()
+          {editing &&
+          provider.hasApiKey &&
+          endpointChanged &&
+          !form.clearApiKey &&
+          !form.apiKey.trim()
             ? "Provider type or Base URL changed — enter a new API key to keep authentication, or saving will clear the stored key."
-            : "Stored write-only; responses only expose whether a key is saved and its last characters."}
+            : express
+              ? "Use the Vertex AI express-mode API key. Stored write-only; responses only expose whether a key is saved and its last characters."
+              : "Stored write-only; responses only expose whether a key is saved and its last characters."}
         </p>
         {editing && provider.hasApiKey && (
           <div className="mt-1 flex items-center gap-2">
@@ -317,7 +344,7 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
         </Label>
         <Input
           id="provider-base-url"
-          placeholder="https://api.openai.com/v1"
+          placeholder={BASE_URL_PLACEHOLDER[form.kind]}
           value={form.baseUrl}
           onChange={(e) => {
             fetchGenRef.current += 1;
@@ -340,62 +367,86 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
         <Label htmlFor="provider-default-model" className="justify-between">
           Default model<span className="text-xs font-normal text-muted-foreground">Optional</span>
         </Label>
-        <div className="flex items-center gap-2">
-          <Select
-            value={form.defaultModel || NO_DEFAULT_MODEL}
-            disabled={modelOptions.length === 0 || fetchMutation.isPending}
-            items={[
-              {
-                value: NO_DEFAULT_MODEL,
-                label: modelOptions.length ? "No default model" : "Fetch models first",
-              },
-              ...modelOptions.map((model) => ({ value: model, label: model })),
-            ]}
-            onValueChange={(next) =>
-              setForm((f) => ({
-                ...f,
-                defaultModel: !next || next === NO_DEFAULT_MODEL ? "" : next,
-              }))
-            }
-          >
-            <SelectTrigger id="provider-default-model" className="min-w-0 flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_DEFAULT_MODEL}>
-                {modelOptions.length ? "No default model" : "Fetch models first"}
-              </SelectItem>
-              {modelOptions.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model}
-                </SelectItem>
+        {express ? (
+          <>
+            <Input
+              id="provider-default-model"
+              list="provider-express-models"
+              placeholder="e.g. gemini-2.5-flash"
+              value={form.defaultModel}
+              onChange={(e) => setForm((f) => ({ ...f, defaultModel: e.target.value }))}
+              maxLength={200}
+            />
+            <datalist id="provider-express-models">
+              {(expressModels.data?.models ?? []).map((model) => (
+                <option key={model} value={model} />
               ))}
-            </SelectContent>
-          </Select>
-          <span title={!fetchAllowed ? "Enter an API key or Base URL first" : undefined}>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!fetchAllowed || fetchMutation.isPending}
-              onClick={() => fetchMutation.mutate(++fetchGenRef.current)}
-            >
-              {fetchMutation.isPending ? <Spinner /> : <RefreshCw />}
-              Fetch models
-            </Button>
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {!fetchAllowed
-            ? "Enter an API key or Base URL to fetch models from the provider API."
-            : fetchedOnce
-              ? form.models.length
-                ? `Loaded ${form.models.length} model${form.models.length === 1 ? "" : "s"} from the provider API.`
-                : "The provider API returned no models."
-              : form.models.length
-                ? `${form.models.length} saved model${form.models.length === 1 ? "" : "s"} available. Click Fetch models to refresh.`
-                : "Click Fetch models to load available models from the provider API."}
-        </p>
-        {fetchMutation.isError && <ErrorBox error={fetchMutation.error} />}
+            </datalist>
+            <p className="text-xs text-muted-foreground">
+              Express keys cannot list models. Pick one Google supports for express mode, or type a
+              model name.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Select
+                value={form.defaultModel || NO_DEFAULT_MODEL}
+                disabled={modelOptions.length === 0 || fetchMutation.isPending}
+                items={[
+                  {
+                    value: NO_DEFAULT_MODEL,
+                    label: modelOptions.length ? "No default model" : "Fetch models first",
+                  },
+                  ...modelOptions.map((model) => ({ value: model, label: model })),
+                ]}
+                onValueChange={(next) =>
+                  setForm((f) => ({
+                    ...f,
+                    defaultModel: !next || next === NO_DEFAULT_MODEL ? "" : next,
+                  }))
+                }
+              >
+                <SelectTrigger id="provider-default-model" className="min-w-0 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_DEFAULT_MODEL}>
+                    {modelOptions.length ? "No default model" : "Fetch models first"}
+                  </SelectItem>
+                  {modelOptions.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span title={!fetchAllowed ? "Enter an API key or Base URL first" : undefined}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!fetchAllowed || fetchMutation.isPending}
+                  onClick={() => fetchMutation.mutate(++fetchGenRef.current)}
+                >
+                  {fetchMutation.isPending ? <Spinner /> : <RefreshCw />}
+                  Fetch models
+                </Button>
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {!fetchAllowed
+                ? "Enter an API key or Base URL to fetch models from the provider API."
+                : fetchedOnce
+                  ? form.models.length
+                    ? `Loaded ${form.models.length} model${form.models.length === 1 ? "" : "s"} from the provider API.`
+                    : "The provider API returned no models."
+                  : form.models.length
+                    ? `${form.models.length} saved model${form.models.length === 1 ? "" : "s"} available. Click Fetch models to refresh.`
+                    : "Click Fetch models to load available models from the provider API."}
+            </p>
+            {fetchMutation.isError && <ErrorBox error={fetchMutation.error} />}
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -407,9 +458,7 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider; onClo
           />
           <Label htmlFor="provider-enabled">Enabled</Label>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Disabled providers stay saved but inactive.
-        </p>
+        <p className="text-xs text-muted-foreground">Disabled providers stay saved but inactive.</p>
       </div>
 
       {mutation.isError && <ErrorBox error={mutation.error} />}

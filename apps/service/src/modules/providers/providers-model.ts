@@ -1,6 +1,11 @@
 import { t } from "elysia";
 
-const providerKind = t.Union([t.Literal("google"), t.Literal("openai")]);
+// "google-express" is a Vertex AI express-mode key: generation only, no model-list API.
+const providerKind = t.Union([
+  t.Literal("google"),
+  t.Literal("google-express"),
+  t.Literal("openai"),
+]);
 export const MAX_MODEL_ID_LENGTH = 200;
 export const MAX_PROVIDER_MODELS = 500;
 const nonBlank = (maxLength: number) =>
@@ -25,7 +30,10 @@ export const ProvidersModel = {
     baseUrl: t.Optional(t.Union([nonBlank(500), t.Null()])),
     defaultModel: t.Optional(t.Union([nonBlank(MAX_MODEL_ID_LENGTH), t.Null()])),
     models: t.Optional(
-      t.Union([t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS }), t.Null()]),
+      t.Union([
+        t.Array(nonBlank(MAX_MODEL_ID_LENGTH), { maxItems: MAX_PROVIDER_MODELS }),
+        t.Null(),
+      ]),
     ),
     enabled: t.Optional(t.Boolean()),
   }),

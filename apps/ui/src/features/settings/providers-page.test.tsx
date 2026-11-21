@@ -13,7 +13,7 @@ import {
   ProviderForm,
   validateBaseUrl,
 } from "./provider-dialog";
-import { ProvidersPage, providerMatches } from "./providers-page";
+import { kindLabel, ProvidersPage, providerMatches } from "./providers-page";
 
 const sample: Provider = {
   providerId: "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11",
@@ -106,6 +106,34 @@ describe("ProviderForm", () => {
     expect(addHtml).toContain("Fetch models");
     expect(addHtml).toContain("Default model");
     expect(addHtml).not.toContain("<textarea");
+  });
+
+  test("Google Express offers its models for typing or picking and has nothing to fetch", () => {
+    const client = new QueryClient();
+    client.setQueryData(["provider-models", "google-express"], {
+      models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <Dialog open>
+          <ProviderForm
+            provider={{ ...sample, kind: "google-express", baseUrl: undefined }}
+            onClose={() => {}}
+          />
+        </Dialog>
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("Google Express");
+    expect(html).toContain('list="provider-express-models"');
+    expect(html).toContain('<option value="gemini-2.5-flash"');
+    expect(html).toContain("https://aiplatform.googleapis.com/v1");
+    expect(html).not.toContain("Fetch models");
+  });
+
+  test("labels the Google Express type and finds it by that label", () => {
+    expect(kindLabel("google-express")).toBe("Google Express");
+    expect(providerMatches({ ...sample, kind: "google-express" }, "express")).toBe(true);
+    expect(providerMatches({ ...sample, kind: "google" }, "express")).toBe(false);
   });
 
   test("normalizes create payload and omits blank optional fields", () => {

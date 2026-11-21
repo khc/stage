@@ -2,7 +2,11 @@ import { describe, expect, mock, test } from "bun:test";
 
 import { DependencyError } from "../../errors";
 import type { ProviderSummary } from "./providers-model";
-import { createProvidersService, type DnsResolver, type ProvidersFetcher } from "./providers-service";
+import {
+  createProvidersService,
+  type DnsResolver,
+  type ProvidersFetcher,
+} from "./providers-service";
 import type { ProvidersStore } from "./providers-store";
 
 const sample: ProviderSummary = {
@@ -170,6 +174,22 @@ describe("providers service", () => {
     ]);
   });
 
+  test("Google Express lists its documented models without calling Google or needing a key", async () => {
+    let called = false;
+    const fetcher: ProvidersFetcher = async () => {
+      called = true;
+      return Response.json({});
+    };
+    const { service } = setup({}, fetcher);
+    const result = await service.fetchModels({ kind: "google-express" });
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.models).toContain("gemini-2.5-flash");
+    expect(result.status === "ok" && result.models).toEqual(
+      [...(result.status === "ok" ? result.models : [])].toSorted(),
+    );
+    expect(called).toBe(false);
+  });
+
   test("fetches OpenAI-compatible models with custom baseUrl and saved provider credentials", async () => {
     const calls: { url: string; headers: HeadersInit | undefined }[] = [];
     const fetcher: ProvidersFetcher = async (url, init) => {
@@ -332,30 +352,25 @@ describe("providers service", () => {
     }
     expect(fetcher).not.toHaveBeenCalled();
 
-    expect(
-      await service.fetchModels({ kind: "openai", apiKey: "sk-bad\u0000key" }),
-    ).toEqual({ status: "invalid_api_key" });
+    expect(await service.fetchModels({ kind: "openai", apiKey: "sk-bad\u0000key" })).toEqual({
+      status: "invalid_api_key",
+    });
 
-    const tooLargeErr = await service
-      .fetchModels({ kind: "openai", apiKey: "sk-valid-key" })
-      .then(
-        () => undefined,
-        (e) => e,
-      );
+    const tooLargeErr = await service.fetchModels({ kind: "openai", apiKey: "sk-valid-key" }).then(
+      () => undefined,
+      (e) => e,
+    );
     expect(tooLargeErr).toBeInstanceOf(DependencyError);
     expect((tooLargeErr as DependencyError).code).toBe("provider_models_error");
   });
 
   test("rejects missing apiKey on default endpoint, metadata hosts, and wraps upstream errors", async () => {
     const fetcher: ProvidersFetcher = async () => new Response("unauthorized", { status: 401 });
-    const { service } = setup(
-      { getCredentials: async () => undefined },
-      fetcher,
-    );
+    const { service } = setup({ getCredentials: async () => undefined }, fetcher);
     expect(await service.fetchModels({ kind: "openai" })).toEqual({ status: "api_key_required" });
-    expect(
-      await service.fetchModels({ kind: "openai", providerId: sample.providerId }),
-    ).toEqual({ status: "provider_not_found" });
+    expect(await service.fetchModels({ kind: "openai", providerId: sample.providerId })).toEqual({
+      status: "provider_not_found",
+    });
     expect(
       await service.fetchModels({
         kind: "openai",

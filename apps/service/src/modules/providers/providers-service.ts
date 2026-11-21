@@ -43,11 +43,7 @@ export type FetchModelsInput = {
 export type FetchModelsResult =
   | { status: "ok"; models: string[] }
   | {
-      status:
-        | "provider_not_found"
-        | "invalid_base_url"
-        | "invalid_api_key"
-        | "api_key_required";
+      status: "provider_not_found" | "invalid_base_url" | "invalid_api_key" | "api_key_required";
     };
 
 export type ProvidersService = {
@@ -63,6 +59,18 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const GOOGLE_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OPENAI_DEFAULT_BASE = "https://api.openai.com/v1";
+// Express mode cannot list models, so these are the ones Google documents as supported:
+// https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview
+export const GOOGLE_EXPRESS_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-image",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-3-flash-preview",
+  "gemini-3-pro-image",
+  "gemini-3.1-flash-image",
+  "gemini-3.1-pro-preview",
+];
 const hasControlChars = (value: string) => {
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i);
@@ -110,7 +118,10 @@ LOOPBACK_NETS.addSubnet("127.0.0.0", 8, "ipv4");
 LOOPBACK_NETS.addSubnet("::1", 128, "ipv6");
 
 const normalizeHost = (hostname: string) =>
-  hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
+  hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.+$/, "");
 
 const isLoopbackAddress = (ip: string) => {
   const family = isIP(ip);
@@ -163,7 +174,8 @@ const modelsUrlFor = (kind: ProviderKind, baseUrl?: string) => {
   const fallback = kind === "google" ? GOOGLE_DEFAULT_BASE : OPENAI_DEFAULT_BASE;
   const parsed = new URL((baseUrl ?? fallback).replace(/\/+$/, ""));
   const path = parsed.pathname.replace(/\/+$/, "");
-  parsed.pathname = path === "" ? (kind === "google" ? "/v1beta/models" : "/v1/models") : `${path}/models`;
+  parsed.pathname =
+    path === "" ? (kind === "google" ? "/v1beta/models" : "/v1/models") : `${path}/models`;
   return parsed.toString();
 };
 
@@ -367,8 +379,14 @@ export const createProvidersService = ({
   },
   delete: (providerId) => guard("provider_error", () => providersStore.delete(providerId)),
   async fetchModels(input) {
+    if (input.kind === "google-express")
+      return { status: "ok", models: [...GOOGLE_EXPRESS_MODELS] };
     const rawBaseUrl =
-      input.baseUrl === null ? null : input.baseUrl === undefined ? undefined : input.baseUrl.trim();
+      input.baseUrl === null
+        ? null
+        : input.baseUrl === undefined
+          ? undefined
+          : input.baseUrl.trim();
     if (typeof rawBaseUrl === "string" && !isValidHttpUrl(rawBaseUrl, allowLocalBaseUrl))
       return { status: "invalid_base_url" };
 
@@ -386,8 +404,7 @@ export const createProvidersService = ({
 
       const requestedBaseUrl =
         rawBaseUrl === null ? undefined : rawBaseUrl !== undefined ? rawBaseUrl : saved.baseUrl;
-      const endpointMatchesSaved =
-        input.kind === saved.kind && requestedBaseUrl === saved.baseUrl;
+      const endpointMatchesSaved = input.kind === saved.kind && requestedBaseUrl === saved.baseUrl;
 
       // Never transmit a stored write-only apiKey to a different endpoint or protocol.
       if (!rawApiKey && !endpointMatchesSaved) return { status: "api_key_required" };

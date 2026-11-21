@@ -35,7 +35,13 @@ const NAME = "name";
 const MOBILE_HIDDEN = new Set(["kind", "status", "models", "key", "baseUrl"]);
 const columnHelper = createColumnHelper<DataTableFeatures, Provider>();
 
-export const kindLabel = (kind: ProviderKind) => (kind === "google" ? "Google" : "OpenAI");
+const KIND_LABELS: Record<ProviderKind, string> = {
+  google: "Google",
+  "google-express": "Google Express",
+  openai: "OpenAI",
+};
+
+export const kindLabel = (kind: ProviderKind) => KIND_LABELS[kind];
 
 export const providerMatches = (provider: Provider, query: string) => {
   const q = query.trim().toLowerCase();
@@ -227,10 +233,7 @@ export function ProvidersPage() {
             <Loading label="Loading providers…" />
           ) : providersQuery.isError ? (
             <div className="px-4">
-              <ErrorBox
-                error={providersQuery.error}
-                retry={() => void providersQuery.refetch()}
-              />
+              <ErrorBox error={providersQuery.error} retry={() => void providersQuery.refetch()} />
             </div>
           ) : !data.length ? (
             <Empty

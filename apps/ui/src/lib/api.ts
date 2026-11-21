@@ -73,7 +73,8 @@ const messages: Record<string, string> = {
   unknown_agent: "This job has no such registered agent.",
   provider_not_found: "This provider could not be found.",
   provider_error: "Providers could not be loaded or saved. Try again in a moment.",
-  provider_models_error: "Could not fetch models from the provider API. Check the API key and Base URL.",
+  provider_models_error:
+    "Could not fetch models from the provider API. Check the API key and Base URL.",
   api_key_required: "Enter an API key (or save one on this provider) before fetching models.",
   invalid_api_key: "API key contains unsupported control characters.",
   invalid_base_url: "Base URL must be a valid http:// or https:// address.",
@@ -122,34 +123,13 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     jobs: () => unwrap(client.jobs.get()),
     providers: () => unwrap(client.providers.get()),
     provider: (id: string) => unwrap(provider(id).get()),
-    createProvider: (input: {
-      name: string;
-      kind: "google" | "openai";
-      apiKey?: string;
-      baseUrl?: string;
-      defaultModel?: string;
-      models?: string[];
-      enabled?: boolean;
-    }) => unwrap(client.providers.post(input)),
-    updateProvider: (
-      id: string,
-      input: {
-        name?: string;
-        kind?: "google" | "openai";
-        apiKey?: string | null;
-        baseUrl?: string | null;
-        defaultModel?: string | null;
-        models?: string[] | null;
-        enabled?: boolean;
-      },
-    ) => unwrap(provider(id).patch(input)),
+    createProvider: (input: Parameters<typeof client.providers.post>[0]) =>
+      unwrap(client.providers.post(input)),
+    updateProvider: (id: string, input: Parameters<ReturnType<typeof provider>["patch"]>[0]) =>
+      unwrap(provider(id).patch(input)),
     deleteProvider: (id: string) => unwrapVoid(provider(id).delete()),
-    fetchProviderModels: (input: {
-      kind: "google" | "openai";
-      providerId?: string;
-      apiKey?: string;
-      baseUrl?: string | null;
-    }) => unwrap(client.providers.models.post(input)),
+    fetchProviderModels: (input: Parameters<typeof client.providers.models.post>[0]) =>
+      unwrap(client.providers.models.post(input)),
     task: (id: string) => unwrap(task(id).get()),
     create: (input: { name: string; prompt: string; jobName: string; agentName?: string }) =>
       unwrap(client.tasks.post(input)),
