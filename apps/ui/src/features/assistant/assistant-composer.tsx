@@ -193,20 +193,11 @@ export function AssistantComposer({
                 <ChevronDown />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Agent</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={selectedId ?? ""}
-                  onValueChange={(next) => {
-                    const parsed = parseTargetKey(next);
-                    if (parsed) onTargetChange(parsed);
-                  }}
-                >
-                  {selectItems.map((item) => (
-                    <DropdownMenuRadioItem key={item.value} value={item.value}>
-                      {item.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
+                <AssistantTargetMenuItems
+                  selectedId={selectedId}
+                  selectItems={selectItems}
+                  onTargetChange={onTargetChange}
+                />
               </DropdownMenuContent>
             </DropdownMenu>
             {modelOptions.length > 0 && (
@@ -243,6 +234,34 @@ export function AssistantComposer({
         </p>
       </form>
     </div>
+  );
+}
+
+// Menu body kept separate from the portal so it can be rendered directly in tests.
+export function AssistantTargetMenuItems({
+  selectedId,
+  selectItems,
+  onTargetChange,
+}: {
+  selectedId: string | null;
+  selectItems: Array<{ value: string; label: string }>;
+  onTargetChange: (next: AssistantTarget) => void;
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={selectedId ?? ""}
+      onValueChange={(next) => {
+        const parsed = parseTargetKey(next);
+        if (parsed) onTargetChange(parsed);
+      }}
+    >
+      <DropdownMenuLabel>Agent</DropdownMenuLabel>
+      {selectItems.map((item) => (
+        <DropdownMenuRadioItem key={item.value} value={item.value}>
+          {item.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
   );
 }
 

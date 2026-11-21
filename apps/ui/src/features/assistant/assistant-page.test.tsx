@@ -2,7 +2,9 @@ import { expect, test } from "bun:test";
 
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AssistantComposer } from "./assistant-composer";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
+
+import { AssistantComposer, AssistantTargetMenuItems } from "./assistant-composer";
 import type { AssistantTargetOption, ChatTurn } from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 
@@ -124,4 +126,24 @@ test("AssistantComposer shows the model picker with the chosen model, and hides 
     <AssistantComposer {...base} modelOptions={[]} onModelChange={() => {}} />,
   );
   expect(without).not.toContain('aria-label="Model"');
+});
+
+test("AssistantTargetMenuItems renders the Agent group label and radio options without a missing MenuGroupContext error", () => {
+  const html = renderToStaticMarkup(
+    <DropdownMenu open>
+      <AssistantTargetMenuItems
+        selectedId='["orchestrator","orchestrator"]'
+        selectItems={[
+          { id: '["orchestrator","orchestrator"]', label: "orchestrator · orchestrator" },
+          { id: '["poet"]', label: "poet" },
+        ].map((item) => ({ value: item.id, label: item.label }))}
+        onTargetChange={() => {}}
+      />
+    </DropdownMenu>,
+  );
+
+  expect(html).toContain("Agent");
+  expect(html).toContain("orchestrator · orchestrator");
+  expect(html).toContain('aria-checked="true"');
+  expect(html).toContain("poet");
 });
