@@ -140,3 +140,29 @@
     @apply font-sans;
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage-lava-drift {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: stage-lava-drift ease-in-out infinite;
+    animation-duration: calc(var(--drift-duration) * var(--drift-tempo, 1));
+    animation-delay: calc(var(--drift-duration) * var(--drift-phase, 0));
+  }
+}
+
+@keyframes stage-lava-drift {
+  29% {
+    transform: translate(var(--drift-x), calc(var(--drift-y) * 0.35))
+      scale(calc(1 - var(--drift-scale)), calc(1 + var(--drift-scale)));
+  }
+
+  57% {
+    transform: translate(calc(var(--drift-x) * 0.2), var(--drift-y))
+      scale(calc(1 + var(--drift-scale)), calc(1 - var(--drift-scale) * 0.6));
+  }
+
+  82% {
+    transform: translate(calc(var(--drift-x) * -0.55), calc(var(--drift-y) * -0.4));
+  }
+}

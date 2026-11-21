@@ -1,29 +1,18 @@
 import { expect, test } from "bun:test";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  RouterContextProvider,
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-} from "@tanstack/react-router";
+import { RouterContextProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { router as appRouter } from "@/router";
 
 import { AppSidebar } from "./app-sidebar";
 
 test("AppSidebar renders the Assistant link on top of the left side panel before Workspace", async () => {
-  const rootRoute = createRootRoute({ component: () => null });
-  const assistantRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/assistant",
-    component: () => null,
-  });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([assistantRoute]),
-    history: createMemoryHistory({ initialEntries: ["/assistant"] }),
+    routeTree: appRouter.routeTree,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
   });
   await router.load();
 
@@ -48,12 +37,19 @@ test("AppSidebar renders the Assistant link on top of the left side panel before
   expect(overviewIdx).toBeGreaterThan(workspaceIdx);
   expect(settingsIdx).toBeGreaterThan(workspaceIdx);
   expect(referenceIdx).toBeGreaterThan(settingsIdx);
-  expect(html).toContain('href="/assistant"');
+  const assistantLink = html.match(/<a[^>]*>(?:(?!<\/a>).)*>Assistant<\/span><\/a>/)?.[0];
+  expect(assistantLink).toContain('href="/"');
+  expect(assistantLink).toContain('data-active=""');
   expect(html).toContain('src="/stage.png"');
-  expect(html).toMatch(/<a[^>]*href="\/"[^>]*>.*?<svg.*?Overview/);
+  const homeLink = html.match(
+    /<a(?=[^>]*aria-label="Stage home")(?=[^>]*href="\/")[^>]*>(.*?)<\/a>/,
+  );
+  expect(homeLink?.[1]).toMatch(/^<span class="[^"]*\bfont-display\b[^"]*">Stage<\/span>$/);
+  const overviewLink = html.match(/<a[^>]*>(?:(?!<\/a>).)*>Overview<\/span><\/a>/)?.[0];
+  expect(overviewLink).toContain('href="/overview"');
+  expect(overviewLink).not.toContain('data-active=""');
   expect(html).toMatch(/<a[^>]*href="\/tasks"[^>]*>.*?<svg.*?Tasks/);
   expect(html).toMatch(/<a[^>]*href="\/jobs"[^>]*>.*?<svg.*?Jobs/);
   expect(html).toMatch(/<a[^>]*href="\/settings\/providers"[^>]*>.*?<svg.*?Providers/);
   expect(html).toMatch(/<a[^>]*href="\/docs"[^>]*>.*?<svg.*?API reference/);
-  expect(html).toMatch(/data-active=""[^>]*href="\/assistant"|href="\/assistant"[^>]*data-active=""/);
 });

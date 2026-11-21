@@ -412,16 +412,19 @@ describe("tasks service default model", () => {
     defaultModel: { providerId, model },
   });
 
-  test("stores a usable default model", async () => {
+  test("stores a usable default model including openai", async () => {
     const { service, create, get } = setupCreate();
     const result = await service.create(input("gemini-2.5-flash"));
     expect(result.status).toBe("created");
     expect(get).toHaveBeenCalledWith(providerId);
     expect(create).toHaveBeenCalledWith(input("gemini-2.5-flash"));
+
+    const openaiSetup = setupCreate({ ...usable, kind: "openai" });
+    expect((await openaiSetup.service.create(input("gemini-2.5-flash"))).status).toBe("created");
   });
 
   test("refuses a default model that is not selectable, and creates nothing", async () => {
-    for (const provider of [null, { ...usable, enabled: false }, { ...usable, kind: "openai" }]) {
+    for (const provider of [null, { ...usable, enabled: false }, { ...usable, kind: "other" }]) {
       const { service, create } = setupCreate(provider);
       expect(await service.create(input("gemini-2.5-flash"))).toEqual({ status: "unknown_model" });
       expect(create).not.toHaveBeenCalled();
@@ -470,11 +473,16 @@ describe("tasks service run with a model", () => {
     return { service, queueMessage, runJob };
   };
 
-  test("queues the message with its model when resuming a session", async () => {
+  test("queues the message with its model when resuming a session (including openai)", async () => {
     const { service, queueMessage } = setup();
     const result = await service.run(taskId, { sessionId: "s1", message: "hi", model });
     expect(result.status).toBe("started");
     expect(queueMessage).toHaveBeenCalledWith(taskId, "s1", "hi", model);
+
+    const openaiSetup = setup({ ...provider, kind: "openai" });
+    expect(
+      (await openaiSetup.service.run(taskId, { sessionId: "s1", message: "hi", model })).status,
+    ).toBe("started");
   });
 
   test("queues the first message of a new session with its model", async () => {
@@ -484,7 +492,7 @@ describe("tasks service run with a model", () => {
   });
 
   test("a model that cannot be selected is refused before anything is queued or started", async () => {
-    for (const found of [null, { ...provider, enabled: false }, { ...provider, kind: "openai" }]) {
+    for (const found of [null, { ...provider, enabled: false }, { ...provider, kind: "other" }]) {
       const { service, queueMessage, runJob } = setup(found);
       expect(await service.run(taskId, { sessionId: "s1", message: "hi", model })).toEqual({
         status: "unknown_model",

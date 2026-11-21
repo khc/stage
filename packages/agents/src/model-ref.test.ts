@@ -13,7 +13,8 @@ const provider = {
 test("a model is selectable only on an enabled provider of a runnable kind, in models and not disabled", () => {
   expect(isSelectableModel(provider, "gemini-2.5-flash")).toBe(true);
   expect(isSelectableModel({ ...provider, enabled: false }, "gemini-2.5-flash")).toBe(false);
-  expect(isSelectableModel({ ...provider, kind: "openai" }, "gemini-2.5-flash")).toBe(false);
+  expect(isSelectableModel({ ...provider, kind: "openai" }, "gemini-2.5-flash")).toBe(true);
+  expect(isSelectableModel({ ...provider, kind: "anthropic" }, "gemini-2.5-flash")).toBe(false);
   expect(isSelectableModel(provider, "gemini-9")).toBe(false);
   expect(isSelectableModel(provider, "gemini-2.5-pro")).toBe(false);
   expect(isSelectableModel({ enabled: true, kind: "google" }, "gemini-2.5-flash")).toBe(false);
@@ -22,8 +23,8 @@ test("a model is selectable only on an enabled provider of a runnable kind, in m
   );
 });
 
-test("google and google-express can run", () => {
-  expect([...RUNNABLE_KINDS]).toEqual(["google", "google-express"]);
+test("google, google-express, and openai can run", () => {
+  expect([...RUNNABLE_KINDS]).toEqual(["google", "google-express", "openai"]);
 });
 
 test("a model ref needs a provider uuid and a model name", () => {

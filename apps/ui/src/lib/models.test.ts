@@ -28,17 +28,33 @@ test("a model is offered only on an enabled provider of a runnable kind, in mode
     modelOptions([provider]).some((option) => option.ref.model === model);
   expect(offered(express)).toBe(true);
   expect(offered({ ...express, enabled: false })).toBe(false);
-  expect(offered({ ...express, kind: "openai" })).toBe(false);
+  expect(offered({ ...express, kind: "openai" })).toBe(true);
+  expect(offered({ ...express, kind: "anthropic" as Provider["kind"] })).toBe(false);
   expect(offered(express, "gemini-2.5-pro")).toBe(false);
   expect(offered({ ...express, models: undefined })).toBe(false);
   expect(offered({ ...express, disabledModels: undefined }, "gemini-2.5-pro")).toBe(true);
 });
 
 test("options are labelled Provider · model and carry the ref", () => {
-  expect(modelOptions([express])).toEqual([
+  const openrouter = {
+    providerId: "6f4c3d1e-9b0a-4d2e-8a37-1c6f2b9e7a11",
+    name: "OpenRouter",
+    kind: "openai",
+    baseUrl: "https://openrouter.ai/api/v1",
+    enabled: true,
+    hasApiKey: true,
+    models: ["openai/gpt-4o"],
+    createdAt: 2,
+    updatedAt: 2,
+  } as Provider;
+  expect(modelOptions([express, openrouter])).toEqual([
     {
       ref: { providerId: express.providerId, model: "gemini-2.5-flash" },
       label: "Express · gemini-2.5-flash",
+    },
+    {
+      ref: { providerId: openrouter.providerId, model: "openai/gpt-4o" },
+      label: "OpenRouter · openai/gpt-4o",
     },
   ]);
   expect(modelOptions([])).toEqual([]);

@@ -1,4 +1,12 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useMatch, useNavigate } from "@tanstack/react-router";
+
+export const assistantLayoutId = "_assistant";
+
+export function useIsAssistant() {
+  return Boolean(
+    useMatch({ from: `/${assistantLayoutId}`, shouldThrow: false, select: () => true }),
+  );
+}
 
 type Search = Record<string, unknown>;
 
@@ -24,7 +32,7 @@ export function useNav() {
             params: { chatId },
             search: keepSearch({ job: undefined }),
           })
-        : navigate({ to: "/assistant", search: keepSearch({ job: undefined }) }),
+        : navigate({ to: "/", search: keepSearch({ job: undefined }) }),
     openJob: (job: string) => navigate({ to: "/jobs", search: keepSearch({ job }) }),
     openCreate: (forJob?: string) => setSearch({ new: true, for: forJob }),
     closeTask: () => navigate({ to: "/tasks", search: keepSearch() }),

@@ -2,7 +2,7 @@ import type { ModelRef, Provider } from "@/lib/api";
 
 // The provider kinds a job can run; the same list as RUNNABLE_KINDS in packages/agents/src/model-ref.ts
 // (the UI has no dependency on that package), checked by the same case table in models.test.ts.
-const RUNNABLE_KINDS = ["google", "google-express"];
+const RUNNABLE_KINDS = ["google", "google-express", "openai"];
 
 export type ModelOption = { ref: ModelRef; label: string };
 

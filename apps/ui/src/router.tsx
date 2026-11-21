@@ -5,6 +5,7 @@ import {
   createRouter,
   Link,
   Outlet,
+  redirect,
   useRouterState,
   useParams,
   useSearch,
@@ -40,15 +41,15 @@ import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
 import { TaskSheet } from "@/features/tasks/task-sheet";
 import { TasksPanel } from "@/features/tasks/tasks-panel";
 import { shortJobName } from "@/lib/api";
-import { useNav } from "@/lib/nav";
+import { assistantLayoutId, useIsAssistant, useNav } from "@/lib/nav";
 import { startPlatformEvents } from "@/lib/platform-events";
 import { useHealth, useJobs, useTasks } from "@/lib/queries";
 
 const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 
 const captions: Record<string, [string, string, string]> = {
-  "/": ["Overview", "Control room", "A clear view of your agent workspace."],
-  "/assistant": ["Assistant", "Assistant", "Chat with the orchestrator."],
+  "/": ["Assistant", "Assistant", "Chat with the orchestrator."],
+  "/overview": ["Overview", "Control room", "A clear view of your agent workspace."],
   "/tasks": ["Tasks", "Tasks", "Save a prompt. Choose a job. Put your agents to work."],
   "/jobs": ["Jobs", "Jobs", "The workers behind your tasks."],
   "/settings": ["Providers", "Providers", "Configure model providers and API credentials."],
@@ -66,11 +67,11 @@ function Shell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { taskId, chatId } = useParams({ strict: false }) as { taskId?: string; chatId?: string };
   const section = `/${pathname.split("/")[1]}`;
-  const isAssistant = section === "/assistant";
+  const isAssistant = useIsAssistant();
   const isSettings = section === "/settings";
   const tasksQuery = useTasks();
   const jobsQuery = useJobs();
-  const [crumb, title, subtitle] = captions[section] ?? captions["/"]!;
+  const [crumb, title, subtitle] = captions[isAssistant ? "/" : section] ?? captions["/overview"]!;
   const jobs = jobsQuery.data?.jobs ?? [];
   const openJob = search.job ? jobs.find((job) => shortJobName(job) === search.job) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
@@ -107,7 +108,7 @@ function Shell() {
           </nav>
           <div className="ml-auto flex items-center gap-3">
             {isAssistant && chatId && (
-              <Button variant="outline" size="sm" render={<Link to="/assistant" />}>
+              <Button variant="outline" size="sm" render={<Link to="/" />}>
                 <Plus />
                 New chat
               </Button>
@@ -290,18 +291,30 @@ function AssistantLayoutRoute() {
   return <AssistantPage chatId={chatId} />;
 }
 
+// Keep the Assistant mounted when a new conversation gains a URL.
 const assistantRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/assistant",
+  id: assistantLayoutId,
   component: AssistantLayoutRoute,
 });
 
 const routeTree = rootRoute.addChildren([
-  createRoute({ getParentRoute: () => rootRoute, path: "/", component: Overview }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/overview", component: Overview }),
   assistantRoute.addChildren([
     createRoute({ getParentRoute: () => assistantRoute, path: "/", component: () => null }),
-    createRoute({ getParentRoute: () => assistantRoute, path: "/$chatId", component: () => null }),
+    createRoute({
+      getParentRoute: () => assistantRoute,
+      path: "/assistant/$chatId",
+      component: () => null,
+    }),
   ]),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/assistant",
+    beforeLoad: ({ search, location }) => {
+      throw redirect({ to: "/", search, hash: location.hash, replace: true });
+    },
+  }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/tasks",

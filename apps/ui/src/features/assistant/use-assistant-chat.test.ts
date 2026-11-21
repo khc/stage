@@ -27,7 +27,7 @@ test("pickActiveSessionId prefers starting session across initial transition, th
   expect(pickActiveSessionId([], null, null)).toBeNull();
 });
 
-test("isAwaitingRunStart stays true across /assistant -> /assistant/$chatId until run settles", () => {
+test("isAwaitingRunStart stays true across / -> /assistant/$chatId until run settles", () => {
   const starting = { taskId: "t-new", sessionId: "s-new" };
   expect(isAwaitingRunStart(starting, "t-new", "s-new", undefined)).toBe(true);
   expect(

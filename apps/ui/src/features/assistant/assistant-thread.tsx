@@ -9,6 +9,7 @@ import {
   WorkingLine,
 } from "@/components/agent-trace";
 import { Markdown } from "@/components/markdown";
+import { StageWordmark } from "@/components/stage-wordmark";
 import { CopyButton } from "@/components/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -19,7 +20,6 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
-  EmptyTitle,
 } from "@/components/ui/empty";
 import { Message, MessageContent } from "@/components/ui/message";
 import {
@@ -127,14 +127,11 @@ export function AssistantThread({
         : target.jobName
       : "orchestrator";
     return (
-      <Empty className="flex-1 overflow-y-auto">
-        <EmptyHeader>
-          <EmptyMedia>
-            <img src="/stage.png" alt="" className="size-12 rounded-2xl shadow-sm" />
-          </EmptyMedia>
-          <EmptyTitle className="font-display text-4xl tracking-tight sm:text-5xl">
-            How can I help today?
-          </EmptyTitle>
+      <Empty className="min-h-0 [scrollbar-width:none] justify-center-safe overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden">
+        <EmptyMedia className="mb-0 w-full max-w-3xl" aria-hidden>
+          <StageWordmark />
+        </EmptyMedia>
+        <EmptyHeader className="mt-12 sm:mt-26">
           <EmptyDescription>
             Start a conversation powered by{" "}
             <span className="font-medium text-foreground">{defaultLabel}</span> by default. Attach

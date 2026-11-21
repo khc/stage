@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// The provider kinds a job can run: ADK has a model for each, none yet for `openai`.
-export const RUNNABLE_KINDS = ["google", "google-express"] as const;
+// The provider kinds a job can run: ADK has a model for each.
+export const RUNNABLE_KINDS = ["google", "google-express", "openai"] as const;
 
 // A model chosen on a saved provider; the choice carries ids only, never a key.
 export const modelRefSchema = z.object({

@@ -10,6 +10,7 @@ import {
 } from "@google/adk";
 
 import { VertexExpressGemini, createModel, createRoutedLlm, runWithModel } from "./model";
+import { OpenAiLlm } from "./openai-llm";
 
 class FakeLlm extends BaseLlm {
   requests: { model?: string; stream?: boolean; signal?: AbortSignal }[] = [];
@@ -144,4 +145,9 @@ test("the wrapper reports the backend of the model in use, as ADK reads it for o
     true,
   );
   expect((routed as unknown as { useInteractionsApi: boolean }).useInteractionsApi).toBe(false);
+
+  // When runWithModel binds a non-Gemini model (e.g. OpenAiLlm), apiBackend falls back to
+  // GEMINI_API so ADK uses set_model_response when tools and outputSchema coexist.
+  const openai = new OpenAiLlm({ model: "gpt-4o", apiKey: "k" });
+  expect(await runWithModel(openai, async () => apiBackend())).toBe(GoogleLLMVariant.GEMINI_API);
 });

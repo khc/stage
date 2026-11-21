@@ -110,39 +110,45 @@
 
   <rect width="1376" height="768" fill="url(#paper)"/>
   <g id="color-splashes">
-    <use xlink:href="#left-shape" fill="url(#left-splash)"/>
-    <use xlink:href="#left-shape" fill="url(#left-splash-pink)"/>
-    <use xlink:href="#top-shape" fill="url(#top-ribbon)"/>
-    <use xlink:href="#top-shape" fill="url(#top-ribbon-light)"/>
-    <use xlink:href="#lower-shape" fill="url(#lower-ribbon)"/>
-    <use xlink:href="#lower-shape" fill="url(#lower-ribbon-warm)"/>
-    <path fill="url(#orange-ribbon)" d="M 845,239
-      C 881,220 915,230 935,245 C 953,258 962,277 986,283
-      C 1010,290 1028,275 1048,276 C 1073,277 1090,296 1089.5,320
-      C 1089,343 1071,361 1049,364 C 1027,366 1006,351 994,327
-      C 978,299 954,278 923,268 C 900,261 875,264 853,284
-      C 841,292 833,289 829,279 L 845,239 Z"/>
-    <path fill="url(#blue-ribbon)" d="M 698,344
-      C 702,316 718,297 742,284 C 765,271 782,270 794,249
-      C 803,233 811,217 831,216 C 850,215 866,228 870,245
-      C 874,261 866,273 849,282 C 834,292 825,303 815,326
-      C 803,351 770,378 743,377 C 721,376 702,363 698,344 Z"/>
-    <path fill="url(#purple-ribbon)" d="M 837,288
-      C 845,286 855,280 862,277 C 844,288 836,301 836.5,316
-      C 836.5,332 845,343 840,362 C 834,384 813,397 788,397
-      C 768,397 749,386 742,368 C 730,338 749,298 783,288
-      C 804,282 821,293 837,288 Z"/>
-    <path fill="url(#pink-tail)" d="M 840,352
-      C 850,340 870,340 885,353 C 902,367 909,384 908,408
-      C 908,430 912,449 925,463 C 937,476 946,475 961,481
-      C 975,486 980,496 976.5,508 C 973,519 964,525 953,523
-      C 939,521 931.5,511 932.5,496 C 934,478 923,463 907,453
-      C 888,441 867,439 845,426 C 818,411 818,375 840,352 Z"/>
-    <circle cx="309.3" cy="347.9" r="22.1" fill="url(#left-drop)"/>
-    <circle cx="607.5" cy="330.5" r="14.9" fill="url(#middle-drop)"/>
-    <circle cx="753.9" cy="239.7" r="11.9" fill="url(#upper-drop)"/>
-    <circle cx="997.1" cy="243.6" r="26.4" fill="url(#right-drop)"/>
-    <circle cx="1001.6" cy="491" r="10.2" fill="url(#bottom-drop)"/>
+    <g id="left-ribbons">
+      <use xlink:href="#left-shape" fill="url(#left-splash)"/>
+      <use xlink:href="#left-shape" fill="url(#left-splash-pink)"/>
+      <use xlink:href="#top-shape" fill="url(#top-ribbon)"/>
+      <use xlink:href="#top-shape" fill="url(#top-ribbon-light)"/>
+    </g>
+    <g id="lower-ribbons">
+      <use xlink:href="#lower-shape" fill="url(#lower-ribbon)"/>
+      <use xlink:href="#lower-shape" fill="url(#lower-ribbon-warm)"/>
+    </g>
+    <g id="right-ribbons">
+      <path fill="url(#orange-ribbon)" d="M 845,239
+        C 881,220 915,230 935,245 C 953,258 962,277 986,283
+        C 1010,290 1028,275 1048,276 C 1073,277 1090,296 1089.5,320
+        C 1089,343 1071,361 1049,364 C 1027,366 1006,351 994,327
+        C 978,299 954,278 923,268 C 900,261 875,264 853,284
+        C 841,292 833,289 829,279 L 845,239 Z"/>
+      <path fill="url(#blue-ribbon)" d="M 698,344
+        C 702,316 718,297 742,284 C 765,271 782,270 794,249
+        C 803,233 811,217 831,216 C 850,215 866,228 870,245
+        C 874,261 866,273 849,282 C 834,292 825,303 815,326
+        C 803,351 770,378 743,377 C 721,376 702,363 698,344 Z"/>
+      <path fill="url(#purple-ribbon)" d="M 837,288
+        C 845,286 855,280 862,277 C 844,288 836,301 836.5,316
+        C 836.5,332 845,343 840,362 C 834,384 813,397 788,397
+        C 768,397 749,386 742,368 C 730,338 749,298 783,288
+        C 804,282 821,293 837,288 Z"/>
+      <path fill="url(#pink-tail)" d="M 840,352
+        C 850,340 870,340 885,353 C 902,367 909,384 908,408
+        C 908,430 912,449 925,463 C 937,476 946,475 961,481
+        C 975,486 980,496 976.5,508 C 973,519 964,525 953,523
+        C 939,521 931.5,511 932.5,496 C 934,478 923,463 907,453
+        C 888,441 867,439 845,426 C 818,411 818,375 840,352 Z"/>
+    </g>
+    <circle id="left-droplet" cx="309.3" cy="347.9" r="22.1" fill="url(#left-drop)"/>
+    <circle id="middle-droplet" cx="607.5" cy="330.5" r="14.9" fill="url(#middle-drop)"/>
+    <circle id="upper-droplet" cx="753.9" cy="239.7" r="11.9" fill="url(#upper-drop)"/>
+    <circle id="right-droplet" cx="997.1" cy="243.6" r="26.4" fill="url(#right-drop)"/>
+    <circle id="bottom-droplet" cx="1001.6" cy="491" r="10.2" fill="url(#bottom-drop)"/>
   </g>
   <!-- Abril Fatface Regular -->
   <g id="wordmark" fill="#040404" aria-label="Stage">

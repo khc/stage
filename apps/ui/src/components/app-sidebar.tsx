@@ -15,6 +15,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { useIsAssistant } from "@/lib/nav";
 import { useHealth, useTasks } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 const navItem = "max-md:min-h-11";
 
 const workspace = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/overview", label: "Overview", icon: LayoutDashboard },
   { to: "/tasks", label: "Tasks", icon: Layers3 },
   { to: "/jobs", label: "Jobs", icon: Server },
 ] as const;
@@ -57,6 +58,7 @@ export function StatusDot({ className }: { className?: string }) {
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAssistant = useIsAssistant();
   const tasks = useTasks();
   const { label } = useHealthLabel();
   return (
@@ -67,9 +69,11 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton
               size="lg"
               className="h-auto py-1.5"
-              render={<Link to="/" aria-label="Stage home" />}
+              render={<Link to="/" activeOptions={{ exact: true }} aria-label="Stage home" />}
             >
-              <span className="font-display text-5xl leading-tight">Stage</span>
+              <span className="font-display text-5xl leading-tight text-sidebar-foreground">
+                Stage
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -82,8 +86,8 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
                     className={navItem}
-                    isActive={pathname === "/assistant" || pathname.startsWith("/assistant/")}
-                    render={<Link to="/assistant" />}
+                    isActive={isAssistant}
+                    render={<Link to="/" activeOptions={{ exact: true }} />}
                   >
                     <img src="/stage.png" alt="" className="size-4 shrink-0 rounded-[4px]" />
                     <span>Assistant</span>
@@ -102,7 +106,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuSubItem key={item.to}>
                     <SidebarMenuSubButton
                       className={navItem}
-                      isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
+                      isActive={pathname === item.to || pathname.startsWith(`${item.to}/`)}
                       render={<Link to={item.to} />}
                     >
                       <item.icon />

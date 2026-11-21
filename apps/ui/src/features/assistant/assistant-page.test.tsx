@@ -6,7 +6,7 @@ import { AssistantComposer } from "./assistant-composer";
 import type { AssistantTargetOption, ChatTurn } from "./assistant-model";
 import { AssistantThread } from "./assistant-thread";
 
-test("AssistantThread welcome state highlights the orchestrator default and starter prompts", () => {
+test("AssistantThread welcome state shows the animated Stage logo above the helper text", () => {
   const html = renderToStaticMarkup(
     <AssistantThread
       turns={[]}
@@ -15,8 +15,14 @@ test("AssistantThread welcome state highlights the orchestrator default and star
     />,
   );
 
-  expect(html).toContain("How can I help today?");
-  expect(html).toContain('src="/stage.png"');
+  expect(html).not.toContain("How can I help today?");
+  expect(html).toMatch(
+    /<svg[^>]*class="stage-lava\b[^>]*>.*?<\/svg>.*?data-slot="empty-description"[^>]*>Start a conversation/,
+  );
+  expect(html).toContain('image.svg#wordmark"');
+  expect(html).toContain('image.svg#tagline"');
+  expect(html).toContain('image.svg#left-ribbons"');
+  expect(html).toContain('image.svg#right-ribbons"');
   expect(html).toContain("orchestrator (orchestrator)");
   expect(html).toContain("Summarize what agents and tools are available");
 });
@@ -51,6 +57,7 @@ test("AssistantThread renders user and Markdown assistant turns without raw tech
   expect(html).toContain("Called search_docs");
   expect(html).not.toContain("Raw event");
   expect(html).not.toContain("Session state");
+  expect(html).not.toContain('class="stage-lava ');
 });
 
 test("AssistantComposer renders target selector, attachment button, and disables send without text", () => {

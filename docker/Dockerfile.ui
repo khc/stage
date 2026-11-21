@@ -24,6 +24,7 @@ COPY packages/agents ./packages/agents
 COPY packages/http ./packages/http
 COPY apps/service ./apps/service
 COPY apps/ui ./apps/ui
+COPY assets/image.svg ./assets/image.svg
 RUN cd apps/ui && bun run build
 
 FROM ${NGINX_IMAGE} AS runtime

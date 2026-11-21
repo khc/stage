@@ -9,6 +9,7 @@ import { ModelPicker, SwitchModelDialog, switchModelCopy } from "./model-picker"
 const options: ModelOption[] = [
   { ref: { providerId: "p1", model: "flash" }, label: "Express · flash" },
   { ref: { providerId: "p1", model: "pro" }, label: "Express · pro" },
+  { ref: { providerId: "p2", model: "gpt-4o" }, label: "OpenAI · gpt-4o" },
 ];
 
 test("the picker shows the selected model, or Job default when none is selected", () => {
@@ -17,6 +18,10 @@ test("the picker shows the selected model, or Job default when none is selected"
   );
   expect(selected).toContain('aria-label="Model"');
   expect(selected).toContain("Express · pro");
+  const openaiSelected = renderToStaticMarkup(
+    <ModelPicker options={options} value={options[2]!.ref} onChange={() => {}} />,
+  );
+  expect(openaiSelected).toContain("OpenAI · gpt-4o");
   const none = renderToStaticMarkup(<ModelPicker options={options} onChange={() => {}} />);
   expect(none).toContain("Job default");
 });

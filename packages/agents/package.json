@@ -9,6 +9,7 @@
     "./event-publisher": "./src/event-publisher.ts",
     "./model": "./src/model.ts",
     "./model-ref": "./src/model-ref.ts",
+    "./openai-llm": "./src/openai-llm.ts",
     "./parent-ref": "./src/parent-ref.ts",
     "./provider-models": "./src/provider-models.ts",
     "./runtime": "./src/runtime.ts",
