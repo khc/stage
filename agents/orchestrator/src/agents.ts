@@ -84,6 +84,8 @@ export const agentSet: AgentSet = {
       agent: orchestratorAgent,
       inputSchema: z.string().describe("A request in plain text, for the platform's agents."),
       outputSchema: z.string().describe("The answer in plain text."),
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
   },
 };

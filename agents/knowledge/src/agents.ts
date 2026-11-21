@@ -29,11 +29,15 @@ export const agentSet: AgentSet = {
       agent: knowledgeAgent,
       inputSchema: z.string().describe("A question about the documentation, in plain text."),
       outputSchema: knowledgeOutput,
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
     [imdbAgent.name]: {
       agent: imdbAgent,
       inputSchema: z.string().describe("A question about films, series or people, in plain text."),
       outputSchema: knowledgeOutput,
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
     [discoveryAgent.name]: {
       agent: discoveryAgent,
@@ -43,6 +47,8 @@ export const agentSet: AgentSet = {
           "A question about ingested documentation or databases. For a public web lookup, ask naturally, or put 'Web search: <public query>' on the first line to send exactly that query.",
         ),
       outputSchema: knowledgeOutput,
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
   },
 };

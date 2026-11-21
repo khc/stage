@@ -33,7 +33,7 @@ variable "agent_apps" {
 
 variable "agent_service_apps" {
   type        = set(string)
-  default     = ["generic"]
+  default     = ["generic", "poet", "knowledge", "orchestrator"]
   description = "The agent apps that also run as a quick service in Floci (a subset of agent_apps). Set AGENT_SERVICES for the service from the agent_services output."
 }
 

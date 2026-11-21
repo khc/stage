@@ -10,11 +10,15 @@ export const agentSet: AgentSet = {
       agent: haikuAgent,
       inputSchema: haikuInput,
       outputSchema: haikuOutput,
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
     [limerickAgent.name]: {
       agent: limerickAgent,
       inputSchema: limerickInput,
       outputSchema: limerickOutput,
+      // Quick runs on the agent service, workflow runs as a job (`agent_service_apps` in infra).
+      modes: ["quick", "workflow"],
     },
   },
 };

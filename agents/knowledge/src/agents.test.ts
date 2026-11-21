@@ -40,3 +40,8 @@ test("the search tool only accepts the ingested sources", () => {
   expect(searchParameters.safeParse({ query: "q", source: "nope" }).success).toBe(false);
   expect(searchParameters.safeParse({ query: "" }).success).toBe(false);
 });
+
+test("every agent supports both run modes, so it can run on the app's service or as a job", () => {
+  for (const info of describeAgents(agentSet.agents))
+    expect(info.modes).toEqual(["quick", "workflow"]);
+});

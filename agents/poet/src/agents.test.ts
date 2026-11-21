@@ -49,3 +49,8 @@ test("the limerick-poet agent is registered with no tools", () => {
   expect(limerickAgent.tools ?? []).toHaveLength(0);
   expect(String(limerickAgent.instruction)).toContain("AABBA");
 });
+
+test("every agent supports both run modes, so it can run on the app's service or as a job", () => {
+  for (const info of describeAgents(agentSet.agents))
+    expect(info.modes).toEqual(["quick", "workflow"]);
+});

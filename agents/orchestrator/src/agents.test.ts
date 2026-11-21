@@ -321,3 +321,8 @@ test("a mode the model picks reaches the gateway in the message metadata", async
     sent.map((params) => (params as { message: { metadata: unknown } }).message.metadata),
   ).toMatchObject([{ "stage:mode": "quick" }, { "stage:mode": "workflow" }]);
 });
+
+test("every agent supports both run modes, so it can run on the app's service or as a job", () => {
+  for (const info of describeAgents(agentSet.agents))
+    expect(info.modes).toEqual(["quick", "workflow"]);
+});
