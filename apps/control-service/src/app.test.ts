@@ -656,27 +656,50 @@ describe("POST /tasks/:taskId/run", () => {
     });
   });
 
-  test("passes the mode and runs in the background, so a quick run answers at once", async () => {
-    let seenMode: unknown;
-    let seenOptions: unknown;
+  test("passes the mode from the body and runs in the background, so a quick run answers at once", async () => {
+    const seen: { resume?: unknown; mode?: unknown; options?: unknown }[] = [];
     const okApp = appWith({
-      run: async (_id, _resume, mode, options) => (
-        (seenMode = mode),
-        (seenOptions = options),
+      run: async (_id, resume, mode, options) => (
+        seen.push({ resume, mode, options }),
         { status: "started", operation: "service", sessionId: "s-quick" }
       ),
     });
     expect(
-      await call(okApp, `/tasks/${task.taskId}/run?mode=quick`, json({ message: "fast reply" })),
+      await call(
+        okApp,
+        `/tasks/${task.taskId}/run`,
+        json({ message: "fast reply", mode: "quick" }),
+      ),
     ).toEqual({ status: 202, body: { operation: "service", sessionId: "s-quick" } });
-    expect(seenMode).toBe("quick");
-    expect(seenOptions).toEqual({ background: true });
-
-    expect(
-      await call(okApp, `/tasks/${task.taskId}/run?mode=invalid`, { method: "POST" }),
-    ).toMatchObject({
-      status: 400,
+    expect(await call(okApp, `/tasks/${task.taskId}/run`, json({ mode: "quick" }))).toMatchObject({
+      status: 202,
     });
+    expect(seen).toEqual([
+      { resume: { message: "fast reply" }, mode: "quick", options: { background: true } },
+      { resume: undefined, mode: "quick", options: { background: true } },
+    ]);
+  });
+
+  test("an invalid mode is 400 invalid_mode", async () => {
+    const app = appWith({ run: async () => ({ status: "started", operation: "x" }) });
+    for (const body of [{ mode: "invalid" }, { message: "m", mode: "invalid" }]) {
+      expect(await call(app, `/tasks/${task.taskId}/run`, json(body))).toEqual({
+        status: 400,
+        body: { success: false, error: "invalid_mode" },
+      });
+    }
+  });
+
+  test("a mode in the query string is 400 invalid_request and starts nothing, not a silent workflow run", async () => {
+    let started = false;
+    const app = appWith({
+      run: async () => ((started = true), { status: "started", operation: "x" }),
+    });
+    expect(await call(app, `/tasks/${task.taskId}/run?mode=quick`, { method: "POST" })).toEqual({
+      status: 400,
+      body: { error: "invalid_request" },
+    });
+    expect(started).toBe(false);
   });
 
   test("rejects a malformed task id with 400", async () => {

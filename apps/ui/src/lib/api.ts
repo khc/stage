@@ -60,11 +60,9 @@ export class ApiError extends Error {
 // client, not from `Api`, which would make the types refer to each other.
 type Client = ReturnType<typeof treaty<App>>;
 export type ModelRef = NonNullable<Parameters<Client["tasks"]["post"]>[0]["defaultModel"]>;
-export type RunMode = NonNullable<
-  NonNullable<
-    NonNullable<Parameters<ReturnType<Client["tasks"]>["run"]["post"]>[1]>["query"]
-  >["mode"]
->;
+// The run modes the service accepts in the body of a run, from its own schema.
+import type { RunMode } from "@stage/control-service/modules/tasks/tasks-model";
+export type { RunMode };
 
 const messages: Record<string, string> = {
   task_not_found: "This task could not be found.",
@@ -163,12 +161,7 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
     }) => unwrap(client.tasks.post(input)),
     run: (id: string) => unwrap(task(id).run.post()),
     startSession: (taskId: string, message: string, model?: ModelRef, mode?: RunMode) =>
-      unwrap(
-        task(taskId).run.post(
-          { message, ...(model && { model }) },
-          mode ? { query: { mode } } : undefined,
-        ),
-      ),
+      unwrap(task(taskId).run.post({ message, ...(model && { model }), ...(mode && { mode }) })),
     resume: (
       taskId: string,
       sessionId: string,
@@ -177,10 +170,12 @@ export const createApi = (baseUrl: string, fetcher?: typeof fetch) => {
       mode?: RunMode,
     ) =>
       unwrap(
-        task(taskId).run.post(
-          { sessionId, message, ...(model && { model }) },
-          mode ? { query: { mode } } : undefined,
-        ),
+        task(taskId).run.post({
+          sessionId,
+          message,
+          ...(model && { model }),
+          ...(mode && { mode }),
+        }),
       ),
     registerAgents: (jobName: string) => unwrap(job(jobName).register.post()),
     agents: (jobName: string) => unwrap(job(jobName).agents.get()),

@@ -55,7 +55,7 @@ export type RunTaskResult =
 
 // A task with more sub-tasks than this is not deleted in one request.
 export const MAX_SUBTASKS = 500;
-// Quick service runs waited for synchronously at once across /tasks/:id/run?mode=quick.
+// Quick service runs waited for synchronously at once across /tasks/:id/run with `mode: "quick"`.
 export const MAX_QUICK_IN_FLIGHT = 8;
 
 export type TasksServiceConfig = {

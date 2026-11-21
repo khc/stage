@@ -1,4 +1,4 @@
-import { t } from "elysia";
+import { t, type Static } from "elysia";
 
 import { agentName, jobName } from "../agents/agents-model";
 
@@ -10,6 +10,7 @@ const modelRef = t.Object({
 
 // How a run executes: `workflow` starts a Cloud Run job in the background; `quick` calls the job's service.
 export const runMode = t.Union([t.Literal("quick"), t.Literal("workflow")]);
+export type RunMode = Static<typeof runMode>;
 
 export const TasksModel = {
   // `\S` rejects a blank name or prompt; the controller trims both.
@@ -21,15 +22,17 @@ export const TasksModel = {
     defaultModel: t.Optional(modelRef),
   }),
   params: t.Object({ taskId: t.String({ format: "uuid" }) }),
-  runQuery: t.Object({ mode: t.Optional(runMode) }),
   // The body of a run that starts a session from a user message or resumes an existing one;
-  // the controller trims the message.
+  // the controller trims the message. `mode` picks the host, `workflow` when absent.
   resume: t.Object({
     sessionId: t.Optional(t.String({ minLength: 1, maxLength: 1500 })),
     message: t.String({ pattern: "\\S", maxLength: 10_000 }),
     // The model for this message; without one the task default, then the job default applies.
     model: t.Optional(modelRef),
+    mode: t.Optional(runMode),
   }),
+  // The body of a plain run that only picks the host: the task's own prompt runs.
+  modeOnly: t.Object({ mode: runMode }, { additionalProperties: false }),
   // Response shapes, used only to document the API.
   task: t.Object({
     taskId: t.String({ format: "uuid" }),

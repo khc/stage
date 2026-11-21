@@ -2,6 +2,7 @@ import { expect, mock, test } from "bun:test";
 
 import {
   ApiError,
+  type RunMode,
   createApi,
   inputExample,
   jobDetails,
@@ -117,12 +118,25 @@ test("starting a session with a message posts message to the run route", async (
   expect(JSON.parse(calls[0]!.body as string)).toEqual({ message: "hello" });
 });
 
-test("quick mode appends ?mode=quick to the run route for startSession and resume", async () => {
+test("RunMode is the service's two modes, not an open type", () => {
+  const modes: RunMode[] = ["quick", "workflow"];
+  // @ts-expect-error not a run mode
+  const bogus: RunMode = "bogus";
+  expect(modes).toEqual(["quick", "workflow"]);
+  expect(bogus).toBeDefined();
+});
+
+test("quick mode is sent in the body of the run route for startSession and resume", async () => {
   const { api, calls } = replying({ operation: "service", sessionId: "s-quick" }, 202);
   await api.startSession("task-1", "hello", undefined, "quick");
   await api.resume("task-1", "s-quick", "follow up", undefined, "quick");
-  expect(calls[0]!.url).toBe("http://localhost/tasks/task-1/run?mode=quick");
-  expect(calls[1]!.url).toBe("http://localhost/tasks/task-1/run?mode=quick");
+  for (const call of calls) expect(call.url).toBe("http://localhost/tasks/task-1/run");
+  expect(JSON.parse(calls[0]!.body as string)).toEqual({ message: "hello", mode: "quick" });
+  expect(JSON.parse(calls[1]!.body as string)).toEqual({
+    sessionId: "s-quick",
+    message: "follow up",
+    mode: "quick",
+  });
 });
 
 test.each([
