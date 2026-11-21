@@ -6,21 +6,21 @@
       <stop offset="1" stop-color="#fdfcf7"/>
     </radialGradient>
     <linearGradient id="left-splash" gradientUnits="userSpaceOnUse" x1="372" y1="265" x2="467" y2="287">
-      <stop stop-color="#27a7f8"/>
-      <stop offset=".58" stop-color="#819ce8"/>
+      <stop stop-color="#27c9f8"/>
+      <stop offset=".58" stop-color="#819de8"/>
       <stop offset="1" stop-color="#d275cc"/>
     </linearGradient>
     <linearGradient id="left-splash-pink" gradientUnits="userSpaceOnUse" x1="365" y1="357" x2="391" y2="447">
-      <stop stop-color="#ef459d" stop-opacity="0"/>
+      <stop stop-color="#e74993" stop-opacity="0"/>
       <stop offset=".46" stop-color="#df60b5" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#d63d97"/>
+      <stop offset="1" stop-color="#c33392"/>
     </linearGradient>
     <linearGradient id="top-ribbon" gradientUnits="userSpaceOnUse" x1="519" y1="230" x2="761" y2="287">
-      <stop stop-color="#fc319e"/>
-      <stop offset=".32" stop-color="#ec64b0"/>
+      <stop stop-color="#f1268e"/>
+      <stop offset=".32" stop-color="#df60b5"/>
       <stop offset=".61" stop-color="#e67fa7"/>
-      <stop offset=".8" stop-color="#ff7e79"/>
-      <stop offset="1" stop-color="#fa6827"/>
+      <stop offset=".8" stop-color="#ff8b79"/>
+      <stop offset="1" stop-color="#fa8e27"/>
     </linearGradient>
     <radialGradient id="top-ribbon-light" gradientUnits="userSpaceOnUse" cx="500" cy="332" r="100">
       <stop stop-color="#e889c0"/>
@@ -30,27 +30,27 @@
       <stop stop-color="#c191dd"/>
       <stop offset=".45" stop-color="#e77bc8"/>
       <stop offset=".8" stop-color="#f95f98"/>
-      <stop offset="1" stop-color="#fd506d"/>
+      <stop offset="1" stop-color="#f35274"/>
     </linearGradient>
     <linearGradient id="lower-ribbon-warm" gradientUnits="userSpaceOnUse" x1="552" y1="477" x2="634" y2="448">
-      <stop stop-color="#ff5339" stop-opacity="0"/>
-      <stop offset="1" stop-color="#ff583f"/>
+      <stop stop-color="#ff6c39" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ff6c39"/>
     </linearGradient>
     <linearGradient id="orange-ribbon" gradientUnits="userSpaceOnUse" x1="880" y1="236" x2="1064" y2="330">
       <stop stop-color="#8837bc"/>
       <stop offset=".30" stop-color="#f1268e"/>
-      <stop offset=".65" stop-color="#ff5944"/>
-      <stop offset="1" stop-color="#ff5915"/>
+      <stop offset=".65" stop-color="#ff6c39"/>
+      <stop offset="1" stop-color="#ff761c"/>
     </linearGradient>
     <linearGradient id="blue-ribbon" gradientUnits="userSpaceOnUse" x1="724" y1="321" x2="865" y2="254">
-      <stop stop-color="#075fd7"/>
-      <stop offset=".32" stop-color="#2944bc"/>
+      <stop stop-color="#0770d7"/>
+      <stop offset=".32" stop-color="#2941bc"/>
       <stop offset=".65" stop-color="#6229a2"/>
       <stop offset="1" stop-color="#a91188"/>
     </linearGradient>
     <linearGradient id="purple-ribbon" gradientUnits="userSpaceOnUse" x1="741" y1="304" x2="835" y2="338">
-      <stop stop-color="#3d6de2"/>
-      <stop offset=".46" stop-color="#8845c9"/>
+      <stop stop-color="#3d71e2"/>
+      <stop offset=".46" stop-color="#8837bc"/>
       <stop offset=".79" stop-color="#c023b5"/>
       <stop offset="1" stop-color="#da17ac"/>
     </linearGradient>
@@ -58,32 +58,32 @@
       <stop stop-color="#fd4b50"/>
       <stop offset=".4" stop-color="#f35274"/>
       <stop offset=".72" stop-color="#c33392"/>
-      <stop offset=".9" stop-color="#7939bb"/>
-      <stop offset="1" stop-color="#3f48d9"/>
+      <stop offset=".9" stop-color="#643bc0"/>
+      <stop offset="1" stop-color="#423fd9"/>
     </linearGradient>
     <linearGradient id="left-drop" gradientUnits="userSpaceOnUse" x1="291" y1="329" x2="321" y2="363">
-      <stop stop-color="#76b2e4"/>
-      <stop offset=".5" stop-color="#c68bd8"/>
-      <stop offset="1" stop-color="#ee8fae"/>
+      <stop stop-color="#76c1e4"/>
+      <stop offset=".5" stop-color="#c191dd"/>
+      <stop offset="1" stop-color="#e67fa7"/>
     </linearGradient>
     <linearGradient id="middle-drop" x1="0" y1="1" x2="1" y2=".3">
       <stop stop-color="#e86da9"/>
-      <stop offset="1" stop-color="#ff823e"/>
+      <stop offset="1" stop-color="#ffa83e"/>
     </linearGradient>
     <linearGradient id="upper-drop" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#b73e9e"/>
       <stop offset="1" stop-color="#e74993"/>
     </linearGradient>
     <linearGradient id="right-drop" gradientUnits="userSpaceOnUse" x1="1014" y1="221" x2="981" y2="267">
-      <stop stop-color="#ff521c"/>
-      <stop offset=".45" stop-color="#b3268b"/>
+      <stop stop-color="#ff761c"/>
+      <stop offset=".45" stop-color="#a91188"/>
       <stop offset=".7" stop-color="#643bc0"/>
-      <stop offset=".91" stop-color="#0862d9"/>
-      <stop offset="1" stop-color="#0072df"/>
+      <stop offset=".91" stop-color="#0770d7"/>
+      <stop offset="1" stop-color="#008ddf"/>
     </linearGradient>
     <linearGradient id="bottom-drop" x1=".35" y1="0" x2=".75" y2="1">
       <stop stop-color="#8c2aa0"/>
-      <stop offset="1" stop-color="#4545d4"/>
+      <stop offset="1" stop-color="#423fd9"/>
     </linearGradient>
     <path id="left-shape" d="M 490,215
       C 482,220 476,208 462,202 C 436,188 409,187 388,195
