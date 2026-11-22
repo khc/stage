@@ -69,18 +69,6 @@
         "@types/bun": "^1.4.4",
       },
     },
-    "apps/extract-service": {
-      "name": "@stage/extract-service",
-      "version": "0.1.0",
-      "dependencies": {
-        "@stage/http": "workspace:*",
-        "@xberg-io/xberg": "^1.3.10",
-        "elysia": "^1.4.32",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.4.4",
-      },
-    },
     "apps/control-service": {
       "name": "@stage/control-service",
       "version": "0.1.0",
@@ -96,6 +84,18 @@
         "@stage/http": "workspace:*",
         "elysia": "^1.4.32",
         "google-auth-library": "^11.3.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
+    "apps/extract-service": {
+      "name": "@stage/extract-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@stage/http": "workspace:*",
+        "@xberg-io/xberg": "^1.3.10",
+        "elysia": "^1.4.32",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
@@ -145,6 +145,18 @@
         "@google/genai": "^2.32.0",
         "@stage/http": "workspace:*",
         "zod": "^4.6.7",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
+    "packages/evals": {
+      "name": "@stage/evals",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysiajs/eden": "^1.4.9",
+        "@stage/control-service": "workspace:*",
+        "elysia": "^1.4.32",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
@@ -549,6 +561,10 @@
 
     "@stage/agents": ["@stage/agents@workspace:packages/agents"],
 
+    "@stage/control-service": ["@stage/control-service@workspace:apps/control-service"],
+
+    "@stage/evals": ["@stage/evals@workspace:packages/evals"],
+
     "@stage/extract-service": ["@stage/extract-service@workspace:apps/extract-service"],
 
     "@stage/generic-agents": ["@stage/generic-agents@workspace:agents/generic"],
@@ -562,8 +578,6 @@
     "@stage/orchestrator-agents": ["@stage/orchestrator-agents@workspace:agents/orchestrator"],
 
     "@stage/poet-agents": ["@stage/poet-agents@workspace:agents/poet"],
-
-    "@stage/control-service": ["@stage/control-service@workspace:apps/control-service"],
 
     "@stage/tools": ["@stage/tools@workspace:packages/tools"],
 

@@ -1,0 +1,21 @@
+{
+  "name": "@stage/evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./scenario": "./src/scenario.ts"
+  },
+  "scripts": {
+    "eval": "bun test ./src/scenarios/*.eval.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "@stage/control-service": "workspace:*",
+    "elysia": "^1.4.32"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  }
+}

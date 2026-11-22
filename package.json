@@ -12,6 +12,7 @@
     "dev": "bun --filter '@stage/*' dev",
     "dev:service": "bun --filter @stage/control-service dev",
     "dev:ui": "bun --filter @stage/ui dev",
+    "eval": "bun --filter @stage/evals eval",
     "test": "bun test",
     "typecheck": "bun check scripts && bun --filter '*' typecheck",
     "format": "oxfmt",
