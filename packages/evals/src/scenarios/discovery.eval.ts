@@ -35,8 +35,8 @@ defineScenario({
         calls: [
           {
             tool: "search_web",
-            description: "with a query that is not blank and does not say 'she'",
-            match: (call) => searchQuery(call).trim() !== "" && !/\bshe\b/i.test(searchQuery(call)),
+            description: "with a query that names Aniston (the pronoun resolved from turn 1)",
+            match: (call) => /aniston/i.test(searchQuery(call)),
           },
         ],
       },
