@@ -1,4 +1,4 @@
-import { defineScenario } from "../scenario";
+import { defineScenario } from "@stage/evals/scenario";
 
 // A question both IMDb-capable agents can answer, so either is a correct route. The 1995 film is
 // named because the IMDb data holds many titles called "Heat".

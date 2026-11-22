@@ -1,0 +1,16 @@
+{
+  "name": "@stage/eval-suite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "bun test ./scenarios/*.eval.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@stage/evals": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  }
+}

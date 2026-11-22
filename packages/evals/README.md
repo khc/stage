@@ -1,58 +1,19 @@
 # @stage/evals
 
-End-to-end evals for the agents. Each scenario drives the real control-service API like a client: it
-creates a task, runs it with a prompt, follows the session's event stream until the run ends, and
-checks what happened per turn (which tools ran, which agents the orchestrator called, what the
-answer says). Scenarios are `bun:test` files named `*.eval.ts`, so the root `bun test` never runs
-them: they need a running stack and real model calls.
+The harness behind the evals. The scenarios and the golden data are in `evals/` at the repo root
+(`@stage/eval-suite`), and its README says how to run them.
 
-```sh
-bun run eval                 # from the repo root: every src/scenarios/*.eval.ts
-EVAL_REPEAT=5 bun run eval   # run each scenario 5 times (see the pass rate)
-```
+A scenario drives the real control-service API like a client: it creates a task, runs it with a
+prompt, follows the session's event stream until the run ends, and checks what happened per turn.
 
-## Prerequisites
+| Module            | Role                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scenario.ts`     | `defineScenario`: registers one `bun:test` test that runs a scenario `repeat` times and passes at `minPassRate`; reads the `EVAL_*` settings |
+| `run-scenario.ts` | creates the task (named `eval: <scenario> (<id>)`), plays each turn on one session, waits for the run to end, deletes the task               |
+| `api-client.ts`   | typed client for the control-service routes (Eden), plus the SSE stream                                                                      |
+| `sse.ts`          | pure Server-Sent Events parser                                                                                                               |
+| `trace.ts`        | turns the session's events into tool calls and an answer                                                                                     |
+| `checks.ts`       | the deterministic checks a turn's `expect` can use                                                                                           |
 
-- The local stack is up and the agents are registered (`task register-agents`).
-- The IMDb data and the Neo4j graph are loaded, for the `discovery-assistant` scenarios.
-- `EXA_API_KEY` is set **where the knowledge agents run** (the knowledge job or service), not for
-  `bun run eval`: the eval process only calls the control-service API.
-
-## Environment (the eval process)
-
-| Variable      | Default                                        | Meaning                                                                                                                         |
-| ------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `SERVICE_URL` | `http://localhost:3000`                        | The control-service. Export it in the shell: no `.env` is read.                                                                 |
-| `EVAL_ENV`    | `lcl`                                          | Environment suffix of the job names (`stage--<app>-agents--job-<env>`).                                                         |
-| `EVAL_REPEAT` | the scenario's `repeat`, else 1                | Runs per scenario.                                                                                                              |
-| `EVAL_KEEP`   | unset                                          | `1` keeps each run's task, for debugging.                                                                                       |
-| `EVAL_CLEAN`  | unset                                          | `1` first deletes the leftover `eval:` tasks of a killed or kept run.                                                           |
-| `EVAL_MODEL`  | the scenario's `model`, else the job's default | `<provider name>/<model>` for every scenario, e.g. `Inception Labs/mercury-3`. The provider is a saved provider, found by name. |
-
-## Adding a scenario
-
-Create `src/scenarios/<name>.eval.ts`:
-
-```ts
-import { defineScenario } from "../scenario";
-
-defineScenario({
-  name: "imdb-then-web",
-  app: "knowledge",
-  agent: "discovery-assistant",
-  repeat: 5,
-  minPassRate: 0.8, // 4 of 5 runs must pass
-  turns: [
-    { say: "Who plays Rachel Green in Friends?", expect: { toolsExclude: ["search_web"] } },
-    { say: "Where does she live?", expect: { toolsInclude: ["search_web"] } },
-  ],
-});
-```
-
-A turn's `expect` takes `tools`, `toolsInclude`, `toolsExclude`, `delegatedTo`, `delegatedToOneOf`,
-`calls` (a check on a whole tool call, response included), `custom`, `answerIncludes`,
-`answerMatches` and `maxCalls` (see `src/checks.ts`). Scenarios run in `quick` mode unless they set
-`mode: "workflow"`. A scenario can set `model: { provider: "Inception Labs", model: "mercury-3" }` to create its task with that default model.
-
-A failing scenario lists each failed run with its task id. Run it with `EVAL_KEEP=1` to keep the
-task and look at its session in the UI.
+Scenarios import `@stage/evals/scenario` and `@stage/evals/trace`. The unit tests here use a fake
+API and need no running stack: `bun test packages/evals`.

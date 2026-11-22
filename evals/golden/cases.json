@@ -1,0 +1,228 @@
+{
+  "version": 1,
+  "preparedOn": "2026-11-22",
+  "about": "Reference facts for the eval scenarios. `stable` cases are facts that do not change and are keyed by IMDb ids, because the IMDb data holds many titles called \"Friends\" and \"Heat\". `volatile` cases move with the news; they carry `retrievedOn` and `reviewBy` and must be re-checked after that date. Web evidence comes from web search results (snippets), not from reading each page; where sources disagree the case says so and records only what they agree on.",
+  "cases": [
+    {
+      "id": "friends-rachel-actress",
+      "scenario": "discovery: imdb first, then web search",
+      "turn": 1,
+      "prompt": "Who plays Rachel Green in Friends?",
+      "stability": "stable",
+      "answer": { "mustInclude": ["Jennifer Aniston"] },
+      "tools": { "include": ["discover_assets"], "exclude": ["search_web"] },
+      "facts": ["Rachel Green in the TV series Friends (1994-2004) is played by Jennifer Aniston."],
+      "evidence": {
+        "imdb": [{ "tconst": "tt0108778", "nconst": "nm0000098", "characters": ["Rachel Green"] }],
+        "web": [
+          {
+            "url": "https://www.rottentomatoes.com/tv/friends/s01/cast-and-crew",
+            "note": "cast list"
+          },
+          { "url": "https://wikipedia.com/wiki/Friends", "note": "main cast and roles" }
+        ]
+      }
+    },
+    {
+      "id": "friends-main-cast",
+      "scenario": null,
+      "turn": 1,
+      "prompt": "What is the cast of Friends?",
+      "stability": "stable",
+      "answer": {
+        "mustInclude": [
+          "Jennifer Aniston",
+          "Courteney Cox",
+          "Lisa Kudrow",
+          "Matt LeBlanc",
+          "Matthew Perry",
+          "David Schwimmer"
+        ]
+      },
+      "facts": [
+        "The six leads are Jennifer Aniston (Rachel Green), Courteney Cox (Monica Geller), Lisa Kudrow (Phoebe Buffay), Matt LeBlanc (Joey Tribbiani), Matthew Perry (Chandler Bing) and David Schwimmer (Ross Geller).",
+        "James Michael Tyler (Gunther) is also credited in the IMDb principal cast."
+      ],
+      "evidence": {
+        "imdb": [
+          {
+            "tconst": "tt0108778",
+            "nconst": ["nm0000098", "nm0001073", "nm0001435", "nm0001455", "nm0001612", "nm0001710"]
+          }
+        ],
+        "web": [
+          {
+            "url": "https://www.rottentomatoes.com/tv/friends/s01/cast-and-crew",
+            "note": "six leads"
+          },
+          { "url": "https://wikipedia.com/wiki/Friends", "note": "main cast and roles" }
+        ]
+      },
+      "notes": "Not used by a scenario now: the first scenario asks about one character so that the pronoun in turn 2 is not ambiguous."
+    },
+    {
+      "id": "aniston-residence",
+      "scenario": "discovery: imdb first, then web search",
+      "turn": 2,
+      "prompt": "Where does she live?",
+      "stability": "volatile",
+      "retrievedOn": "2026-11-22",
+      "reviewBy": "2027-05-22",
+      "answer": {
+        "mustIncludeAny": ["Bel Air", "Bel-Air", "Los Angeles", "California"],
+        "orSaysItCouldNotVerify": true
+      },
+      "tools": { "include": ["search_web"], "maxCalls": { "search_web": 1 } },
+      "query": { "mustInclude": ["Aniston"] },
+      "facts": [
+        "As of the retrieval date, Jennifer Aniston's main home is in Bel Air, Los Angeles, California (sources describe a mid-century house she has kept since 2012).",
+        "She earlier owned a Beverly Hills house, which she sold."
+      ],
+      "evidence": {
+        "web": [
+          {
+            "url": "https://www.hellomagazine.com/homes/20230307166095/jennifer-aniston-bel-air-mansion-inside/",
+            "note": "Bel Air home"
+          },
+          {
+            "url": "https://www.scmp.com/magazines/style/celebrity/article/3216431/peek-inside-jennifer-anistons-stealth-wealth-us21m-mansion-murder-mystery-2-actress-shared-rare-look",
+            "note": "Bel Air home"
+          },
+          {
+            "url": "https://entertainmentnow.com/celebrity-homes/jennifer-aniston-california-homes-property-portfolio/",
+            "note": "property portfolio"
+          },
+          {
+            "url": "https://pcad.lib.washington.edu/building/17484",
+            "note": "architecture database entry"
+          }
+        ]
+      },
+      "notes": "Sources disagree on the purchase price (about $21M or $22M) and year (2011 or 2012), so none of that is golden. The street address is deliberately not recorded: the scenarios only need the neighbourhood."
+    },
+    {
+      "id": "web-search-line-residence",
+      "scenario": "discovery: a Web search line is honoured",
+      "turn": 1,
+      "prompt": "Web search: Jennifer Aniston residence\nAlso list two Friends episode titles she appeared in.",
+      "stability": "volatile",
+      "retrievedOn": "2026-11-22",
+      "reviewBy": "2027-05-22",
+      "answer": {
+        "mustIncludeAny": ["Bel Air", "Bel-Air", "Los Angeles", "California"],
+        "orSaysItCouldNotVerify": true
+      },
+      "tools": { "include": ["search_web"], "searchWebNeverRefused": true },
+      "facts": [
+        "Same residence fact as aniston-residence.",
+        "Jennifer Aniston appears in every episode of Friends, so any two episode titles of the series are right. Verified examples: \"The One Where Monica Gets a Roommate\" (tt0583459), \"The One with the Embryos\" (tt0583600), \"The One Where Everybody Finds Out\" (tt0583452), \"The Last One\" (tt0583433)."
+      ],
+      "evidence": {
+        "imdb": [
+          {
+            "tconst": ["tt0583459", "tt0583600", "tt0583452", "tt0583433"],
+            "nconst": "nm0000098",
+            "note": "the local IMDb data credits her in all 234 episode rows of tt0108778"
+          }
+        ],
+        "web": [
+          {
+            "url": "https://wikipedia.com/wiki/Dr._Long",
+            "note": "list of Friends characters: the six leads appear in every episode (search snippet)"
+          }
+        ]
+      },
+      "notes": "The episode count is not golden: web search could not confirm the commonly cited 236, and the local IMDb data has 234 episode rows."
+    },
+    {
+      "id": "heat-1995-director",
+      "scenario": "discovery: blocked search asks for a Web search line",
+      "turn": 1,
+      "prompt": "Who directed the 1995 film Heat, and what is the latest news about him?",
+      "stability": "stable",
+      "answer": { "mustInclude": ["Michael Mann"] },
+      "facts": [
+        "Heat (1995, tt0113277, 170 minutes, Action/Crime/Drama) was written and directed by Michael Mann.",
+        "Leads: Al Pacino (Vincent Hanna), Robert De Niro (Neil McCauley), Val Kilmer (Chris Shiherlis)."
+      ],
+      "evidence": {
+        "imdb": [
+          { "tconst": "tt0113277", "nconst": ["nm0000520", "nm0000199", "nm0000134", "nm0000174"] }
+        ],
+        "web": [
+          {
+            "url": "https://www.britannica.com/topic/Heat-film-by-Mann",
+            "note": "Heat directed by Mann"
+          },
+          { "url": "https://www.imdb.com/title/tt0113277", "note": "title page" },
+          {
+            "url": "https://www.bfi.org.uk/film/07155928-0a4d-5dac-a0a7-28547504713d/heat",
+            "note": "film record"
+          }
+        ]
+      },
+      "notes": "The scenario checks the search guard, not the answer: the director fact is stable, the news half is the volatile case heat-news."
+    },
+    {
+      "id": "heat-news",
+      "scenario": "discovery: blocked search asks for a Web search line",
+      "turn": 1,
+      "prompt": "Who directed the 1995 film Heat, and what is the latest news about him?",
+      "stability": "volatile",
+      "retrievedOn": "2026-11-22",
+      "reviewBy": "2026-12-22",
+      "answer": {
+        "acceptableOutcomes": [
+          "names Michael Mann and reports news found by a web search made before any internal tool ran",
+          "names Michael Mann and asks the user to send a \"Web search: <query>\" line, because search_web was refused after an internal tool returned data"
+        ]
+      },
+      "facts": [
+        "Latest news found on the retrieval date (reported 2026-11-01): Michael Mann accidentally shot himself in the leg while holstering a handgun at a West Los Angeles gun range; a representative called the injury superficial and said the sequel Heat 2 is not affected. Reports differ on minor details such as the range."
+      ],
+      "evidence": {
+        "web": [
+          {
+            "url": "https://www.nbclosangeles.com/news/local/michael-mann-accidental-shooting-la-gun-range/3964189/",
+            "note": "news report"
+          },
+          {
+            "url": "https://abc7.com/post/heat-director-michael-mann-sustains-superficial-injury-los-angeles-gun-range/20006157/",
+            "note": "news report"
+          },
+          {
+            "url": "https://consequence.net/2026/11/michael-mann-shoots-himself-at-firing-range/",
+            "note": "news report"
+          },
+          {
+            "url": "https://www.yahoo.com/entertainment/movies/articles/michael-mann-heat-director-released-174111497.html",
+            "note": "released from hospital"
+          }
+        ]
+      },
+      "notes": "Do not turn the news into a mustInclude: it changes, and the scenario passes when the agent correctly asks for a Web search line instead."
+    },
+    {
+      "id": "orchestrator-heat-director",
+      "scenario": "orchestrator: routes an IMDb question to an IMDb agent",
+      "turn": 1,
+      "prompt": "Who directed the 1995 film Heat?",
+      "stability": "stable",
+      "answer": { "mustInclude": ["Michael Mann"] },
+      "delegation": {
+        "oneOf": ["imdb-assistant", "discovery-assistant"],
+        "mode": "quick (a workflow receipt is not an answer)"
+      },
+      "facts": ["Heat (1995, tt0113277) was directed by Michael Mann."],
+      "evidence": {
+        "imdb": [{ "tconst": "tt0113277", "nconst": "nm0000520" }],
+        "web": [
+          {
+            "url": "https://www.britannica.com/topic/Heat-film-by-Mann",
+            "note": "Heat directed by Mann"
+          }
+        ]
+      }
+    }
+  ]
+}

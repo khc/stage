@@ -1,5 +1,6 @@
-import { defineScenario } from "../scenario";
-import type { ToolCall } from "../trace";
+import { defineScenario } from "@stage/evals/scenario";
+import type { ToolCall } from "@stage/evals/trace";
+
 import { prefixedSearchRules, searchGuardRules } from "./search-guard";
 
 const app = "knowledge";

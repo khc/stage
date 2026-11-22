@@ -86,44 +86,46 @@ DeepEval, RAGAS, LangSmith and Phoenix (Python or hosted).
 
 ## Design
 
-New workspace package `packages/evals` (`@stage/evals`). Files are kebab-case; the package has a
-`README.md` with how to run it.
+The harness is the workspace package `packages/evals` (`@stage/evals`); the scenarios and the golden
+data are the workspace package `evals/` at the repo root (`@stage/eval-suite`). Files are kebab-case.
+As built, the scenarios are `bun:test` files (`*.eval.ts`); the Promptfoo adapter drawn in the first
+version of this layout was not built.
 
 ```
-packages/evals/
-  src/
-    api-client.ts       createApiClient(baseUrl): typed Eden client + SSE reader
-    run-turn.ts         one message -> wait for the run to end -> the turn's events
-    run-scenario.ts     create task, run each turn on one session, collect the trace, clean up
-    trace.ts            Trace and Turn types; toolCalls(turn), delegations(trace)
-    checks.ts           deterministic checks on a Turn or Trace (pure functions)
-    scenarios/          one file per agent: orchestrator.eval.ts, discovery.eval.ts, ...
-    scenario.ts         Scenario and Expect types, the `scenario()` helper
-  promptfoo/
-    provider.ts         adapter: scenario id -> runScenario -> Trace as the provider output
-    promptfooconfig     scenarios, assertions, judge provider
+packages/evals/src/   harness
+  api-client.ts       createApiClient(baseUrl): typed Eden client + SSE reader
+  sse.ts              pure Server-Sent Events parser
+  run-scenario.ts     create task, play each turn on one session, collect the trace, clean up
+  trace.ts            Trace and Turn types; toolCalls(events), finalAnswer(events)
+  checks.ts           deterministic checks on a Turn (pure functions)
+  scenario.ts         defineScenario, repeat and pass rate, EVAL_* settings
+evals/                scenarios and golden data
+  scenarios/          orchestrator.eval.ts, discovery.eval.ts, search-guard.ts, ...
+  golden/cases.json   reference facts, with IMDb ids and web sources
+  golden.test.ts      keeps the golden file in step with the scenarios
 ```
 
 **Data model (sketch).**
 
 ```ts
 type Expect = {
-  tools?: string[];            // exactly these tools called, in order, this turn
-  toolsInclude?: string[];     // at least these
-  toolsExclude?: string[];     // none of these
-  delegatedTo?: string[];      // agents the orchestrator called (from child tasks)
+  tools?: string[]; // exactly these tools called, in order, this turn
+  toolsInclude?: string[]; // at least these
+  toolsExclude?: string[]; // none of these
+  delegatedTo?: string[]; // agents the orchestrator called (from child tasks)
   args?: { tool: string; match: (args: unknown) => boolean }[];
-  judge?: string;              // rubric for the answer, graded by the judge model
+  judge?: string; // rubric for the answer, graded by the judge model
 };
 type Scenario = {
   name: string;
-  agent: string;               // the task's agentName
+  agent: string; // the task's agentName
   mode?: "quick" | "workflow"; // default "quick" (my call: faster, no job to start locally)
   turns: { say: string; expect: Expect }[];
 };
 ```
 
 **Flow of `runScenario`.**
+
 1. `POST /tasks` with the scenario's agent and a name prefixed `eval:`.
 2. For each turn: `POST /tasks/:id/run` with the message (and the `sessionId` after turn 1). On
    409, wait and retry. Open the SSE stream and collect events until the turn has ended (the run
@@ -139,6 +141,7 @@ type Scenario = {
 ones run in-process. `judge` is handed to Promptfoo's `llm-rubric`.
 
 **Scenarios to ship first (the author's):**
+
 - Orchestrator: a question the IMDb agent answers; check `delegatedTo`, then the answer.
 - `discovery-assistant`, two turns: "What is the cast of Friends?" (internal tools, no
   `search_web`) then "Where does she live?" (`search_web` once, the query names the person and

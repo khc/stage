@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./scenario": "./src/scenario.ts"
+    "./scenario": "./src/scenario.ts",
+    "./trace": "./src/trace.ts"
   },
   "scripts": {
-    "eval": "bun test ./src/scenarios/*.eval.ts",
     "typecheck": "bun check"
   },
   "dependencies": {

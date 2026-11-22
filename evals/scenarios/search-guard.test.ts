@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
-import type { ToolCall, Turn } from "../trace";
+import type { ToolCall, Turn } from "@stage/evals/trace";
+
 import { prefixedSearchRules, searchGuardRules } from "./search-guard";
 
 const turn = (toolCalls: ToolCall[], answer = ""): Turn => ({

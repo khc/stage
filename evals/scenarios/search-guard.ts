@@ -1,4 +1,4 @@
-import type { ToolCall, Turn } from "../trace";
+import type { ToolCall, Turn } from "@stage/evals/trace";
 
 const REFUSAL = "web_search_query_required";
 // ADK's structured-output call, not a data source.
