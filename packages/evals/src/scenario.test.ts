@@ -62,6 +62,7 @@ test("readSettings reads the environment with defaults", () => {
     keep: false,
     clean: false,
     repeat: undefined,
+    model: undefined,
   });
   expect(
     readSettings({
@@ -70,11 +71,32 @@ test("readSettings reads the environment with defaults", () => {
       EVAL_KEEP: "1",
       EVAL_CLEAN: "1",
       EVAL_REPEAT: "3",
+      EVAL_MODEL: "Inception Labs/mercury-3",
     }),
-  ).toEqual({ serviceUrl: "http://x:1", env: "dev", keep: true, clean: true, repeat: 3 });
+  ).toEqual({
+    serviceUrl: "http://x:1",
+    env: "dev",
+    keep: true,
+    clean: true,
+    repeat: 3,
+    model: { provider: "Inception Labs", model: "mercury-3" },
+  });
 });
 
 test("readSettings rejects an EVAL_REPEAT that is not a positive integer", () => {
   expect(() => readSettings({ EVAL_REPEAT: "0" })).toThrow("EVAL_REPEAT");
   expect(() => readSettings({ EVAL_REPEAT: "two" })).toThrow("EVAL_REPEAT");
+});
+
+test("readSettings splits EVAL_MODEL at the first slash, so a model id may hold one", () => {
+  expect(readSettings({ EVAL_MODEL: "Together/meta/llama-4" }).model).toEqual({
+    provider: "Together",
+    model: "meta/llama-4",
+  });
+});
+
+test("readSettings rejects an EVAL_MODEL without a provider and a model", () => {
+  expect(() => readSettings({ EVAL_MODEL: "mercury-3" })).toThrow("EVAL_MODEL");
+  expect(() => readSettings({ EVAL_MODEL: "/mercury-3" })).toThrow("EVAL_MODEL");
+  expect(() => readSettings({ EVAL_MODEL: "Inception Labs/" })).toThrow("EVAL_MODEL");
 });

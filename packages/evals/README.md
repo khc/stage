@@ -20,13 +20,14 @@ EVAL_REPEAT=5 bun run eval   # run each scenario 5 times (see the pass rate)
 
 ## Environment (the eval process)
 
-| Variable      | Default                         | Meaning                                                                 |
-| ------------- | ------------------------------- | ----------------------------------------------------------------------- |
-| `SERVICE_URL` | `http://localhost:3000`         | The control-service. Export it in the shell: no `.env` is read.         |
-| `EVAL_ENV`    | `lcl`                           | Environment suffix of the job names (`stage--<app>-agents--job-<env>`). |
-| `EVAL_REPEAT` | the scenario's `repeat`, else 1 | Runs per scenario.                                                      |
-| `EVAL_KEEP`   | unset                           | `1` keeps each run's task, for debugging.                               |
-| `EVAL_CLEAN`  | unset                           | `1` first deletes the leftover `eval:` tasks of a killed or kept run.   |
+| Variable      | Default                                        | Meaning                                                                                                                         |
+| ------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVICE_URL` | `http://localhost:3000`                        | The control-service. Export it in the shell: no `.env` is read.                                                                 |
+| `EVAL_ENV`    | `lcl`                                          | Environment suffix of the job names (`stage--<app>-agents--job-<env>`).                                                         |
+| `EVAL_REPEAT` | the scenario's `repeat`, else 1                | Runs per scenario.                                                                                                              |
+| `EVAL_KEEP`   | unset                                          | `1` keeps each run's task, for debugging.                                                                                       |
+| `EVAL_CLEAN`  | unset                                          | `1` first deletes the leftover `eval:` tasks of a killed or kept run.                                                           |
+| `EVAL_MODEL`  | the scenario's `model`, else the job's default | `<provider name>/<model>` for every scenario, e.g. `Inception Labs/mercury-3`. The provider is a saved provider, found by name. |
 
 ## Adding a scenario
 
@@ -42,7 +43,7 @@ defineScenario({
   repeat: 5,
   minPassRate: 0.8, // 4 of 5 runs must pass
   turns: [
-    { say: "What is the cast of Friends?", expect: { toolsExclude: ["search_web"] } },
+    { say: "Who plays Rachel Green in Friends?", expect: { toolsExclude: ["search_web"] } },
     { say: "Where does she live?", expect: { toolsInclude: ["search_web"] } },
   ],
 });
@@ -51,7 +52,7 @@ defineScenario({
 A turn's `expect` takes `tools`, `toolsInclude`, `toolsExclude`, `delegatedTo`, `delegatedToOneOf`,
 `calls` (a check on a whole tool call, response included), `custom`, `answerIncludes`,
 `answerMatches` and `maxCalls` (see `src/checks.ts`). Scenarios run in `quick` mode unless they set
-`mode: "workflow"`.
+`mode: "workflow"`. A scenario can set `model: { provider: "Inception Labs", model: "mercury-3" }` to create its task with that default model.
 
 A failing scenario lists each failed run with its task id. Run it with `EVAL_KEEP=1` to keep the
 task and look at its session in the UI.

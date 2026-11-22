@@ -1,6 +1,9 @@
-import type { EvalApi, RunMode } from "./api-client";
+import type { EvalApi, ModelRef, RunMode } from "./api-client";
 import type { Expect } from "./checks";
 import { toTurn, type EvalEvent, type Trace, type Turn } from "./trace";
+
+// A saved provider, by name, and one of its models.
+export type ModelChoice = { provider: string; model: string };
 
 export type Scenario = {
   name: string;
@@ -9,6 +12,8 @@ export type Scenario = {
   agent: string;
   // Defaults to quick: it is faster and starts no job.
   mode?: RunMode;
+  // The task's default model; without one the job's default applies. `RunOptions.model` wins.
+  model?: ModelChoice;
   turns: { say: string; expect: Expect }[];
   repeat?: number;
   minPassRate?: number;
@@ -22,6 +27,7 @@ export type RunOptions = {
   drainMs: number;
   keep: boolean;
   env: string;
+  model?: ModelChoice;
 };
 
 // Every task an eval creates is named with it, so leftovers are easy to find and delete.
@@ -29,6 +35,21 @@ export const EVAL_TASK_PREFIX = "eval:";
 
 // `stage--<app>-agents--job-<env>` (docs/naming-rules.md).
 export const jobNameFor = (app: string, env: string) => `stage--${app}-agents--job-${env}`;
+
+const resolveModel = async (api: EvalApi, choice: ModelChoice): Promise<ModelRef> => {
+  const providers = await api.listProviders();
+  const matches = providers.filter((p) => p.name.toLowerCase() === choice.provider.toLowerCase());
+  if (matches.length > 1)
+    throw new Error(
+      `model provider "${choice.provider}" is ambiguous: ${matches.length} saved providers have that name`,
+    );
+  const [found] = matches;
+  if (!found)
+    throw new Error(
+      `model provider "${choice.provider}" not found; saved providers: ${providers.map((p) => p.name).join(", ")}`,
+    );
+  return { providerId: found.providerId, model: choice.model };
+};
 
 const RETRYABLE = new Set(["run_in_progress", "message_pending"]);
 
@@ -142,11 +163,14 @@ export const runScenario = async (
 ): Promise<Trace> => {
   const first = scenario.turns[0];
   if (!first) throw new Error(`scenario ${scenario.name} has no turns`);
+  const choice = options.model ?? scenario.model;
+  const defaultModel = choice && (await resolveModel(api, choice));
   const { taskId } = await api.createTask({
     name: `${EVAL_TASK_PREFIX} ${scenario.name} (${crypto.randomUUID().slice(0, 8)})`,
     prompt: first.say,
     jobName: jobNameFor(scenario.app, options.env),
     agentName: scenario.agent,
+    ...(defaultModel && { defaultModel }),
   });
   try {
     const state: { taskId: string; sessionId?: string } = { taskId };

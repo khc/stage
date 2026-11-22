@@ -4,19 +4,23 @@ import { prefixedSearchRules, searchGuardRules } from "./search-guard";
 
 const app = "knowledge";
 const agent = "discovery-assistant";
+// The saved provider "Inception Labs"; the Vertex AI default model hits its quota on a long run.
+const model = { provider: "Inception Labs", model: "mercury-3" };
 
 const searchQuery = (call: ToolCall) => (call.args as { query?: string } | undefined)?.query ?? "";
 
-// IMDb first: the cast comes from the internal sources; only the follow-up goes to the web.
+// IMDb first: the actress comes from the internal sources; only the follow-up goes to the web.
+// Turn 1 names one character so that "she" in turn 2 is not ambiguous.
 defineScenario({
   name: "discovery: imdb first, then web search",
   app,
   agent,
+  model,
   repeat: 5,
   minPassRate: 0.8,
   turns: [
     {
-      say: "What is the cast of Friends?",
+      say: "Who plays Rachel Green in Friends?",
       expect: {
         toolsInclude: ["discover_assets"],
         toolsExclude: ["search_web"],
@@ -46,6 +50,7 @@ defineScenario({
   name: "discovery: blocked search asks for a Web search line",
   app,
   agent,
+  model,
   repeat: 5,
   minPassRate: 0.8,
   turns: [
@@ -63,6 +68,7 @@ defineScenario({
   name: "discovery: a Web search line is honoured",
   app,
   agent,
+  model,
   repeat: 5,
   minPassRate: 0.8,
   turns: [

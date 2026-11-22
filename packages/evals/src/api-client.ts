@@ -6,6 +6,8 @@ import type { EvalEvent, RunSummary } from "./trace";
 
 export type RunMode = "quick" | "workflow";
 export type TaskSummary = { taskId: string; name?: string; parentTaskId?: string };
+export type ModelRef = { providerId: string; model: string };
+export type ProviderSummary = { providerId: string; name: string };
 // A 202 carries `sessionId` only when the run created the session; a resume's has none.
 export type RunResult = { status: 202; sessionId?: string } | { status: 409; error: string };
 export type SessionView = { run?: RunSummary; events: EvalEvent[] };
@@ -17,8 +19,10 @@ export type EvalApi = {
     prompt: string;
     jobName: string;
     agentName: string;
+    defaultModel?: ModelRef;
   }) => Promise<{ taskId: string }>;
   listTasks: () => Promise<TaskSummary[]>;
+  listProviders: () => Promise<ProviderSummary[]>;
   run: (
     taskId: string,
     input: { message: string; sessionId?: string; mode?: RunMode },
@@ -74,6 +78,12 @@ export const createApiClient = (baseUrl: string): EvalApi => {
       return { taskId: created.taskId };
     },
     listTasks: async () => ok("listTasks", await client.tasks.get()).tasks,
+    // Only the id and the name: the provider documents hold more than the evals need.
+    listProviders: async () =>
+      ok("listProviders", await client.providers.get()).providers.map(({ providerId, name }) => ({
+        providerId,
+        name,
+      })),
     run: async (taskId, input) => {
       const reply = await task(taskId).run.post(input);
       if (reply.status === 202) {

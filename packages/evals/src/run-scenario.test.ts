@@ -32,7 +32,12 @@ const scenario = (turns: number, extra: Partial<Scenario> = {}): Scenario => ({
 });
 
 // A fake service: each `run` call plays the next step, which lands in the session after `polls` reads.
-const fakeApi = (steps: Step[], busyRuns = 0) => {
+const savedProviders = [
+  { providerId: "p-inception", name: "Inception Labs" },
+  { providerId: "p-gemini", name: "Google Gemini" },
+];
+
+const fakeApi = (steps: Step[], busyRuns = 0, providers = savedProviders) => {
   const log = {
     created: [] as Parameters<EvalApi["createTask"]>[0][],
     runs: [] as { message: string; sessionId?: string; mode?: RunMode }[],
@@ -52,6 +57,7 @@ const fakeApi = (steps: Step[], busyRuns = 0) => {
       return { taskId: "t1" };
     },
     listTasks: async () => [],
+    listProviders: async () => providers,
     run: async (_taskId, input) => {
       log.runs.push(input);
       if (busy > 0) {
@@ -105,6 +111,50 @@ test("creates an eval: task on the agent, prompted with the first message", asyn
     jobName: "stage--knowledge-agents--job-lcl",
     agentName: "discovery-assistant",
   });
+});
+
+test("creates the task with the scenario's model, resolved by provider name", async () => {
+  const { api, log } = fakeApi([{ events: [ev("e1", "model", "a")] }]);
+  const model = { provider: "inception labs", model: "mercury-3" };
+  await runScenario(api, scenario(1, { model }), options);
+  expect(log.created[0]!.defaultModel).toEqual({ providerId: "p-inception", model: "mercury-3" });
+});
+
+test("the model of the options wins over the scenario's", async () => {
+  const { api, log } = fakeApi([{ events: [ev("e1", "model", "a")] }]);
+  const scenarioModel = { provider: "Inception Labs", model: "mercury-3" };
+  const override = { provider: "Google Gemini", model: "gemini-2.5-flash" };
+  await runScenario(api, scenario(1, { model: scenarioModel }), { ...options, model: override });
+  expect(log.created[0]!.defaultModel).toEqual({
+    providerId: "p-gemini",
+    model: "gemini-2.5-flash",
+  });
+});
+
+test("a task without a model is created without one", async () => {
+  const { api, log } = fakeApi([{ events: [ev("e1", "model", "a")] }]);
+  await runScenario(api, scenario(1), options);
+  expect("defaultModel" in log.created[0]!).toBe(false);
+});
+
+test("an unknown provider fails before a task is created and lists the saved ones", async () => {
+  const { api, log } = fakeApi([{ events: [ev("e1", "model", "a")] }]);
+  const model = { provider: "Nowhere", model: "m" };
+  await expect(runScenario(api, scenario(1, { model }), options)).rejects.toThrow(
+    /Nowhere.*Inception Labs, Google Gemini/,
+  );
+  expect(log.created).toEqual([]);
+});
+
+test("a provider name that matches two saved providers is ambiguous and creates no task", async () => {
+  const twins = [
+    { providerId: "p-1", name: "Inception Labs" },
+    { providerId: "p-2", name: "inception labs" },
+  ];
+  const { api, log } = fakeApi([{ events: [ev("e1", "model", "a")] }], 0, twins);
+  const model = { provider: "Inception Labs", model: "mercury-3" };
+  await expect(runScenario(api, scenario(1, { model }), options)).rejects.toThrow(/ambiguous/);
+  expect(log.created).toEqual([]);
 });
 
 test("runs in quick mode unless the scenario sets one", async () => {

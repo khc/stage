@@ -2,7 +2,13 @@ import { beforeAll, test } from "bun:test";
 
 import { createApiClient, type EvalApi, type TaskSummary } from "./api-client";
 import { checkTurn } from "./checks";
-import { EVAL_TASK_PREFIX, runScenario, type RunOptions, type Scenario } from "./run-scenario";
+import {
+  EVAL_TASK_PREFIX,
+  runScenario,
+  type ModelChoice,
+  type RunOptions,
+  type Scenario,
+} from "./run-scenario";
 import type { Trace } from "./trace";
 
 const PER_TURN_TIMEOUT_MS = 120_000;
@@ -13,6 +19,18 @@ export type Settings = {
   keep: boolean;
   clean: boolean;
   repeat: number | undefined;
+  model: ModelChoice | undefined;
+};
+
+// "<provider name>/<model>", split at the first slash: a model id may hold slashes, a provider name may not.
+const parseModel = (value: string | undefined): ModelChoice | undefined => {
+  if (value === undefined) return undefined;
+  const slash = value.indexOf("/");
+  const provider = value.slice(0, slash).trim();
+  const model = value.slice(slash + 1).trim();
+  if (slash < 1 || !provider || !model)
+    throw new Error(`EVAL_MODEL must be "<provider name>/<model>", got "${value}"`);
+  return { provider, model };
 };
 
 export const readSettings = (env: Record<string, string | undefined>): Settings => {
@@ -25,6 +43,7 @@ export const readSettings = (env: Record<string, string | undefined>): Settings 
     keep: env.EVAL_KEEP === "1",
     clean: env.EVAL_CLEAN === "1",
     repeat,
+    model: parseModel(env.EVAL_MODEL),
   };
 };
 
@@ -80,6 +99,7 @@ export const defineScenario = (scenario: Scenario, deps: { api?: EvalApi } = {})
     drainMs: 5_000,
     keep: settings.keep,
     env: settings.env,
+    ...(settings.model && { model: settings.model }),
   };
 
   beforeAll(() => prepare(api, settings), PER_TURN_TIMEOUT_MS);
