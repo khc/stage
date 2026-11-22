@@ -4,6 +4,8 @@ import type { SessionSummary } from "@/lib/api";
 
 import {
   executeNewChatSend,
+  isAwaitingResumedRun,
+  chatSessionRefetchInterval,
   isAwaitingRunStart,
   pickActiveSessionId,
   shouldPollSessions,
@@ -35,6 +37,40 @@ test("isAwaitingRunStart stays true across / -> /assistant/$chatId until run set
   ).toBe(false);
   expect(isAwaitingRunStart(starting, "other-task", "s-new", undefined)).toBe(false);
   expect(isAwaitingRunStart(starting, undefined, null, undefined)).toBe(false);
+});
+
+test("isAwaitingResumedRun keeps polling until a newer run than the one resumed shows up", () => {
+  const resumed = { taskId: "t1", sessionId: "s1", previousStartedAt: 100, sentAt: 1_000 };
+  const seen = (startedAt: number, status: "running" | "succeeded" = "succeeded") => ({
+    run: { status, startedAt },
+  });
+  // The session still shows the run that finished before the message was sent.
+  expect(isAwaitingResumedRun(resumed, "t1", "s1", seen(100), 2_000)).toBe(true);
+  // The new run has begun: the running status drives the polling from here.
+  expect(isAwaitingResumedRun(resumed, "t1", "s1", seen(900, "running"), 2_000)).toBe(false);
+  expect(isAwaitingResumedRun(resumed, "t1", "s1", seen(900), 2_000)).toBe(false);
+  // Another chat or session, nothing resumed, or a run that never started within the wait.
+  expect(isAwaitingResumedRun(resumed, "t2", "s1", seen(100), 2_000)).toBe(false);
+  expect(isAwaitingResumedRun(resumed, "t1", "s2", seen(100), 2_000)).toBe(false);
+  expect(isAwaitingResumedRun(null, "t1", "s1", seen(100), 2_000)).toBe(false);
+  expect(isAwaitingResumedRun(resumed, "t1", "s1", seen(100), 1_000 + 120_000)).toBe(false);
+  // A session that never had a run waits for its first one.
+  expect(
+    isAwaitingResumedRun({ ...resumed, previousStartedAt: undefined }, "t1", "s1", undefined, 2_000),
+  ).toBe(true);
+});
+
+test("chatSessionRefetchInterval polls a resumed session until its new run has started and finished", () => {
+  const resumed = { taskId: "t1", sessionId: "s1", previousStartedAt: 100, sentAt: 1_000 };
+  const interval = (run?: { status: "running" | "succeeded"; startedAt: number }, now = 2_000) =>
+    chatSessionRefetchInterval({ events: [], run }, null, resumed, "t1", "s1", now);
+  // The session still shows the run that finished before the message: keep polling for the new one.
+  expect(interval({ status: "succeeded", startedAt: 100 })).toBe(2000);
+  // The new run is under way, then finished: the usual polling, then none.
+  expect(interval({ status: "running", startedAt: 900 })).toBe(5000);
+  expect(interval({ status: "succeeded", startedAt: 900 })).toBe(false);
+  // No run ever started within the wait: stop.
+  expect(interval({ status: "succeeded", startedAt: 100 }, 1_000 + 120_000)).toBe(false);
 });
 
 test("shouldPollSessions stops polling once a starting session settles", () => {

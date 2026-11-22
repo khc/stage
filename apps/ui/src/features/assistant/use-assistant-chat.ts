@@ -56,6 +56,52 @@ export function isAwaitingRunStart(
   );
 }
 
+// A message resumes a session that already ran, so its cached run is the previous one, finished: the
+// session is then polled for the new run until it appears (the job needs a few seconds to start it),
+// not for as long as the cached run looks done. Gives up after RESUME_WAIT_MS if no run ever starts.
+export type ResumedRun = {
+  taskId: string;
+  sessionId: string;
+  previousStartedAt?: number;
+  sentAt: number;
+};
+export const RESUME_WAIT_MS = 120_000;
+
+export function isAwaitingResumedRun(
+  resumed: ResumedRun | null,
+  chatId: string | undefined,
+  activeSessionId: string | null,
+  session: Pick<Session, "run"> | undefined,
+  now = Date.now(),
+): boolean {
+  return (
+    !!resumed &&
+    resumed.taskId === chatId &&
+    resumed.sessionId === activeSessionId &&
+    now - resumed.sentAt < RESUME_WAIT_MS &&
+    session?.run?.startedAt === resumed.previousStartedAt
+  );
+}
+
+// How often the open session is refetched: while its run is under way, while a just-started session has
+// no run yet, and while a resumed one still shows the previous run.
+export function chatSessionRefetchInterval(
+  session: Pick<Session, "run" | "events"> | undefined,
+  starting: StartingSession | null,
+  resumed: ResumedRun | null,
+  chatId: string | undefined,
+  activeSessionId: string | null,
+  now = Date.now(),
+): number | false {
+  const awaitingResume = isAwaitingResumedRun(resumed, chatId, activeSessionId, session, now);
+  return awaitingResume
+    ? 2000
+    : sessionRefetchInterval(
+        session,
+        isAwaitingRunStart(starting, chatId, activeSessionId, session),
+      );
+}
+
 export function shouldPollSessions(
   sessions: SessionSummary[] | undefined,
   starting: StartingSession | null,
@@ -179,6 +225,7 @@ export function useAssistantChat(
   const targets = useAssistantTargets();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState<StartingSession | null>(null);
+  const [resumedRun, setResumedRun] = useState<ResumedRun | null>(null);
   const [targetOverride, setTargetOverride] = useState<AssistantTarget | undefined>(undefined);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const pendingTaskRef = useRef<PendingTask | null>(null);
@@ -227,9 +274,12 @@ export function useAssistantChat(
     queryFn: () => api.session(chatId!, activeSessionId!),
     enabled: !!chatId && !!activeSessionId,
     refetchInterval: (query) =>
-      sessionRefetchInterval(
+      chatSessionRefetchInterval(
         query.state.data,
-        isAwaitingRunStart(startingSession, chatId, activeSessionId, query.state.data),
+        startingSession,
+        resumedRun,
+        chatId,
+        activeSessionId,
       ),
   });
 
@@ -278,8 +328,19 @@ export function useAssistantChat(
       }
 
       if (activeSessionId) {
+        // Read before the resume: the cached run is the one that finished before this message.
+        const previousStartedAt = queryClient.getQueryData<Session>([
+          "session",
+          chatId,
+          activeSessionId,
+        ])?.run?.startedAt;
         await api.resume(chatId, activeSessionId, trimmed, model, mode);
-        return { taskId: chatId, sessionId: activeSessionId, resumed: true as const };
+        return {
+          taskId: chatId,
+          sessionId: activeSessionId,
+          resumed: true as const,
+          previousStartedAt,
+        };
       }
 
       const started = await api.startSession(chatId, trimmed, model, mode);
@@ -298,6 +359,12 @@ export function useAssistantChat(
       }
 
       if ("resumed" in result && result.resumed && result.sessionId) {
+        setResumedRun({
+          taskId: chatId,
+          sessionId: result.sessionId,
+          previousStartedAt: result.previousStartedAt,
+          sentAt: Date.now(),
+        });
         void queryClient.invalidateQueries({ queryKey: ["session", chatId, result.sessionId] });
       } else if (result.sessionId) {
         setStartingSession({ taskId: chatId, sessionId: result.sessionId });
