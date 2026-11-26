@@ -2,7 +2,7 @@
 
 Status: draft, 2026-11-22. This is a roadmap, not an approved implementation plan: each item gets its
 own plan (`$dot:plan`) when it is picked up. The evals themselves are described in
-[evals/README.md](../evals/README.md) and the original design in
+[evals/README.md](../../evals/README.md) and the original design in
 [the design doc](superpowers/specs/2026-11-22-api-evals-design.md).
 
 ## Where we are

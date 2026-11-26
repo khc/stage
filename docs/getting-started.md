@@ -1,170 +1,171 @@
 # Getting Started
 
-Run `stage` locally against [Floci](https://floci.io/floci-gcp/getting-started/quick-start/) (local GCP emulator for Firestore, Cloud Run, Pub/Sub, Cloud Scheduler, and Cloud SQL), MLflow, Qdrant, and Neo4j.
+Set up `stage` on your machine and run your first agent task. Allow about 20 minutes, most of it spent building images.
+
+**At the end you will have:** Floci (a local GCP emulator) running Firestore, Cloud Run and Pub/Sub; four agent jobs deployed to it; the control service on <http://localhost:3000>; and the dashboard on <http://localhost:5173>.
 
 ## Prerequisites
 
-- [Bun](https://bun.com) (workspace uses Bun v1.4+)
-- Docker and Docker Compose (Floci mounts `/var/run/docker.sock` to launch Cloud Run containers)
-- [go-task](https://taskfile.dev) (`task` CLI)
-- [Terraform](https://www.terraform.io/)
-- [yq](https://github.com/mikefarah/yq) (used by `task tf:apply` to read `.env`)
-- A Gemini API key (`GEMINI_API_KEY`)
+| Tool                                   | Why                                                                         | Check                                         |
+| -------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
+| [Bun](https://bun.com) 1.4+            | Runs the services, tests and scripts                                        | `bun --version`                               |
+| Docker with Compose                    | Runs Floci, which launches the job containers (it mounts the Docker socket) | `docker compose version`                      |
+| [go-task](https://taskfile.dev)        | The `task` commands                                                         | `task --version`                              |
+| [Terraform](https://www.terraform.io/) | Creates the jobs and topics in Floci                                        | `terraform version`                           |
+| [yq](https://github.com/mikefarah/yq)  | `task tf:apply` reads `.env` with it                                        | `yq --version`                                |
+| A Gemini API key                       | The default model for the agents                                            | [Get one](https://aistudio.google.com/apikey) |
 
-## 1. Install dependencies and configure `.env`
+## 1. Install and configure
 
 ```bash
 bun install
 cp .env.example .env
 ```
 
-Edit `.env` for local development:
+Edit `.env`:
 
-1. **Set credentials**:
-   - `GEMINI_API_KEY` — your Gemini API key (used by agent jobs; local Terraform stores it as a plain env var in local state, so use a throwaway key).
-   - `NEO4J_PASSWORD` — any local password if you plan to start the `neo4j` container.
-2. **Uncomment the local Floci emulators**:
+1. Set `GEMINI_API_KEY`. Local Terraform stores it as a plain value in its state, so use a throwaway key.
+2. Uncomment the three Floci emulator lines:
+
    ```dotenv
    FIRESTORE_EMULATOR_HOST=localhost:4588
    CLOUD_RUN_EMULATOR_HOST=localhost:4588
    PUBSUB_EMULATOR_HOST=localhost:4588
    ```
-3. **Enable live event streaming (recommended for the dashboard)**:
+
+3. Uncomment the two topics, so the dashboard streams runs live:
+
    ```dotenv
    PUBSUB_TOPIC=stage--agent-events--ps-lcl
    PLATFORM_EVENTS_TOPIC=stage--platform-events--ps-lcl
    ```
-4. **Optional local tracing**:
-   - Uncomment the `OTEL_EXPORTER_OTLP_TRACES_*` lines to send OpenTelemetry traces to MLflow.
 
-## 2. Start local infrastructure
+4. Optional: uncomment the `OTEL_EXPORTER_OTLP_TRACES_*` lines to send traces to MLflow (see [Observability](observability.md)).
 
-Start the Compose services from the repository root:
+The other variables are listed in [Configuration](configuration.md).
+
+## 2. Start the local stack
 
 ```bash
-# Full local stack (requires NEO4J_PASSWORD in .env)
-docker compose up -d
-
-# Or only the core GCP emulator, UI, and MLflow
 docker compose up -d floci-gcp floci-ui mlflow
 ```
 
-| Service     | Purpose                               | Local URL               |
-| ----------- | ------------------------------------- | ----------------------- |
-| `floci-gcp` | Emulated Firestore, Cloud Run, etc.   | `http://localhost:4588` |
-| `floci-ui`  | Web console for Floci (`floci-local`) | `http://localhost:4500` |
-| `mlflow`    | OpenTelemetry trace viewer            | `http://localhost:5001` |
-| `qdrant`    | Vector database for knowledge docs    | `http://localhost:6333` |
-| `neo4j`     | Graph database for ingestion catalog  | `http://localhost:7474` |
+| Service     | Purpose                                | URL                     |
+| ----------- | -------------------------------------- | ----------------------- |
+| `floci-gcp` | Emulated Firestore, Cloud Run, Pub/Sub | <http://localhost:4588> |
+| `floci-ui`  | Web console for Floci                  | <http://localhost:4500> |
+| `mlflow`    | Trace viewer                           | <http://localhost:5001> |
 
-## 3. Build images, provision Floci, and register agents
+`docker compose up -d` with no names also starts `qdrant` (<http://localhost:6333>) and `neo4j` (<http://localhost:7474>). They are only needed for the [knowledge agents](agents.md#knowledge-job), and Neo4j needs `NEO4J_PASSWORD` in `.env`.
 
-Build the container images that Terraform deploys into Floci (`task build:control-service` is needed because `infra/envs/local/main.tf` sets `deploy_service = true`):
+**You should see:** `docker compose ps` lists the services as running, and `floci-gcp` as healthy.
 
-```bash
-task build:agents
-task build:extract-service
-task build:control-service
-```
-
-`task build` runs all of them (and `build:ui`, the dashboard image, which Terraform does not deploy).
-
-Initialize and apply the local Terraform configuration (`infra/envs/local`), then record each agent app's agents in Firestore:
+## 3. Build the images and deploy to Floci
 
 ```bash
-task tf:init
-task tf:apply
-task register-agents
+task build              # agents, extract service, control service and dashboard images
+task tf:init            # once
+task tf:apply           # create the jobs, services and topics in Floci
+task register-agents    # record each job's agents in Firestore
 ```
 
-`task tf:apply` creates the Pub/Sub topics (`stage--agent-events--ps-lcl`, `stage--platform-events--ps-lcl`), the Cloud Run jobs (`stage--generic-agents--job-lcl`, `stage--poet-agents--job-lcl`, `stage--knowledge-agents--job-lcl`, `stage--orchestrator-agents--job-lcl`), the `stage--extract-service--svc-lcl` and `stage--control-service--svc-lcl` Cloud Run services, and the local `imdb` Cloud SQL instance. When developing the API on the host in Step 4 (`bun run dev:service`, which reads `AGENT_JOBS=*` from `.env`), you interact with the host process rather than the Floci-deployed `stage--control-service--svc-lcl` container (you can also remove the Floci control service container with `task tf:remove-service`).
+`task tf:apply` creates the Pub/Sub topics, one Cloud Run job per agent app, the extract and control services, and a local Cloud SQL instance. The jobs are `stage--generic-agents--job-lcl`, `stage--poet-agents--job-lcl`, `stage--knowledge-agents--job-lcl` and `stage--orchestrator-agents--job-lcl`.
 
-> **Optional — document uploads in host dev mode:** Copy the deployed extract service URL into `.env` (`EXTRACT_URL`) so `bun run dev:service` can extract uploaded documents:
->
-> ```bash
-> terraform -chdir=infra/envs/local output -raw extract_url
-> ```
+**You should see:** `task list-jobs` prints a JSON document that names the four jobs.
 
-Verify the jobs exist in Floci:
+> You will run the API on the host in the next step. The copy of the control service that Terraform deployed into Floci is not used for that; `task tf:remove-service` removes it.
+
+Optional: to enable document upload, put the extract service's address in `.env` as `EXTRACT_URL`:
 
 ```bash
-task list-jobs
+terraform -chdir=infra/envs/local output -raw extract_url
 ```
 
-## 4. Start the API service and dashboard
+## 4. Start the API and the dashboard
 
-Run the HTTP API (`apps/control-service`) and web dashboard (`apps/ui`) in two terminals:
+In two terminals:
 
 ```bash
-# Terminal 1: HTTP API on http://localhost:3000 (Scalar API docs at /docs)
-bun run dev:service
-
-# Terminal 2: React dashboard on http://localhost:5173
-bun run dev:ui
+bun run dev:service     # API on http://localhost:3000, API reference at /docs
+bun run dev:ui          # dashboard on http://localhost:5173
 ```
 
-Open `http://localhost:5173` in your browser for the dashboard, or `http://localhost:3000/docs` for the OpenAPI reference.
+**You should see:** `curl localhost:3000/health` answers, and <http://localhost:5173> shows the dashboard.
 
-## 5. Create and run your first task
+## 5. Run your first task
 
-You can create and run tasks from the dashboard at `http://localhost:5173`, or with `curl`:
+### In the dashboard
+
+1. Open <http://localhost:5173/tasks> and choose **New task**.
+2. Pick the job `stage--generic-agents--job-lcl` and the `assistant` agent.
+3. Enter the prompt `What time is it in Tokyo?` and save.
+4. Open the task and choose **Run task**. The session appears and its events stream in live.
+
+### With curl
 
 ```bash
-# 1. Create a task contract
-curl -X POST http://localhost:3000/tasks \
-  -H 'content-type: application/json' \
-  -d '{"prompt":"What time is it in Tokyo?","jobName":"stage--generic-agents--job-lcl"}'
+# 1. Create a task. This only saves it.
+curl -X POST localhost:3000/tasks -H 'content-type: application/json' \
+  -d '{"name":"Time in Tokyo","prompt":"What time is it in Tokyo?","jobName":"stage--generic-agents--job-lcl"}'
 ```
 
-Copy the returned `taskId` and run it:
+The reply has a `taskId`. Use it to run the task:
 
 ```bash
-TASK_ID='<paste-taskId-here>'
+TASK_ID='<paste the taskId>'
 
-# 2. Trigger a Cloud Run job execution (returns HTTP 202)
-curl -X POST "http://localhost:3000/tasks/$TASK_ID/run"
+# 2. Start a job execution. The reply is HTTP 202 with the operation and the session id.
+curl -X POST "localhost:3000/tasks/$TASK_ID/run"
 
-# 3. Inspect created sessions and messages
-curl "http://localhost:3000/tasks/$TASK_ID/sessions"
+# 3. List the task's sessions, then read one, state and events included.
+curl "localhost:3000/tasks/$TASK_ID/sessions"
+curl "localhost:3000/tasks/$TASK_ID/sessions/<sessionId>"
+
+# 4. Optional: follow the events live as server-sent events.
+curl -N "localhost:3000/tasks/$TASK_ID/sessions/<sessionId>/messages"
 ```
 
-Once a session appears, fetch its full event history with:
+**Reading the result:** the `202` means the job was submitted, not that the agent succeeded. The session's `run` field shows `running`, `succeeded` or `failed`, and the last model event holds the answer. To ask a follow-up, run the task again with `{"sessionId": "...", "message": "..."}` (see [API](api.md#resume-a-session)).
+
+## Troubleshooting
+
+| Symptom                                                        | Cause and fix                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `task tf:apply` fails with 409 `alreadyExists`                 | A resource was created outside Terraform. Run `task tf:import`, then apply again                               |
+| `GET /jobs` is empty, or creating a task answers `unknown_job` | The jobs are not deployed. Run `task tf:apply`, and check `AGENT_JOBS` in `.env`                               |
+| The agent list in the new-task dialog is empty                 | Agents are not registered. Run `task register-agents`                                                          |
+| `bun run dev:service` fails with `EADDRINUSE` on port 3000     | Another process owns port 3000, perhaps an earlier `bun run dev:service`. Stop it, or set `PORT` in `.env`     |
+| Requests fail with Application Default Credentials errors      | The emulator lines in `.env` are still commented out. Uncomment them and restart the service                   |
+| `bun test` fails after you stop Floci                          | With `FIRESTORE_EMULATOR_HOST` set, the Firestore contract tests need Floci. Start it, or comment the line out |
+| The run stays `running` and no events appear                   | Check `docker ps` for the job container and its logs. Confirm `PUBSUB_TOPIC` is set for the service            |
+
+More cases are in [Operations](operations.md#troubleshooting).
+
+## Optional setups
+
+- **Knowledge base and discovery agents:** need Qdrant, Neo4j and an embeddings server. See [Agents](agents.md#knowledge-job) and the [ingestion README](../packages/ingestion/README.md).
+- **IMDb agent:** run `task load-imdb` to load the datasets into Floci's Postgres. See [Agents](agents.md#imdb-assistant).
+- **Other models:** add a provider in the dashboard under Settings. See [Configuration](configuration.md#models-and-providers).
+
+## Everyday checks
 
 ```bash
-SESSION_ID='<paste-sessionId-here>'
-curl "http://localhost:3000/tasks/$TASK_ID/sessions/$SESSION_ID"
+bun test                 # unit tests
+bun run typecheck        # type check scripts and all workspaces
+bun run lint             # oxlint
+bun run format:check     # oxfmt
 ```
 
-## Optional: Knowledge base and IMDb agents
-
-- **Documentation search (`knowledge-assistant` / `discovery-assistant`)**: Uses Qdrant, Neo4j, and an OpenAI-compatible embeddings server (such as oMLX on port `8000`). See [packages/ingestion/README.md](../packages/ingestion/README.md) to fetch and ingest the Bun and DuckDB docs.
-- **IMDb queries (`imdb-assistant`)**: Load the non-commercial IMDb datasets into Floci's Postgres instance with:
-  ```bash
-  task load-imdb
-  ```
-
-## Everyday checks and cleanup
+Stop the stack when you are done. The data stays in Docker volumes unless you add `-v`:
 
 ```bash
-bun test                 # Run tests (keep floci-gcp — plus Qdrant/Neo4j/embeddings if set in .env — running)
-bun check                # Type check root workspace (excludes apps/ui per tsconfig.json)
-bun run typecheck        # Type check scripts and all workspaces (recommended)
-bun run lint             # Lint with oxlint
-bun run format:check     # Check formatting with oxfmt
+docker compose down      # stop, keep data
+docker compose down -v   # stop and wipe local state
 ```
 
-> With `FIRESTORE_EMULATOR_HOST=localhost:4588` uncommented in `.env`, `bun test` runs Firestore contract tests that fail if `floci-gcp` is stopped (and likewise for Qdrant, Neo4j, or embedding contract tests if their env vars are set).
+## Next steps
 
-Stop the local containers when done (data persists in Docker volumes):
-
-```bash
-docker compose down      # Stop containers, keep volumes
-docker compose down -v   # Stop containers and wipe local state
-```
-
-## Further reading
-
-- [Project README](../README.md) — workspace layout, API behavior, event streaming, and agent registry details
-- [Infrastructure README](../infra/README.md) — local Floci and GCP (`dev` / `prod`) Terraform roots
-- [Floci GCP notes](floci-gcp.md) — emulator capabilities and quirks
-- [Ingestion README](../packages/ingestion/README.md) — documentation corpus ingestion, retrieval evals, and Neo4j catalog
+- [Architecture](architecture.md): how the pieces fit together
+- [API](api.md): every route
+- [Agents](agents.md): what each agent does and how to add one
+- [Infrastructure README](../infra/README.md): Terraform for Floci and GCP

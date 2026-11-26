@@ -68,7 +68,7 @@ Dependencies: T1 → T2 → T3 → T4 → T5 → T6 → T7. T8 needs T5 (the rou
 
 ## T9. Docs
 
-- [ ] Update [apps/control-service/PLAN.md](../apps/control-service/PLAN.md) and the README for the new routes and config.
+- [ ] Update [apps/control-service/PLAN.md](../../apps/control-service/PLAN.md) and the README for the new routes and config.
 - [ ] Check `apps/ui/nginx.conf.template` routes `/tasks/:id/schedule` to the service in the deployed setup.
 - [ ] Mark the plan's status as implemented and move answered open questions into the plan's decisions.
 

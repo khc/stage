@@ -74,10 +74,10 @@ Service accounts, IAM and the API list live in `infra/envs/gcp/main.tf`; `infra/
 
 ## UI (`apps/ui`)
 
-A **Schedule** tab in the task details pane ([task-sheet.tsx](../apps/ui/src/features/tasks/task-sheet.tsx)), after Documents. The UI's types come from the service through Eden, so this starts once the routes exist.
+A **Schedule** tab in the task details pane ([task-sheet.tsx](../../apps/ui/src/features/tasks/task-sheet.tsx)), after Documents. The UI's types come from the service through Eden, so this starts once the routes exist.
 
 - **Tab and component.** Add `<PaneTab value="schedule">` (icon `CalendarClock`) and a `TabsContent` that renders a new `TaskSchedule` component in `features/tasks/task-schedule.tsx`. The tab has no count.
-- **API client** ([api.ts](../apps/ui/src/lib/api.ts)). Add `schedule(id)`, `createSchedule`, `updateSchedule` and `deleteSchedule` on `task(id).schedule`, plus `Schedule` as the type of the `GET` reply. Add messages for the new error codes: `schedule_exists`, `schedule_not_found`, `invalid_schedule` and a `schedule_error` for dependency failures.
+- **API client** ([api.ts](../../apps/ui/src/lib/api.ts)). Add `schedule(id)`, `createSchedule`, `updateSchedule` and `deleteSchedule` on `task(id).schedule`, plus `Schedule` as the type of the `GET` reply. Add messages for the new error codes: `schedule_exists`, `schedule_not_found`, `invalid_schedule` and a `schedule_error` for dependency failures.
 - **Query.** Key `["schedule", taskId]`, enabled only while the Schedule tab is open, so opening a task does not call Cloud Scheduler. A 404 from `GET` means "no schedule", not an error: the query function turns an `ApiError` with status 404 into `null`, with `retry: false`. This is safe because the task is already loaded, so the 404 cannot be `task_not_found`.
 - **States.**
   - Loading and error: the existing `Loading` and `ErrorBox`.
@@ -89,7 +89,7 @@ A **Schedule** tab in the task details pane ([task-sheet.tsx](../apps/ui/src/fea
 - **Task deletion.** The service deletes the schedule with the task; the UI also does `removeQueries(["schedule", taskId])` next to the existing `removeQueries` calls.
 - **Refresh.** A refresh button as on the sessions list; no polling.
 - **Not in v1:** a human-readable cron description (needs a library such as `cronstrue`; presets give readable labels instead), pause and resume, and any marker on sessions started by a schedule.
-- **Proxy.** `/tasks` is already proxied in [vite.config.ts](../apps/ui/vite.config.ts), and `isSpaRoute` only matches `/tasks/:id`, so `/tasks/:id/schedule` goes to the service. [api-proxy.conf](../apps/ui/api-proxy.conf) does not filter by path, but check `nginx.conf.template` for the deployed routes.
+- **Proxy.** `/tasks` is already proxied in [vite.config.ts](../../apps/ui/vite.config.ts), and `isSpaRoute` only matches `/tasks/:id`, so `/tasks/:id/schedule` goes to the service. [api-proxy.conf](../../apps/ui/api-proxy.conf) does not filter by path, but check `nginx.conf.template` for the deployed routes.
 - **Tests.** The existing UI tests cover `lib/` only, so add `api.test.ts` cases for the schedule calls (including the 404-to-none query function) and a unit test for the cron and time zone validation helper.
 
 ## Order of work
@@ -100,7 +100,7 @@ A **Schedule** tab in the task details pane ([task-sheet.tsx](../apps/ui/src/fea
 4. Model, service and controller with tests; route tests in `app.test.ts`.
 5. Schedule deletion in `TasksService.delete`, with a test for the failure order.
 6. UI: API client and messages, `TaskSchedule` and the tab, tests. The types need no generation step: they come from `import type { App }`, so this follows step 4 once the routes are mounted.
-7. Update [apps/control-service/PLAN.md](../apps/control-service/PLAN.md) and the README.
+7. Update [apps/control-service/PLAN.md](../../apps/control-service/PLAN.md) and the README.
 
 ## Floci spike results
 

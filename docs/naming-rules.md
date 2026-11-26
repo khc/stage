@@ -99,4 +99,4 @@ Identifiers inside Postgres or application code are not subject to GCP hostname 
 - **Remaining / cleanup notes:**
   - `stage_*` legacy Docker images and Compose volumes on the host can be removed once you are satisfied with the migrated data (`docker volume rm stage_floci-gcp-data stage_mlflow-data stage_qdrant-data stage_neo4j-data`).
   - Existing Firestore `tasks` created under legacy `jobName` values (`generic-agents`, etc.) or `agentName: "document_analyser"` will need updating or recreating before re-running.
-  - [README.md](../README.md) and historical design docs ([review.md](review.md), [platform-evolution.md](platform-evolution.md)) still mention the legacy names in prose.
+  - [README.md](../README.md) and historical design docs ([review.md](plans/review.md), [platform-evolution.md](plans/platform-evolution.md)) still mention the legacy names in prose.
