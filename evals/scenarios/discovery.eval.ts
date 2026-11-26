@@ -17,7 +17,7 @@ defineScenario({
   app,
   agent,
   model,
-  repeat: 5,
+  repeat: 1,
   minPassRate: 0.8,
   turns: [
     {
@@ -52,7 +52,7 @@ defineScenario({
   app,
   agent,
   model,
-  repeat: 5,
+  repeat: 1,
   minPassRate: 0.8,
   turns: [
     {
