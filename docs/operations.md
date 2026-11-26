@@ -49,7 +49,20 @@ For deployed jobs, apply the same agent-before-service order through your deploy
 - **Persistence:** Floci runs with `FLOCI_GCP_STORAGE_MODE=hybrid` and keeps its data (Cloud Run jobs, Firestore documents) on the volume `stage--floci-gcp--vol-lcl` across `docker compose stop`, `restart` and `down`. `docker compose down -v` wipes it. Persistence of other Floci services (Pub/Sub, Storage and so on) was not tested.
 - **Docker socket:** Floci mounts `/var/run/docker.sock`, which gives the container control of the host's Docker daemon. Treat it as trusted.
 - **Limits:** see [Floci notes](floci-gcp.md). The main one: Cloud Run jobs cannot read Secret Manager, so keys are plain environment values locally.
-- **Firestore tests:** to include the Firestore session-service tests, which are skipped otherwise, run `FIRESTORE_EMULATOR_HOST=localhost:4588 GOOGLE_CLOUD_PROJECT=floci-local bun test` with the stack up.
+- **Integration tests:** with Floci up (`docker compose up -d --wait floci-gcp`), run `FIRESTORE_EMULATOR_HOST=localhost:4588 GOOGLE_CLOUD_PROJECT=floci-local bun run test:integration`. These are the `*.integration.test.ts` files. Without the variables they skip.
+
+## CI
+
+`.github/workflows/ci.yml` runs on pushes to `main`, pull requests and manual runs:
+
+| Job                     | What it runs                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| lint, format, typecheck | `bun run lint --deny-warnings`, `bun run format:check`, `bun run typecheck`                |
+| ui build                | `bun run --filter @stage/ui build`, after the three checks                                 |
+| unit tests              | `bun run test`, no services                                                                |
+| integration tests       | Starts Floci with `docker compose up -d --wait floci-gcp`, then `bun run test:integration` |
+
+Actions are pinned to commit SHAs and updated by Dependabot (`.github/dependabot.yml`). The Bun version is in `.bun-version`.
 
 ## Migrations
 

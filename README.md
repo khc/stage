@@ -52,15 +52,17 @@ Open <http://localhost:5173>, create a task for `stage--generic-agents--job-lcl`
 
 ## Everyday commands
 
-| Command                                   | What it does                                                                       |
-| ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `bun test`                                | Run the tests (with the emulator variables set, the Firestore tests need Floci up) |
-| `bun run typecheck`                       | Type check the scripts and every workspace                                         |
-| `bun run lint` / `bun run lint:fix`       | Lint with oxlint (`.oxlintrc.json`)                                                |
-| `bun run format` / `bun run format:check` | Format with oxfmt (`.oxfmtrc.json`)                                                |
-| `bun run eval`                            | Run the end-to-end agent evals (needs the stack, see [evals](evals/README.md))     |
-| `task --list`                             | List every task: builds, Terraform, job helpers                                    |
-| `docker compose down` / `down -v`         | Stop the stack / stop it and wipe local data                                       |
+| Command                                   | What it does                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| `bun run test`                            | Run the unit tests (no services needed)                                         |
+| `bun run test:integration`                | Run the Floci-backed integration tests (needs `docker compose up -d floci-gcp`) |
+| `bun run test:all`                        | Run both                                                                        |
+| `bun run typecheck`                       | Type check the scripts and every workspace                                      |
+| `bun run lint` / `bun run lint:fix`       | Lint with oxlint (`.oxlintrc.json`)                                             |
+| `bun run format` / `bun run format:check` | Format with oxfmt (`.oxfmtrc.json`)                                             |
+| `bun run eval`                            | Run the end-to-end agent evals (needs the stack, see [evals](evals/README.md))  |
+| `task --list`                             | List every task: builds, Terraform, job helpers                                 |
+| `docker compose down` / `down -v`         | Stop the stack / stop it and wipe local data                                    |
 
 ## Documentation
 

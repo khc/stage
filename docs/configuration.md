@@ -37,7 +37,7 @@ With these set, the clients talk to Floci. Without them they use the real Google
 | `PUBSUB_EMULATOR_HOST`    | `localhost:4588`                                         |
 | `GOOGLE_CLOUD_PROJECT`    | `floci-local` (also the only project the Floci UI shows) |
 
-Restart `bun run dev:service` after changing them. With `FIRESTORE_EMULATOR_HOST` set, `bun test` also runs the Firestore contract tests, which fail if Floci is down. Comment the line out when you stop Floci.
+Restart `bun run dev:service` after changing them. With `FIRESTORE_EMULATOR_HOST` set, `bun run test:integration` runs the Firestore integration tests, which fail if Floci is down. `bun run test` never runs them.
 
 ## Agent jobs
 
@@ -93,7 +93,7 @@ Build and deploy the extract service with `task build:extract-service` and `task
 
 ## Knowledge base, graph and IMDb
 
-Used by `packages/ingestion` and the knowledge agents. All are optional. Setting `QDRANT_URL`, `EMBEDDING_URL` with `EMBEDDING_MODEL`, `RERANK_MODEL` or `NEO4J_URL` also turns on the matching contract tests in `bun test`, which fail while that server is down.
+Used by `packages/ingestion` and the knowledge agents. All are optional. Setting `QDRANT_URL`, `EMBEDDING_URL` with `EMBEDDING_MODEL`, `RERANK_MODEL` or `NEO4J_URL` also turns on the matching contract tests in `bun run test`, which fail while that server is down.
 
 | Variable                                                      | Meaning                                                                                                                                                         |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |

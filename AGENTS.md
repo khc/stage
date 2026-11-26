@@ -21,7 +21,9 @@ Default to using Bun instead of Node.js.
 
 ## Testing
 
-Use `bun test` to run tests.
+Use `bun run test` to run the unit tests. They need no running services.
+
+A test that needs Floci (Firestore) is an integration test. Name its file `<name>.integration.test.ts`, keep its `describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)` guard, and run it with `bun run test:integration` while `docker compose up -d --wait floci-gcp` is running, with `FIRESTORE_EMULATOR_HOST=localhost:4588` and `GOOGLE_CLOUD_PROJECT=floci-local`. `bun run test:all` runs both. CI runs them as separate jobs.
 
 ```ts#index.test.ts
 import { test, expect } from "bun:test";

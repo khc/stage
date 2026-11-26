@@ -129,15 +129,15 @@ curl -N "localhost:3000/tasks/$TASK_ID/sessions/<sessionId>/messages"
 
 ## Troubleshooting
 
-| Symptom                                                        | Cause and fix                                                                                                  |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `task tf:apply` fails with 409 `alreadyExists`                 | A resource was created outside Terraform. Run `task tf:import`, then apply again                               |
-| `GET /jobs` is empty, or creating a task answers `unknown_job` | The jobs are not deployed. Run `task tf:apply`, and check `AGENT_JOBS` in `.env`                               |
-| The agent list in the new-task dialog is empty                 | Agents are not registered. Run `task register-agents`                                                          |
-| `bun run dev:service` fails with `EADDRINUSE` on port 3000     | Another process owns port 3000, perhaps an earlier `bun run dev:service`. Stop it, or set `PORT` in `.env`     |
-| Requests fail with Application Default Credentials errors      | The emulator lines in `.env` are still commented out. Uncomment them and restart the service                   |
-| `bun test` fails after you stop Floci                          | With `FIRESTORE_EMULATOR_HOST` set, the Firestore contract tests need Floci. Start it, or comment the line out |
-| The run stays `running` and no events appear                   | Check `docker ps` for the job container and its logs. Confirm `PUBSUB_TOPIC` is set for the service            |
+| Symptom                                                        | Cause and fix                                                                                                |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `task tf:apply` fails with 409 `alreadyExists`                 | A resource was created outside Terraform. Run `task tf:import`, then apply again                             |
+| `GET /jobs` is empty, or creating a task answers `unknown_job` | The jobs are not deployed. Run `task tf:apply`, and check `AGENT_JOBS` in `.env`                             |
+| The agent list in the new-task dialog is empty                 | Agents are not registered. Run `task register-agents`                                                        |
+| `bun run dev:service` fails with `EADDRINUSE` on port 3000     | Another process owns port 3000, perhaps an earlier `bun run dev:service`. Stop it, or set `PORT` in `.env`   |
+| Requests fail with Application Default Credentials errors      | The emulator lines in `.env` are still commented out. Uncomment them and restart the service                 |
+| `bun run test:integration` fails                               | Floci is not running. Start it with `docker compose up -d --wait floci-gcp`. `bun run test` does not need it |
+| The run stays `running` and no events appear                   | Check `docker ps` for the job container and its logs. Confirm `PUBSUB_TOPIC` is set for the service          |
 
 More cases are in [Operations](operations.md#troubleshooting).
 
@@ -150,7 +150,8 @@ More cases are in [Operations](operations.md#troubleshooting).
 ## Everyday checks
 
 ```bash
-bun test                 # unit tests
+bun run test             # unit tests, no services needed
+bun run test:integration # Floci-backed tests (Floci up, FIRESTORE_EMULATOR_HOST set)
 bun run typecheck        # type check scripts and all workspaces
 bun run lint             # oxlint
 bun run format:check     # oxfmt

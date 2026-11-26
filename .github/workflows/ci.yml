@@ -1,6 +1,9 @@
 name: CI
 
+# Lint, format, type checks and the UI build, then the unit tests, and the integration tests that
+# need Floci (the *.integration.test.ts files). The unit tests need no services.
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -8,26 +11,42 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request replaces its running checks; a run on main is never cancelled.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
-    name: ${{ matrix.check }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        check: [lint, "format:check", typecheck]
+        include:
+          - name: lint
+            run: bun run lint --deny-warnings
+          - name: format
+            run: bun run format:check
+          - name: typecheck
+            run: bun run typecheck
     steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          bun-version: 1.4.5
-      - run: bun install --frozen-lockfile
-      - run: bun run ${{ matrix.check }}
+          persist-credentials: false
+
+      - name: Install / Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install / dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: ${{ matrix.run }}
 
   ui-build:
     name: ui build
@@ -35,9 +54,76 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          bun-version: 1.4.5
-      - run: bun install --frozen-lockfile
-      - run: bun run --filter @stage/ui build
+          persist-credentials: false
+
+      - name: Install / Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install / dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build / UI
+        run: bun run --filter @stage/ui build
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install / Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install / dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test / unit
+        run: bun run test
+
+  integration:
+    name: integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Where the tests find Floci, started below.
+      FIRESTORE_EMULATOR_HOST: localhost:4588
+      GOOGLE_CLOUD_PROJECT: floci-local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install / Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install / dependencies
+        run: bun install --frozen-lockfile
+
+      # The compose file pins the Floci image; --wait returns once its health check passes.
+      - name: Start / Floci
+        run: docker compose up -d --wait floci-gcp
+
+      - name: Test / integration
+        run: bun run test:integration
+
+      - name: Floci logs
+        if: failure()
+        run: docker compose logs floci-gcp
+
+      - name: Stop / Floci
+        if: always()
+        run: docker compose down -v
