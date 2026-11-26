@@ -55,14 +55,38 @@ For deployed jobs, apply the same agent-before-service order through your deploy
 
 `.github/workflows/ci.yml` runs on pushes to `main`, pull requests and manual runs:
 
-| Job                     | What it runs                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------ |
-| lint, format, typecheck | `bun run lint --deny-warnings`, `bun run format:check`, `bun run typecheck`                |
-| ui build                | `bun run --filter @stage/ui build`, after the three checks                                 |
-| unit tests              | `bun run test`, no services                                                                |
-| integration tests       | Starts Floci with `docker compose up -d --wait floci-gcp`, then `bun run test:integration` |
+| Job                     | What it runs                                                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| lint, format, typecheck | `bun run lint --deny-warnings`, `bun run format:check`, `bun run typecheck`                                                                  |
+| ui build                | `bun run --filter @stage/ui build`, after the three checks                                                                                   |
+| unit tests              | `bun run test`, no services                                                                                                                  |
+| integration tests       | Starts Floci with `docker compose up -d --wait floci-gcp`, then `bun run test:integration`                                                   |
+| images                  | Only on a version tag, after every job above passes: builds the seven images for `linux/amd64` and `linux/arm64` and pushes them (see below) |
 
 Actions are pinned to commit SHAs and updated by Dependabot (`.github/dependabot.yml`). The Bun version is in `.bun-version`.
+
+### Publish the images
+
+Pull requests and pushes to `main` build no images. To release, tag a commit that is on `main` and push the tag:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+CI runs every check on the tag, then `.github/workflows/ci-image.yml` builds and pushes one image per entry of the `images` matrix in `ci.yml`, tagged `1.2.3` (not `latest`):
+
+| Image                                                                                        | Dockerfile                                                                            |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `ghcr.io/khc/stage/generic-agents`, `poet-agents`, `knowledge-agents`, `orchestrator-agents` | `docker/Dockerfile.agents`, with `APP=generic`, `poet`, `knowledge` or `orchestrator` |
+| `ghcr.io/khc/stage/control-service`                                                          | `docker/Dockerfile.control-service`                                                   |
+| `ghcr.io/khc/stage/extract-service`                                                          | `docker/Dockerfile.extract-service`                                                   |
+| `ghcr.io/khc/stage/ui`                                                                       | `docker/Dockerfile.ui`                                                                |
+
+- A tag that is not on `main` fails with `<tag> is not on main`. This only catches mistakes; to restrict who may release, add a repository tag ruleset for `v*`.
+- The arm64 layers build under QEMU, so a release takes tens of minutes. Each image has a 45-minute limit.
+- The packages are private until you change their visibility in the package settings on GitHub.
+- To add an image, add a `build:*` task (see [docker/Taskfile.yml](../docker/Taskfile.yml)) and an entry in the `images` matrix.
 
 ## Migrations
 

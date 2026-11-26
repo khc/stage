@@ -1,0 +1,91 @@
+name: CI image
+
+# Builds one image for linux/amd64 and linux/arm64 and pushes it to ghcr.io/khc/stage/<name>
+# with the version of the tag it runs on (v1.2.3 gives 1.2.3). ci.yml calls it once per image
+# when a version tag is pushed, after the checks and the tests pass. The packages are private (a
+# package setting, not something this workflow sets).
+# No concurrency group: when called, `github.workflow` is the caller's name, and sharing the
+# caller's group would deadlock.
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Image name, pushed as ghcr.io/khc/stage/<name>
+        type: string
+        required: true
+      file:
+        description: Dockerfile, relative to the repository root
+        type: string
+        required: true
+      build-args:
+        description: Build arguments, one KEY=value per line
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    # The arm64 layers run under QEMU, several times slower than native.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io; a caller must grant it too
+    env:
+      IMAGE: ghcr.io/khc/stage/${{ inputs.name }}
+    steps:
+      # A tag needs the full history so the next step can tell whether it is on main.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A release is only published from main: refuse a version tag on any other commit. This only
+      # catches mistakes: a tag runs the workflow files of the commit it points at, so whoever can
+      # push a tag can remove this step. The real control is a repository tag ruleset that
+      # restricts who can create v* tags.
+      - name: Check tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
+
+      # Lets the x86 runner build the arm64 images.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # `1.2.3` from a v1.2.3 tag. `latest=false` stops a semver tag from also moving `latest`.
+      # The labels it adds include the source repository, which links the package to it.
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: type=semver,pattern={{version}}
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ inputs.file }}
+          build-args: ${{ inputs.build-args }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.name }}

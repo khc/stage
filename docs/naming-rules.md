@@ -44,7 +44,7 @@ stage--{name}--{type}-{env}
 ```
 
 - `{name}` matches the `{name}` segment of `stage--{name}--{type}-{env}` (`orchestrator-agents`, `control-service`, `extract-service`, `ui`).
-- `{image_prefix}` is empty locally (`lcl`) and `<region>-docker.pkg.dev/<project>/<repo>/` on GCP. Name `<repo>` without `stage` (e.g. `stage--containers--ar-{env}` or `containers`) so paths do not double into `.../stage/stage/{name}`.
+- `{image_prefix}` is empty locally (`lcl`) and `<region>-docker.pkg.dev/<project>/<repo>/` on GCP. The images CI publishes from a version tag use `ghcr.io/khc/` (for example `ghcr.io/khc/stage/control-service:1.2.3`). Name `<repo>` without `stage` (e.g. `stage--containers--ar-{env}` or `containers`) so paths do not double into `.../stage/stage/{name}`.
 
 | Target                          | Pattern / Example                                                                         | Allowed Characters                                                                                | `_` Allowed? | Notes                                                                                  |
 | ------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------- |

@@ -1,11 +1,13 @@
 name: CI
 
-# Lint, format, type checks and the UI build, then the unit tests, and the integration tests that
-# need Floci (the *.integration.test.ts files). The unit tests need no services.
+# The checks, the UI build, the unit tests and the Floci integration tests run as separate jobs;
+# only the UI build waits (for the checks). A version tag v1.2.3 also builds the images and
+# publishes them to ghcr.io/khc/stage/<name>:1.2.3 (ci-image.yml), once everything else passes.
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   pull_request:
 
 permissions:
@@ -127,3 +129,39 @@ jobs:
       - name: Stop / Floci
         if: always()
         run: docker compose down -v
+
+  # Only a version tag publishes; pull requests and main build no images.
+  images:
+    name: image ${{ matrix.name }}
+    needs: [check, ui-build, unit, integration]
+    if: github.ref_type == 'tag'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: generic-agents
+            file: docker/Dockerfile.agents
+            args: APP=generic
+          - name: poet-agents
+            file: docker/Dockerfile.agents
+            args: APP=poet
+          - name: knowledge-agents
+            file: docker/Dockerfile.agents
+            args: APP=knowledge
+          - name: orchestrator-agents
+            file: docker/Dockerfile.agents
+            args: APP=orchestrator
+          - name: control-service
+            file: docker/Dockerfile.control-service
+          - name: extract-service
+            file: docker/Dockerfile.extract-service
+          - name: ui
+            file: docker/Dockerfile.ui
+    uses: ./.github/workflows/ci-image.yml
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+    with:
+      name: ${{ matrix.name }}
+      file: ${{ matrix.file }}
+      build-args: ${{ matrix.args }}
