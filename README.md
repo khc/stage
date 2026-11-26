@@ -76,3 +76,7 @@ Open <http://localhost:5173>, create a task for `stage--generic-agents--job-lcl`
 | [Dashboard](docs/dashboard.md)                                                                                   | Use the web UI                                             |
 | [Naming rules](docs/naming-rules.md) · [UI guidelines](docs/ui-guidelines.md) · [Floci notes](docs/floci-gcp.md) | Follow the conventions                                     |
 | [Plans and reviews](docs/plans/README.md)                                                                        | Read design history and proposals                          |
+
+## License
+
+[MIT](LICENSE). The IMDb datasets that `task load-imdb` downloads are for non-commercial use only and are not covered by this license.
