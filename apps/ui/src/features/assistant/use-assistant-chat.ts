@@ -157,6 +157,7 @@ export async function executeNewChatSend({
 
   for (const file of files) {
     if (state.uploadedNames.has(file.name)) continue;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- documents upload one at a time, in the order the user chose
     await client.uploadDocument(state.taskId, file);
     state.uploadedNames.add(file.name);
     onUploaded?.(state.taskId);
@@ -377,6 +378,7 @@ export function useAssistantChat(
     mutationFn: async (files: File[]) => {
       if (!chatId) return;
       for (const file of files) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- documents upload one at a time, in the order the user chose
         await api.uploadDocument(chatId, file);
       }
     },
@@ -400,6 +402,7 @@ export function useAssistantChat(
   const { reset: resetRemoveDoc } = removeDocumentMutation;
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- a new chat id resets the state and clears a ref, which render-time reset cannot do
     setSelectedSessionId(null);
     setTargetOverride(undefined);
     setStagedFiles([]);
@@ -419,6 +422,7 @@ export function useAssistantChat(
       settledStatus &&
       settledStatus !== "running"
     ) {
+      // oxlint-disable-next-line react/set-state-in-effect -- the chat's pending send is over once its run settles; this clears the marker after the fact
       setStartingSession(null);
     }
   }, [chatId, activeSessionId, startingSession, settledStatus]);

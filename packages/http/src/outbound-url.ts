@@ -146,10 +146,12 @@ export const readBoundedText = async (response: Response, maxBytes: number): Pro
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
   while (true) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each chunk depends on the previous read
     const { done, value } = await reader.read();
     if (done) break;
     totalBytes += value.byteLength;
     if (totalBytes > maxBytes) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the loop ends here, so the cancel runs once
       await reader.cancel();
       throw new Error("Outbound response exceeded size limit");
     }

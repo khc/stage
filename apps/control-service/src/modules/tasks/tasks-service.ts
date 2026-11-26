@@ -58,6 +58,15 @@ export const MAX_SUBTASKS = 500;
 // Quick service runs waited for synchronously at once across /tasks/:id/run with `mode: "quick"`.
 export const MAX_QUICK_IN_FLIGHT = 8;
 
+// Runs a cleanup step that must not change the outcome: a failure is logged and swallowed.
+const attempt = async (what: string, step: () => Promise<unknown>): Promise<void> => {
+  try {
+    await step();
+  } catch (err) {
+    console.error(what, err);
+  }
+};
+
 export type TasksServiceConfig = {
   maxQuickInFlight?: number;
 };
@@ -199,30 +208,32 @@ export const createTasksService = (
           // The service ran it and the run failed: its session records the failure for the caller to
           // read. A run that failed before it started recorded nothing, so that is a service failure.
           if (err instanceof RunFailedError && targetSessionId) {
-            const failed = await sessionsStore
-              .get(taskId, targetSessionId)
-              .then((session) => session?.run?.status === "failed")
-              .catch(() => false);
+            let failed = false;
+            try {
+              failed = (await sessionsStore.get(taskId, targetSessionId))?.run?.status === "failed";
+            } catch {
+              // The lookup failed: treat the run as not recorded, like a run that never started.
+            }
             if (failed) return started();
           }
           if (background && targetSessionId && !(err instanceof RunInProgressError)) {
             // The caller has the session id and is already following it: let its stream show the failure.
-            await sessionsStore
-              .failRun(
+            await attempt("Failed to record the run failure", () =>
+              sessionsStore.failRun(
                 taskId,
                 targetSessionId,
                 err instanceof Error ? err.message : String(err),
                 "quick",
-              )
-              .catch((failErr) => console.error("Failed to record the run failure", failErr));
+              ),
+            );
           } else if (createdSession && targetSessionId) {
-            await sessionsStore
-              .delete(taskId, targetSessionId)
-              .catch((delErr) => console.error("Failed to remove unstarted session", delErr));
+            await attempt("Failed to remove unstarted session", () =>
+              sessionsStore.delete(taskId, targetSessionId),
+            );
           } else if (resume?.sessionId) {
-            await sessionsStore
-              .clearMessage(taskId, resume.sessionId)
-              .catch((clearErr) => console.error("Failed to clear the queued message", clearErr));
+            await attempt("Failed to clear the queued message", () =>
+              sessionsStore.clearMessage(taskId, resume.sessionId!),
+            );
           }
           if (err instanceof RunInProgressError) return { status: "run_in_progress" };
           throw new DependencyError(mode === "quick" ? "service_error" : "job_error", err);

@@ -310,7 +310,7 @@ const parseToolArgs = (raw: string | undefined, toolName: string): Record<string
       : { value: parsed };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`Invalid JSON arguments for tool "${toolName}": ${reason}`);
+    throw new Error(`Invalid JSON arguments for tool "${toolName}": ${reason}`, { cause: err });
   }
 };
 
@@ -543,6 +543,7 @@ export class OpenAiLlm extends BaseLlm {
     }
     try {
       while (!done) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- a stream is read in order
         const next = await reader.read();
         if (next.done) break;
         totalStreamBytes += next.value.byteLength;
@@ -563,6 +564,7 @@ export class OpenAiLlm extends BaseLlm {
           }
           if (result.done) {
             done = true;
+            // oxlint-disable-next-line eslint/no-await-in-loop -- the loop ends right after the cancel
             await reader.cancel().catch(() => {});
             break;
           }

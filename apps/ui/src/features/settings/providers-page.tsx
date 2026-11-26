@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import { KeyRound, Pencil, Plus, RefreshCw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -81,6 +81,109 @@ function ProviderIdentity({ provider }: { provider: Provider }) {
   );
 }
 
+const NO_PROVIDERS: Provider[] = [];
+
+type ProviderActions = { onEdit: (provider: Provider) => void; onDeleted: () => void };
+
+// Columns are built outside the component: the cell and header renderers are not components of it.
+const providerColumns = ({ onEdit, onDeleted }: ProviderActions) =>
+  columnHelper.columns([
+    columnHelper.accessor("name", {
+      id: NAME,
+      header: ({ column }) => <SortHeader column={column} title="Provider" />,
+      sortFn: "text",
+      cell: ({ row }) => <ProviderIdentity provider={row.original} />,
+    }),
+    columnHelper.accessor((p) => kindLabel(p.kind), {
+      id: "kind",
+      header: ({ column }) => <SortHeader column={column} title="Type" />,
+      sortFn: "text",
+      cell: ({ getValue }) => <Badge variant="secondary">{getValue()}</Badge>,
+    }),
+    columnHelper.accessor((p) => (p.enabled ? "Enabled" : "Disabled"), {
+      id: "status",
+      header: ({ column }) => <SortHeader column={column} title="Status" />,
+      sortFn: "text",
+      cell: ({ row }) => (
+        <Badge variant={row.original.enabled ? "default" : "outline"}>
+          {row.original.enabled ? "Enabled" : "Disabled"}
+        </Badge>
+      ),
+    }),
+    columnHelper.accessor((p) => p.defaultModel ?? "", {
+      id: "models",
+      header: "Models",
+      cell: ({ row }) => {
+        const { defaultModel, models, disabledModels } = row.original;
+        const off = disabledModels?.length ?? 0;
+        if (!defaultModel && !models?.length)
+          return <span className="text-xs text-muted-foreground">Default</span>;
+        return (
+          <div className="flex flex-col text-xs">
+            {defaultModel && <span className="font-mono">{defaultModel}</span>}
+            {models?.length ? (
+              <span className="text-muted-foreground">
+                {off > 0
+                  ? `${models.length - off} of ${models.length} models enabled`
+                  : `${models.length} model${models.length === 1 ? "" : "s"}`}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "key",
+      header: "API key",
+      cell: ({ row }) =>
+        row.original.hasApiKey ? (
+          <Badge variant="outline" className="font-mono">
+            {row.original.apiKeyHint ?? "Configured"}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">Not set</span>
+        ),
+    }),
+    columnHelper.accessor((p) => p.baseUrl ?? "", {
+      id: "baseUrl",
+      header: "Base URL",
+      cell: ({ getValue }) =>
+        getValue() ? (
+          <code className="block max-w-48 truncate text-xs text-muted-foreground">
+            {getValue()}
+          </code>
+        ) : (
+          <span className="text-xs text-muted-foreground">Default</span>
+        ),
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={`Edit ${item.name}`}
+              onClick={() => onEdit(item)}
+            >
+              <Pencil />
+              <span className="max-md:hidden">Edit</span>
+            </Button>
+            <ConfirmDelete
+              label={`Delete ${item.name}`}
+              question={`Delete provider "${item.name}"? Its saved configuration and API key will be removed.`}
+              remove={() => api.deleteProvider(item.providerId)}
+              onDeleted={onDeleted}
+            />
+          </div>
+        );
+      },
+    }),
+  ]);
+
 export function ProvidersPage() {
   const queryClient = useQueryClient();
   const providersQuery = useProviders();
@@ -92,116 +195,24 @@ export function ProvidersPage() {
     setEditing(undefined);
     setDialogOpen(true);
   };
-  const openEdit = (provider: Provider) => {
+  const openEdit = useCallback((provider: Provider) => {
     setEditing(provider);
     setDialogOpen(true);
-  };
+  }, []);
 
   const columns = useMemo(
     () =>
-      columnHelper.columns([
-        columnHelper.accessor("name", {
-          id: NAME,
-          header: ({ column }) => <SortHeader column={column} title="Provider" />,
-          sortFn: "text",
-          cell: ({ row }) => <ProviderIdentity provider={row.original} />,
-        }),
-        columnHelper.accessor((p) => kindLabel(p.kind), {
-          id: "kind",
-          header: ({ column }) => <SortHeader column={column} title="Type" />,
-          sortFn: "text",
-          cell: ({ getValue }) => <Badge variant="secondary">{getValue()}</Badge>,
-        }),
-        columnHelper.accessor((p) => (p.enabled ? "Enabled" : "Disabled"), {
-          id: "status",
-          header: ({ column }) => <SortHeader column={column} title="Status" />,
-          sortFn: "text",
-          cell: ({ row }) => (
-            <Badge variant={row.original.enabled ? "default" : "outline"}>
-              {row.original.enabled ? "Enabled" : "Disabled"}
-            </Badge>
-          ),
-        }),
-        columnHelper.accessor((p) => p.defaultModel ?? "", {
-          id: "models",
-          header: "Models",
-          cell: ({ row }) => {
-            const { defaultModel, models, disabledModels } = row.original;
-            const off = disabledModels?.length ?? 0;
-            if (!defaultModel && !models?.length)
-              return <span className="text-xs text-muted-foreground">Default</span>;
-            return (
-              <div className="flex flex-col text-xs">
-                {defaultModel && <span className="font-mono">{defaultModel}</span>}
-                {models?.length ? (
-                  <span className="text-muted-foreground">
-                    {off > 0
-                      ? `${models.length - off} of ${models.length} models enabled`
-                      : `${models.length} model${models.length === 1 ? "" : "s"}`}
-                  </span>
-                ) : null}
-              </div>
-            );
-          },
-        }),
-        columnHelper.display({
-          id: "key",
-          header: "API key",
-          cell: ({ row }) =>
-            row.original.hasApiKey ? (
-              <Badge variant="outline" className="font-mono">
-                {row.original.apiKeyHint ?? "Configured"}
-              </Badge>
-            ) : (
-              <span className="text-xs text-muted-foreground">Not set</span>
-            ),
-        }),
-        columnHelper.accessor((p) => p.baseUrl ?? "", {
-          id: "baseUrl",
-          header: "Base URL",
-          cell: ({ getValue }) =>
-            getValue() ? (
-              <code className="block max-w-48 truncate text-xs text-muted-foreground">
-                {getValue()}
-              </code>
-            ) : (
-              <span className="text-xs text-muted-foreground">Default</span>
-            ),
-        }),
-        columnHelper.display({
-          id: "actions",
-          header: () => <span className="sr-only">Actions</span>,
-          cell: ({ row }) => {
-            const item = row.original;
-            return (
-              <div className="flex items-center justify-end gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={`Edit ${item.name}`}
-                  onClick={() => openEdit(item)}
-                >
-                  <Pencil />
-                  <span className="max-md:hidden">Edit</span>
-                </Button>
-                <ConfirmDelete
-                  label={`Delete ${item.name}`}
-                  question={`Delete provider "${item.name}"? Its saved configuration and API key will be removed.`}
-                  remove={() => api.deleteProvider(item.providerId)}
-                  onDeleted={() => {
-                    void queryClient.invalidateQueries({ queryKey: ["providers"] });
-                    toast.success("Provider deleted");
-                  }}
-                />
-              </div>
-            );
-          },
-        }),
-      ]),
-    [queryClient],
+      providerColumns({
+        onEdit: openEdit,
+        onDeleted: () => {
+          void queryClient.invalidateQueries({ queryKey: ["providers"] });
+          toast.success("Provider deleted");
+        },
+      }),
+    [queryClient, openEdit],
   );
 
-  const data = providersQuery.data?.providers ?? [];
+  const data = providersQuery.data?.providers ?? NO_PROVIDERS;
   const table = useTable({
     features,
     data,

@@ -64,6 +64,8 @@ function Activity({
     <Trace>
       {turn.thoughts.map((thought, i) => (
         <ReasoningTrace
+          // Thoughts have no id and only grow at the end, so the index is a stable key.
+          // oxlint-disable-next-line react/no-array-index-key
           key={`thought-${i}`}
           text={thought}
           running={waiting && !turn.tools.length && i === turn.thoughts.length - 1}
@@ -203,9 +205,12 @@ export function AssistantThread({
                       <Activity turn={turn} active={isLast && isRunning} />
                       {turn.textSegments.map((segment, segIdx) =>
                         parseJsonObject(segment) ? (
+                          // Text segments have no id and only grow at the end, so the index is a stable key.
+                          // oxlint-disable-next-line react/no-array-index-key
                           <OutputText key={segIdx} text={segment} schema={schema} />
                         ) : (
                           <Markdown
+                            // oxlint-disable-next-line react/no-array-index-key
                             key={segIdx}
                             className={cn(
                               "text-base leading-relaxed text-foreground",

@@ -58,8 +58,9 @@
       }
     },
     {
-      // Sequential awaits are deliberate here: ordered deletes, a streaming loop, migrations.
-      "files": ["apps/control-service/**", "scripts/**"],
+      // Sequential awaits are deliberate here: ordered deletes, a streaming loop, migrations, and
+      // the eval harness, which polls and runs a scenario's turns in order.
+      "files": ["apps/control-service/**", "packages/evals/**", "scripts/**"],
       "rules": { "eslint/no-await-in-loop": "off" }
     }
   ],

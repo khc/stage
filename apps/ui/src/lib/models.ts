@@ -2,13 +2,13 @@ import type { ModelRef, Provider } from "@/lib/api";
 
 // The provider kinds a job can run; the same list as RUNNABLE_KINDS in packages/agents/src/model-ref.ts
 // (the UI has no dependency on that package), checked by the same case table in models.test.ts.
-const RUNNABLE_KINDS = ["google", "google-express", "openai"];
+const RUNNABLE_KINDS = new Set(["google", "google-express", "openai"]);
 
 export type ModelOption = { ref: ModelRef; label: string };
 
 const isSelectable = (provider: Provider, model: string) =>
   provider.enabled &&
-  RUNNABLE_KINDS.includes(provider.kind) &&
+  RUNNABLE_KINDS.has(provider.kind) &&
   (provider.models ?? []).includes(model) &&
   !(provider.disabledModels ?? []).includes(model);
 

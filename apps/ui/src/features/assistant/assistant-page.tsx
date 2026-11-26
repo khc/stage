@@ -138,9 +138,12 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
   const [runMode, setRunMode] = useState<RunMode>(() => readAssistantSettings().runMode);
   const models = modelOptions(useProviders().data?.providers ?? []);
 
-  useEffect(() => {
+  // A different chat starts with an empty draft: reset while rendering, not in an effect.
+  const [draftChatId, setDraftChatId] = useState(chatId);
+  if (draftChatId !== chatId) {
+    setDraftChatId(chatId);
     setDraft("");
-  }, [chatId]);
+  }
 
   const chat = useAssistantChat(chatId, {
     onSessionStarted: (newTaskId) => {
@@ -155,15 +158,15 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     models,
     chatId ? chat.taskQuery.data?.defaultModel : lastModel,
   );
-  const allTasks = tasksQuery.data?.tasks ?? [];
-  const rootTasks = useMemo(() => rootChatTasks(allTasks), [allTasks]);
-  const childCounts = useMemo(() => childTaskCountMap(allTasks), [allTasks]);
+  const allTasks = tasksQuery.data?.tasks;
+  const rootTasks = useMemo(() => rootChatTasks(allTasks ?? []), [allTasks]);
+  const childCounts = useMemo(() => childTaskCountMap(allTasks ?? []), [allTasks]);
   const agents = chat.activeTarget
     ? chat.targets.agentsByJob[chat.activeTarget.jobName]
     : undefined;
 
-  const events = chat.sessionQuery.data?.events ?? [];
-  const turns = useMemo(() => groupChatTurns(events), [events]);
+  const events = chat.sessionQuery.data?.events;
+  const turns = useMemo(() => groupChatTurns(events ?? []), [events]);
 
   const activeSessionSummary = chat.sessions.find((s) => s.id === chat.activeSessionId);
   const runStatus = chat.sessionQuery.data?.run?.status ?? activeSessionSummary?.run?.status;

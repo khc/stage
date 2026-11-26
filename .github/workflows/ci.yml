@@ -22,9 +22,22 @@ jobs:
       matrix:
         check: [lint, "format:check", typecheck]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.5
       - run: bun install --frozen-lockfile
       - run: bun run ${{ matrix.check }}
+
+  ui-build:
+    name: ui build
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @stage/ui build

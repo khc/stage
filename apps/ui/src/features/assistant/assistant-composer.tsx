@@ -32,6 +32,10 @@ import {
   type AssistantTargetOption,
 } from "./assistant-model";
 
+// Stable defaults, so an omitted prop does not change on every render.
+const NO_FILES: File[] = [];
+const NO_DOCUMENTS: DocumentSummary[] = [];
+
 export function AssistantComposer({
   value,
   onChange,
@@ -47,8 +51,8 @@ export function AssistantComposer({
   runMode = "workflow",
   onRunModeChange,
   serviceAvailable = false,
-  stagedFiles = [],
-  documents = [],
+  stagedFiles = NO_FILES,
+  documents = NO_DOCUMENTS,
   onAttachFiles,
   onRemoveStagedFile,
   onDeleteDocument,
@@ -131,6 +135,8 @@ export function AssistantComposer({
             <InputGroupAddon align="block-start" className="flex-wrap">
               {stagedFiles.map((file, i) => (
                 <FileChip
+                  // The same file can be staged twice, so the index keeps the keys unique.
+                  // oxlint-disable-next-line react/no-array-index-key
                   key={`staged-${file.name}-${i}`}
                   name={file.name}
                   onRemove={onRemoveStagedFile && (() => onRemoveStagedFile(i))}

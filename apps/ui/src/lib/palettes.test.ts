@@ -16,12 +16,12 @@ test("every palette file defines a light and a dark block with the same tokens",
     expect(rest, id).toEqual([]);
     expect(light, id).toContain(`[data-palette="${id}"]`);
     expect(dark, id).toContain(`.dark[data-palette="${id}"]`);
-    expect(tokens(dark!).sort(), id).toEqual(tokens(light!).sort());
+    expect(tokens(dark!).toSorted(), id).toEqual(tokens(light!).toSorted());
   }
 });
 
 test("all palettes define the same set of tokens", () => {
-  const [first, ...others] = themes.map(({ css }) => tokens(rules(css)[0]!).sort());
+  const [first, ...others] = themes.map(({ css }) => tokens(rules(css)[0]!).toSorted());
   for (const other of others) expect(other).toEqual(first!);
 });
 
