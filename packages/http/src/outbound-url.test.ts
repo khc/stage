@@ -44,9 +44,9 @@ describe("outbound-url", () => {
 
   test("resolveSafeAddresses checks literals and rejects DNS responses containing blocked IPs", async () => {
     expect(await resolveSafeAddresses("https://169.254.169.254/v1")).toBeNull();
-    expect(await resolveSafeAddresses("http://127.0.0.1:8000/v1", { allowLocalBaseUrl: true })).toEqual([
-      { address: "127.0.0.1", family: 4 },
-    ]);
+    expect(
+      await resolveSafeAddresses("http://127.0.0.1:8000/v1", { allowLocalBaseUrl: true }),
+    ).toEqual([{ address: "127.0.0.1", family: 4 }]);
     expect(
       await resolveSafeAddresses("https://evil.example.com/v1", {
         resolver: async () => [

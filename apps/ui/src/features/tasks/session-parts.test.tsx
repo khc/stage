@@ -192,5 +192,9 @@ test("RunHostBadge names the service for a quick run and the job for a workflow 
   expect(quick).toContain("stage--knowledge-agents--svc-lcl");
   expect(quick).not.toContain(job);
   expect(workflow).toContain(job);
-  expect(renderToStaticMarkup(<RunHostBadge run={{ status: "succeeded", startedAt: 1 }} jobName={job} />)).toBe("");
+  expect(
+    renderToStaticMarkup(
+      <RunHostBadge run={{ status: "succeeded", startedAt: 1 }} jobName={job} />,
+    ),
+  ).toBe("");
 });

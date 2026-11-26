@@ -56,7 +56,13 @@ test("isAwaitingResumedRun keeps polling until a newer run than the one resumed 
   expect(isAwaitingResumedRun(resumed, "t1", "s1", seen(100), 1_000 + 120_000)).toBe(false);
   // A session that never had a run waits for its first one.
   expect(
-    isAwaitingResumedRun({ ...resumed, previousStartedAt: undefined }, "t1", "s1", undefined, 2_000),
+    isAwaitingResumedRun(
+      { ...resumed, previousStartedAt: undefined },
+      "t1",
+      "s1",
+      undefined,
+      2_000,
+    ),
   ).toBe(true);
 });
 

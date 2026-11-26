@@ -72,7 +72,9 @@ test("refuses a provider without a key or with control characters, and says so w
   expect(await fails(resolve({ ...stored, apiKey: undefined }))).toContain("API key");
   expect(await fails(resolve({ ...stored, apiKey: "" }))).toContain("API key");
   expect(await fails(resolve({ ...stored, apiKey: `${KEY}\r\n` }))).toContain("API key");
-  expect(await fails(resolve({ ...stored, apiKey: `${KEY.slice(0, 4)}\u0000${KEY.slice(4)}` }))).toContain("API key");
+  expect(
+    await fails(resolve({ ...stored, apiKey: `${KEY.slice(0, 4)}\u0000${KEY.slice(4)}` })),
+  ).toContain("API key");
 });
 
 test("a google provider with a custom base URL is refused, the default URL is fine", async () => {

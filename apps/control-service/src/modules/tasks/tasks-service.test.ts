@@ -459,9 +459,9 @@ describe("tasks service run", () => {
       test("a run that never reached the agent fails its session so the stream shows why", async () => {
         const error = spyOn(console, "error").mockImplementation(() => {});
         const fresh = setup(async () => Promise.reject(new Error("service down")));
-        expect(await fresh.service.run(taskId, { message: "hi" }, "quick", background)).toMatchObject(
-          { status: "started", sessionId: "s-new" },
-        );
+        expect(
+          await fresh.service.run(taskId, { message: "hi" }, "quick", background),
+        ).toMatchObject({ status: "started", sessionId: "s-new" });
         await Bun.sleep(0);
         expect(fresh.failRun).toHaveBeenCalledWith(
           taskId,

@@ -64,8 +64,7 @@ export const createModelResolver =
     if (kind === "openai") {
       if (baseUrl !== undefined && !isValidHttpUrl(baseUrl, allowLocalBaseUrl))
         throw new ModelUnavailableError(`Provider "${name}" has an invalid Base URL`);
-      if (!baseUrl && !apiKey)
-        throw new ModelUnavailableError(`Provider "${name}" has no API key`);
+      if (!baseUrl && !apiKey) throw new ModelUnavailableError(`Provider "${name}" has no API key`);
       return new OpenAiLlm({
         model,
         ...(apiKey !== undefined && { apiKey }),

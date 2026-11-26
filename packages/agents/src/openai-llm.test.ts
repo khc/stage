@@ -40,7 +40,9 @@ describe("OpenAiLlm URL and schema helpers", () => {
       "https://openrouter.ai/api/v1/chat/completions",
     );
     expect(
-      chatCompletionsUrlFor("https://my.openai.azure.com/openai/deployments/gpt4?api-version=2024-02-01"),
+      chatCompletionsUrlFor(
+        "https://my.openai.azure.com/openai/deployments/gpt4?api-version=2024-02-01",
+      ),
     ).toBe(
       "https://my.openai.azure.com/openai/deployments/gpt4/chat/completions?api-version=2024-02-01",
     );
@@ -141,9 +143,7 @@ describe("OpenAiLlm", () => {
         },
         tools: [
           {
-            functionDeclarations: [
-              { name: "ping", description: "Zero-arg tool" },
-            ],
+            functionDeclarations: [{ name: "ping", description: "Zero-arg tool" }],
           },
         ],
       },
@@ -168,7 +168,9 @@ describe("OpenAiLlm", () => {
       {
         role: "assistant",
         content: null,
-        tool_calls: [{ id: "call_1", type: "function", function: { name: "ping", arguments: "{}" } }],
+        tool_calls: [
+          { id: "call_1", type: "function", function: { name: "ping", arguments: "{}" } },
+        ],
       },
       { role: "tool", tool_call_id: "call_1", content: '{"ok":true}' },
     ]);
@@ -200,10 +202,7 @@ describe("OpenAiLlm", () => {
       {
         content: {
           role: "model",
-          parts: [
-            { text: "thinking step", thought: true },
-            { text: '{"answer":"done"}' },
-          ],
+          parts: [{ text: "thinking step", thought: true }, { text: '{"answer":"done"}' }],
         },
         finishReason: FinishReason.STOP,
         usageMetadata: {
@@ -251,15 +250,27 @@ describe("OpenAiLlm", () => {
 
     const out = [];
     for await (const chunk of llm.generateContentAsync(
-      { contents: [{ role: "user", parts: [{ text: "go" }] }], toolsDict: {}, liveConnectConfig: {} } as LlmRequest,
+      {
+        contents: [{ role: "user", parts: [{ text: "go" }] }],
+        toolsDict: {},
+        liveConnectConfig: {},
+      } as LlmRequest,
       true,
     )) {
       out.push(chunk);
     }
 
     expect(out.slice(0, 2)).toEqual([
-      { content: { role: "model", parts: [{ text: "plan ", thought: true }] }, partial: true, turnComplete: false },
-      { content: { role: "model", parts: [{ text: "Checking" }] }, partial: true, turnComplete: false },
+      {
+        content: { role: "model", parts: [{ text: "plan ", thought: true }] },
+        partial: true,
+        turnComplete: false,
+      },
+      {
+        content: { role: "model", parts: [{ text: "Checking" }] },
+        partial: true,
+        turnComplete: false,
+      },
     ]);
     expect(out.at(-1)).toEqual({
       content: {
@@ -298,10 +309,19 @@ describe("OpenAiLlm", () => {
       apiKey: "sk-never-leak-this",
       fetcher: async () =>
         Response.json({
-          choices: [{ message: { content: null, tool_calls: [{ id: "1", function: { name: "broken", arguments: "{oops" } }] } }],
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [{ id: "1", function: { name: "broken", arguments: "{oops" } }],
+              },
+            },
+          ],
         }),
     });
-    await expect(badJson.generateContentAsync(req).next()).rejects.toThrow('Invalid JSON arguments for tool "broken"');
+    await expect(badJson.generateContentAsync(req).next()).rejects.toThrow(
+      'Invalid JSON arguments for tool "broken"',
+    );
 
     const failing = new OpenAiLlm({
       model: "gpt-4o",
@@ -353,7 +373,9 @@ describe("OpenAiLlm", () => {
           }),
         ),
     });
-    await expect(boundedStream.generateContentAsync(req, true).next()).rejects.toThrow("size limit");
+    await expect(boundedStream.generateContentAsync(req, true).next()).rejects.toThrow(
+      "size limit",
+    );
     expect(cancelled).toBe(true);
 
     let earlyCancelled = false;
@@ -365,7 +387,9 @@ describe("OpenAiLlm", () => {
           new ReadableStream({
             start(controller) {
               controller.enqueue(
-                new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "hi" } }] })}\n\n`),
+                new TextEncoder().encode(
+                  `data: ${JSON.stringify({ choices: [{ delta: { content: "hi" } }] })}\n\n`,
+                ),
               );
             },
             cancel() {
@@ -389,7 +413,10 @@ describe("OpenAiLlm", () => {
       model: "gpt-4o",
       apiKey: "sk-runner-test",
       fetcher: async (_url, init) => {
-        const body = JSON.parse(String(init?.body)) as { tools?: unknown[]; messages?: ChatMessage[] };
+        const body = JSON.parse(String(init?.body)) as {
+          tools?: unknown[];
+          messages?: ChatMessage[];
+        };
         requests.push(body);
         turn += 1;
         if (turn === 1) {
@@ -398,7 +425,9 @@ describe("OpenAiLlm", () => {
               {
                 message: {
                   content: null,
-                  tool_calls: [{ id: "tc_1", function: { name: "lookup", arguments: '{"q":"sky"}' } }],
+                  tool_calls: [
+                    { id: "tc_1", function: { name: "lookup", arguments: '{"q":"sky"}' } },
+                  ],
                 },
                 finish_reason: "tool_calls",
               },

@@ -34,7 +34,8 @@ export function resolveSavedTarget(
 }
 
 // What the user sees for a target: the agent's name, or the job's when the target is the job itself.
-export const targetLabel = ({ jobName, agentName }: AssistantTarget): string => agentName ?? jobName;
+export const targetLabel = ({ jobName, agentName }: AssistantTarget): string =>
+  agentName ?? jobName;
 
 export type AssistantTargetOption = AssistantTarget & {
   id: string;

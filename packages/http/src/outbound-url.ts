@@ -180,7 +180,10 @@ const bodyBytes = (body: BodyInit | null | undefined): string | Uint8Array | und
 
 // Pin resolved IPs at socket creation so DNS rebinding cannot shift the target between check and connect.
 export const createPinnedFetcher =
-  (pinned: DnsRecord[], { maxResponseBytes }: { maxResponseBytes?: number } = {}): OutboundFetcher =>
+  (
+    pinned: DnsRecord[],
+    { maxResponseBytes }: { maxResponseBytes?: number } = {},
+  ): OutboundFetcher =>
   (input, init) =>
     new Promise<Response>((resolve, reject) => {
       const target = new URL(input);

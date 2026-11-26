@@ -1,9 +1,4 @@
-import {
-  BaseLlm,
-  type BaseLlmConnection,
-  type LlmRequest,
-  type LlmResponse,
-} from "@google/adk";
+import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from "@google/adk";
 import {
   FinishReason,
   type Content,
@@ -147,7 +142,9 @@ export const toJsonSchema = (raw: unknown): Record<string, unknown> => {
   return out;
 };
 
-const extractSystemInstruction = (instruction: GenerateContentConfig["systemInstruction"]): string => {
+const extractSystemInstruction = (
+  instruction: GenerateContentConfig["systemInstruction"],
+): string => {
   if (!instruction) return "";
   if (typeof instruction === "string") return instruction;
   if (Array.isArray(instruction)) {
@@ -174,10 +171,7 @@ const extractSystemInstruction = (instruction: GenerateContentConfig["systemInst
   return "";
 };
 
-const toChatMessages = (
-  contents: Content[],
-  systemInstruction: string,
-): ChatMessage[] => {
+const toChatMessages = (contents: Content[], systemInstruction: string): ChatMessage[] => {
   const messages: ChatMessage[] = [];
   if (systemInstruction) {
     messages.push({ role: "system", content: systemInstruction });
@@ -244,9 +238,7 @@ const toChatMessages = (
       const hasImages = userParts.some((p) => p.type === "image_url");
       messages.push({
         role: "user",
-        content: hasImages
-          ? userParts
-          : userParts.map((p) => (p as ChatTextPart).text).join(""),
+        content: hasImages ? userParts : userParts.map((p) => (p as ChatTextPart).text).join(""),
       });
     }
   }
@@ -257,7 +249,12 @@ const toOpenAiTools = (tools: GenerateContentConfig["tools"]) => {
   if (!Array.isArray(tools)) return undefined;
   const declarations: FunctionDeclaration[] = [];
   for (const tool of tools) {
-    if (tool && typeof tool === "object" && "functionDeclarations" in tool && Array.isArray(tool.functionDeclarations)) {
+    if (
+      tool &&
+      typeof tool === "object" &&
+      "functionDeclarations" in tool &&
+      Array.isArray(tool.functionDeclarations)
+    ) {
       declarations.push(...(tool.functionDeclarations as FunctionDeclaration[]));
     }
   }
@@ -285,7 +282,9 @@ const mapFinishReason = (reason: string | null | undefined): FinishReason | unde
   return FinishReason.OTHER;
 };
 
-const mapUsage = (usage: OpenAiUsage | undefined): GenerateContentResponseUsageMetadata | undefined => {
+const mapUsage = (
+  usage: OpenAiUsage | undefined,
+): GenerateContentResponseUsageMetadata | undefined => {
   if (!usage) return undefined;
   return {
     ...(usage.prompt_tokens !== undefined && { promptTokenCount: usage.prompt_tokens }),
@@ -382,7 +381,9 @@ export class OpenAiLlm extends BaseLlm {
       if (!pinned) {
         throw new Error(`Blocked OpenAI provider base URL: ${endpoint}`);
       }
-      return this.#fetcher ?? createPinnedFetcher(pinned, { maxResponseBytes: this.#maxResponseBytes });
+      return (
+        this.#fetcher ?? createPinnedFetcher(pinned, { maxResponseBytes: this.#maxResponseBytes })
+      );
     }
     return this.#fetcher;
   }
@@ -447,13 +448,20 @@ export class OpenAiLlm extends BaseLlm {
     }
 
     if (!stream) {
-      const payload = (await readBoundedJson(response, this.#maxResponseBytes)) as OpenAiChatCompletion;
+      const payload = (await readBoundedJson(
+        response,
+        this.#maxResponseBytes,
+      )) as OpenAiChatCompletion;
       const choice = payload.choices?.[0];
       const msg = choice?.message;
       const parts: Part[] = [];
       const reasoning = msg?.reasoning_content ?? msg?.reasoning;
       if (reasoning) parts.push({ text: reasoning, thought: true });
-      if (msg?.content !== undefined && msg?.content !== null && (msg.content.length > 0 || !(msg.tool_calls?.length))) {
+      if (
+        msg?.content !== undefined &&
+        msg?.content !== null &&
+        (msg.content.length > 0 || !msg.tool_calls?.length)
+      ) {
         parts.push({ text: msg.content });
       }
       for (const [idx, tc] of (msg?.tool_calls ?? []).entries()) {

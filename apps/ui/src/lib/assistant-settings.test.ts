@@ -19,10 +19,12 @@ test("parseAssistantSettings keeps valid values and falls back to the defaults",
       '{"runMode":"quick","defaultTarget":{"jobName":"job-a","agentName":"poet"}}',
     ),
   ).toEqual({ runMode: "quick", defaultTarget: { jobName: "job-a", agentName: "poet" } });
-  expect(parseAssistantSettings('{"runMode":"quick","defaultTarget":{"jobName":"job-a"}}')).toEqual({
-    runMode: "quick",
-    defaultTarget: { jobName: "job-a" },
-  });
+  expect(parseAssistantSettings('{"runMode":"quick","defaultTarget":{"jobName":"job-a"}}')).toEqual(
+    {
+      runMode: "quick",
+      defaultTarget: { jobName: "job-a" },
+    },
+  );
 });
 
 test("read and write survive storage that is missing or throws", () => {
@@ -32,7 +34,9 @@ test("read and write survive storage that is missing or throws", () => {
 
 test("parseAssistantSettings keeps a well-formed default model and drops a broken one", () => {
   const model = { providerId: "p1", model: "flash" };
-  expect(parseAssistantSettings(JSON.stringify({ runMode: "workflow", defaultModel: model }))).toEqual({
+  expect(
+    parseAssistantSettings(JSON.stringify({ runMode: "workflow", defaultModel: model })),
+  ).toEqual({
     runMode: "workflow",
     defaultModel: model,
   });

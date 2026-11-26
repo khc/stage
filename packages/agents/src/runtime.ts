@@ -147,8 +147,11 @@ export const createRunAgent = (
     const runner = new Runner({ appName: owner.appName, agent, sessionService });
     const runAsync = runner.runAsync.bind(runner);
     // Turn 1 validates against `inputSchema` (even on pre-created empty sessions); follow-ups are free text.
-    return createTaskAgent({ sessionService, runAsync }, publish, owner, (text) =>
-      checkInput(spec, text),
+    return createTaskAgent(
+      { sessionService, runAsync },
+      publish,
+      owner,
+      (text) => checkInput(spec, text),
       mode,
     )(message, taskId, sessionId, agentName, resolveModel, abortSignal);
   };

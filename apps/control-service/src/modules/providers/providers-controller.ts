@@ -48,7 +48,10 @@ export const providersController = (providersService: ProvidersService) =>
       {
         body: ProvidersModel.fetchModelsBody,
         ...doc(tag, "Fetch available models from a provider API", {
-          200: { description: "Available model identifiers.", schema: ProvidersModel.modelsResponse },
+          200: {
+            description: "Available model identifiers.",
+            schema: ProvidersModel.modelsResponse,
+          },
           400: {
             description:
               "Invalid input, `invalid_base_url`, `invalid_api_key`, or `api_key_required`.",

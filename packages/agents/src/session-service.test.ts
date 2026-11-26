@@ -284,7 +284,8 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)("session runs", () => {
     const service = newService();
     const { id } = await service.createSession(key);
     const ref = { ...key, sessionId: id };
-    const modeOf = async () => ((await service.getSession(ref)) as { run?: { mode?: string } }).run?.mode;
+    const modeOf = async () =>
+      ((await service.getSession(ref)) as { run?: { mode?: string } }).run?.mode;
     await service.startRun(ref, { mode: "quick" });
     expect(await modeOf()).toBe("quick");
     await service.finishRun(ref);

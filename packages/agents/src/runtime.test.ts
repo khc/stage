@@ -180,9 +180,13 @@ test("records the mode of the host on the run", async () => {
   const runAsync = async function* () {
     yield reply("done");
   };
-  await createTaskAgent({ sessionService, runAsync } as never, undefined, undefined, undefined, "quick")(
-    "hi",
-  );
+  await createTaskAgent(
+    { sessionService, runAsync } as never,
+    undefined,
+    undefined,
+    undefined,
+    "quick",
+  )("hi");
   expect(sessionService.startRun).toHaveBeenCalledWith(expect.anything(), { mode: "quick" });
 });
 
@@ -236,7 +240,10 @@ test("resumes a session under the app and user it was created with", async () =>
 
   expect(await run("more", taskId, "s9")).toBe("again");
   expect(getSession).toHaveBeenCalledWith({ ...owner, sessionId: "s9" });
-  expect(sessionService.startRun).toHaveBeenCalledWith({ ...owner, sessionId: "s9" }, { mode: undefined });
+  expect(sessionService.startRun).toHaveBeenCalledWith(
+    { ...owner, sessionId: "s9" },
+    { mode: undefined },
+  );
   expect(runAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: "legacy" }));
 });
 
