@@ -6,21 +6,22 @@ Build, deploy, migrate and troubleshoot the local stack. For GCP environments, s
 
 All infrastructure goes through Terraform. Do not create or change resources with direct Floci or `gcloud` calls: they leave resources outside the state and cause `409 alreadyExists` on the next apply. Direct calls are fine for reading (`task list-jobs`) and for removing a resource from the emulator; run `task tf:apply` afterwards.
 
-| Task                                                                        | What it does                                                                                                                       |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `task build`                                                                | Builds every image: agents, extract service, control service, dashboard                                                            |
-| `task build:agents`                                                         | One image per agent app in `JOBS` (`stage/<name>-agents:latest`). `JOBS=poet` narrows it                                           |
-| `task build:extract-service`, `task build:control-service`, `task build:ui` | One service image each                                                                                                             |
-| `task tf:init`                                                              | Initialise Terraform in `infra/envs/local`. Once, and after provider or module changes                                             |
-| `task tf:apply`                                                             | Create what is missing and update job images and environment. Aliases: `tf:create-job`, `tf:update-job`. `JOBS` does not narrow it |
-| `task deploy -- -auto-approve`                                              | Replace services whose local image changed, and register agents. `FORCE=true` replaces all                                         |
-| `task tf:import`                                                            | Adopt resources created before Terraform                                                                                           |
-| `task tf:create-extract`, `tf:create-service`                               | Create or update the extract or control service in Floci and print its URL                                                         |
-| `task tf:remove-extract`, `tf:remove-service`                               | Delete one of them                                                                                                                 |
-| `task register-agents`                                                      | Record each agent app's agents in Firestore                                                                                        |
-| `task list-jobs`                                                            | Print the Floci jobs as JSON (pipe to `jq`)                                                                                        |
-| `task remove-job JOB=<name>`                                                | Delete a job after confirmation. It bypasses Terraform, so the next apply recreates it                                             |
-| `task load-imdb`                                                            | Download the IMDb datasets and load them into Floci's Postgres                                                                     |
+| Task                                                                        | What it does                                                                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `task build`                                                                | Builds every image: agents, extract service, control service, dashboard                                                              |
+| `task build:agents`                                                         | One image per agent app in `JOBS` (`stage/<name>-agents:latest`). `JOBS=poet` narrows it                                             |
+| `task build:extract-service`, `task build:control-service`, `task build:ui` | One service image each                                                                                                               |
+| `task tf:init`                                                              | Initialise Terraform in `infra/envs/local`. Once, and after provider or module changes                                               |
+| `task tf:apply`                                                             | Create what is missing and update job images and environment. Aliases: `tf:create-job`, `tf:update-job`. `JOBS` does not narrow it   |
+| `task deploy -- -auto-approve`                                              | Replace services whose local image changed, and register agents. `FORCE=true` replaces all                                           |
+| `task tf:import`                                                            | Adopt resources created before Terraform                                                                                             |
+| `task tf:create-extract`, `tf:create-service`                               | Create or update the extract or control service in Floci and print its URL                                                           |
+| `task tf:remove-extract`, `tf:remove-service`                               | Delete one of them                                                                                                                   |
+| `task register-agents`                                                      | Record each agent app's agents in Firestore                                                                                          |
+| `task list-jobs`                                                            | Print the Floci jobs as JSON (pipe to `jq`)                                                                                          |
+| `task remove-job JOB=<name>`                                                | Delete a job after confirmation. It bypasses Terraform, so the next apply recreates it                                               |
+| `task clean`                                                                | Delete every task and session (with their documents and events) from Floci's Firestore, after confirmation. `--yes` skips the prompt |
+| `task load-imdb`                                                            | Download the IMDb datasets and load them into Floci's Postgres                                                                       |
 
 `task tf:apply` needs [go-task](https://taskfile.dev), Terraform and [yq](https://github.com/mikefarah/yq). Run `task --list` for the full set. Floci supports the Cloud Run v2 REST API only, not `gcloud run jobs`.
 
@@ -119,15 +120,16 @@ The `scripts/` folder also has `migrate-legacy-task-names.ts` and `remove-orphan
 
 ## Troubleshooting
 
-| Symptom                                      | Cause and fix                                                                                                                                          |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `409 alreadyExists` from `task tf:apply`     | A resource exists outside Terraform. `task tf:import` adopts it                                                                                        |
-| A job is missing after `task remove-job`     | It bypasses Terraform. Run `task tf:apply`                                                                                                             |
-| `GET /jobs` is empty                         | Run `task tf:apply`, and check `GCP_PROJECT`, `GCP_REGION` and `CLOUD_RUN_EMULATOR_HOST`                                                               |
-| Agents are missing in the dashboard          | `task register-agents` (also after you change an agent)                                                                                                |
-| Live events do not arrive                    | `PUBSUB_TOPIC` and `PUBSUB_EMULATOR_HOST` must match between the service and the jobs. Rebuild the agent image and run `task tf:apply` after upgrading |
-| An orchestrator run cannot reach the service | Set `HOST=0.0.0.0` for the host service, and check `gateway_url` in `infra/envs/local`                                                                 |
-| A resume answers `409 run_in_progress`       | The session is still running, or its lease has not expired (10 minutes after a lost run)                                                               |
+| Symptom                                                                      | Cause and fix                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `409 alreadyExists` from `task tf:apply`                                     | A resource exists outside Terraform. `task tf:import` adopts it                                                                                                                                                       |
+| A quick run fails with `HTTP 503` (`Cloud Run service has no ready runtime`) | The service's container exited (for example after Docker restarted) and Floci still lists it as ready. `task deploy` replaces a service only when its image changed, so run `task deploy FORCE=true -- -auto-approve` |
+| A job is missing after `task remove-job`                                     | It bypasses Terraform. Run `task tf:apply`                                                                                                                                                                            |
+| `GET /jobs` is empty                                                         | Run `task tf:apply`, and check `GCP_PROJECT`, `GCP_REGION` and `CLOUD_RUN_EMULATOR_HOST`                                                                                                                              |
+| Agents are missing in the dashboard                                          | `task register-agents` (also after you change an agent)                                                                                                                                                               |
+| Live events do not arrive                                                    | `PUBSUB_TOPIC` and `PUBSUB_EMULATOR_HOST` must match between the service and the jobs. Rebuild the agent image and run `task tf:apply` after upgrading                                                                |
+| An orchestrator run cannot reach the service                                 | Set `HOST=0.0.0.0` for the host service, and check `gateway_url` in `infra/envs/local`                                                                                                                                |
+| A resume answers `409 run_in_progress`                                       | The session is still running, or its lease has not expired (10 minutes after a lost run)                                                                                                                              |
 
 ## Security notes
 

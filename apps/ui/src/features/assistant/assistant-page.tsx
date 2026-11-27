@@ -170,9 +170,15 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
 
   const activeSessionSummary = chat.sessions.find((s) => s.id === chat.activeSessionId);
   const runStatus = chat.sessionQuery.data?.run?.status ?? activeSessionSummary?.run?.status;
-  const isRunning = runStatus === "running" || chat.sendMutation.isPending;
+  const run = chat.sessionQuery.data?.run ?? activeSessionSummary?.run;
+  const runFailure = run?.status === "failed" ? (run.error ?? "The run failed.") : undefined;
+  const isRunning = runStatus === "running" || chat.sendMutation.isPending || chat.awaitingRun;
+  // An open chat is loading until its session list is in, then until its session is: the empty
+  // state is for a chat with no session, not for one whose session has not arrived yet.
   const isLoadingSession =
-    !!chatId && !!chat.activeSessionId && chat.sessionQuery.isPending && !chat.sessionQuery.data;
+    !!chatId &&
+    (chat.sessionsQuery.isPending ||
+      (!!chat.activeSessionId && chat.sessionQuery.isPending && !chat.sessionQuery.data));
 
   const serviceAvailable = isQuickServiceAvailable(
     chat.targets.jobsQuery.data?.jobs ?? [],
@@ -184,7 +190,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
     ? chat.targets.isPending
       ? "Loading workspace agents…"
       : "No Cloud Run jobs are configured yet."
-    : runStatus === "running" || chat.sendMutation.isPending
+    : isRunning
       ? "The assistant is still responding…"
       : undefined;
 
@@ -328,6 +334,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           target={chat.activeTarget}
           isRunning={isRunning}
           isLoadingSession={isLoadingSession}
+          runError={runFailure}
           childCount={chatId ? (childCounts.get(chatId) ?? 0) : 0}
           taskId={chatId}
           onStarterSelect={(prompt) => setDraft(prompt)}
@@ -360,7 +367,7 @@ export function AssistantPage({ chatId }: { chatId?: string }) {
           onDeleteDocument={
             chatId ? (documentId) => chat.removeDocumentMutation.mutate(documentId) : undefined
           }
-          disabled={!chat.activeTarget || runStatus === "running"}
+          disabled={!chat.activeTarget || runStatus === "running" || chat.awaitingRun}
           disabledReason={disabledReason}
           isSending={chat.sendMutation.isPending}
           isUploading={chat.uploadMutation.isPending}

@@ -140,7 +140,12 @@ function Shell() {
           </nav>
           <div className="ml-auto flex items-center gap-3">
             {isAssistant && (
-              <Button size="sm" render={<Link to="/" />} onClick={requestNewChat}>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link to="/" />}
+                onClick={requestNewChat}
+              >
                 <Plus />
                 New chat
               </Button>

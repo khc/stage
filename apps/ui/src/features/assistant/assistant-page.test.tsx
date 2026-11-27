@@ -28,6 +28,30 @@ test("AssistantThread welcome state shows the animated Stage logo above the help
   expect(html).toContain("Summarize what agents and tools are available");
 });
 
+test("AssistantThread shows the working line, not the logo, while a run has not produced events yet", () => {
+  const html = renderToStaticMarkup(
+    <AssistantThread turns={[]} isRunning onStarterSelect={() => {}} />,
+  );
+
+  expect(html).toContain("Working on it");
+  expect(html).not.toContain('class="stage-lava ');
+  expect(html).not.toContain("Start a conversation");
+});
+
+test("AssistantThread shows why a run failed even when it wrote no events", () => {
+  const html = renderToStaticMarkup(
+    <AssistantThread
+      turns={[]}
+      runError="agent service failed: HTTP 503"
+      onStarterSelect={() => {}}
+    />,
+  );
+
+  expect(html).toContain("Run failed");
+  expect(html).toContain("agent service failed: HTTP 503");
+  expect(html).not.toContain("Start a conversation");
+});
+
 test("AssistantThread renders user and Markdown assistant turns without raw technical dumps", () => {
   const turns: ChatTurn[] = [
     { id: "u1", kind: "user", text: "What did we find?" },

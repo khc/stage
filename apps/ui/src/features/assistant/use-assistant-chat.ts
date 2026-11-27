@@ -427,6 +427,12 @@ export function useAssistantChat(
     }
   }, [chatId, activeSessionId, startingSession, settledStatus]);
 
+  // The job has not written the run yet (a new chat, or a message that resumed a session): the chat
+  // is busy even though the session shows no running run.
+  const awaitingRun =
+    isAwaitingRunStart(startingSession, chatId, activeSessionId, sessionQuery.data) ||
+    isAwaitingResumedRun(resumedRun, chatId, activeSessionId, sessionQuery.data);
+
   const resetDraft = () => {
     pendingTaskRef.current = null;
     setStagedFiles([]);
@@ -446,6 +452,7 @@ export function useAssistantChat(
     activeSessionId,
     setSelectedSessionId,
     sessionQuery,
+    awaitingRun,
     documentsQuery,
     stagedFiles,
     addStagedFiles: (files: File[]) => setStagedFiles((prev) => [...prev, ...files]),

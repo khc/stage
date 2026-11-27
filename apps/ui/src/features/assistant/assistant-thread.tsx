@@ -101,6 +101,7 @@ export function AssistantThread({
   target,
   isRunning,
   isLoadingSession,
+  runError,
   childCount = 0,
   taskId,
   onStarterSelect,
@@ -110,6 +111,9 @@ export function AssistantThread({
   target?: AssistantTarget;
   isRunning?: boolean;
   isLoadingSession?: boolean;
+  // Why the latest run failed. A run can fail before the agent writes any event, so without this the
+  // chat would look empty.
+  runError?: string;
   childCount?: number;
   taskId?: string;
   onStarterSelect: (prompt: string) => void;
@@ -123,7 +127,7 @@ export function AssistantThread({
     );
   }
 
-  if (!turns.length && !isRunning) {
+  if (!turns.length && !isRunning && !runError) {
     const defaultLabel = target ? targetLabel(target) : "orchestrator";
     return (
       <Empty className="min-h-0 [scrollbar-width:none] justify-center-safe overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden">
@@ -238,6 +242,13 @@ export function AssistantThread({
                 </MessageScrollerItem>
               );
             })}
+            {runError && !isRunning && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>Run failed</AlertTitle>
+                <AlertDescription>{runError}</AlertDescription>
+              </Alert>
+            )}
             {showWorkingIndicator && (
               <MessageScrollerItem messageId="assistant-working">
                 <Message align="start" className="items-center gap-3">
