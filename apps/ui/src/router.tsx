@@ -24,7 +24,7 @@ import {
   ChevronRight,
   ArrowRight,
 } from "lucide-react";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
@@ -32,17 +32,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { AssistantPage } from "@/features/assistant/assistant-page";
-import { JobSheet } from "@/features/jobs/job-sheet";
-import { JobsTable } from "@/features/jobs/jobs-table";
-import { AssistantSettingsPage } from "@/features/settings/assistant-settings-page";
-import { ProvidersPage } from "@/features/settings/providers-page";
-import { NewTaskDialog } from "@/features/tasks/new-task-dialog";
-import { TaskSheet } from "@/features/tasks/task-sheet";
-import { TasksPanel } from "@/features/tasks/tasks-panel";
 import { shortJobName } from "@/lib/api";
 import { assistantLayoutId, requestNewChat, useIsAssistant, useNav } from "@/lib/nav";
 import { startPlatformEvents } from "@/lib/platform-events";
 import { useHealth, useJobs, useTasks } from "@/lib/queries";
+
+// Pages and sheets load on demand. The Assistant is the landing page, so it stays in the main bundle: a lazy chunk would add a request hop before the first paint.
+// oxlint-disable-next-line typescript/no-explicit-any -- the same bound React.lazy uses
+const lazyNamed = <K extends string, C extends ComponentType<any>>(
+  load: () => Promise<Record<K, C>>,
+  name: K,
+) => lazy(() => load().then((module) => ({ default: module[name] })));
+
+const JobSheet = lazyNamed(() => import("@/features/jobs/job-sheet"), "JobSheet");
+const JobsTable = lazyNamed(() => import("@/features/jobs/jobs-table"), "JobsTable");
+const AssistantSettingsPage = lazyNamed(
+  () => import("@/features/settings/assistant-settings-page"),
+  "AssistantSettingsPage",
+);
+const ProvidersPage = lazyNamed(
+  () => import("@/features/settings/providers-page"),
+  "ProvidersPage",
+);
+const NewTaskDialog = lazyNamed(() => import("@/features/tasks/new-task-dialog"), "NewTaskDialog");
+const TaskSheet = lazyNamed(() => import("@/features/tasks/task-sheet"), "TaskSheet");
+const TasksPanel = lazyNamed(() => import("@/features/tasks/tasks-panel"), "TasksPanel");
+
+// Stays true once a value has been true, so a sheet's chunk loads on first open and its close animation still plays.
+function useOnceTrue(value: boolean) {
+  const [seen, setSeen] = useState(value);
+  if (value && !seen) setSeen(true);
+  return seen;
+}
 
 const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 
@@ -108,6 +129,9 @@ function Shell() {
   const jobs = jobsQuery.data?.jobs ?? [];
   const openJob = search.job ? jobs.find((job) => shortJobName(job) === search.job) : undefined;
   const refreshing = tasksQuery.isFetching || jobsQuery.isFetching;
+  const showNewTask = useOnceTrue(!!search.new);
+  const showJob = useOnceTrue(!!openJob);
+  const showTask = useOnceTrue(section === "/tasks" && !!taskId);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -154,7 +178,9 @@ function Shell() {
         </header>
         {isAssistant ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <Outlet />
+            <Suspense fallback={null}>
+              <Outlet />
+            </Suspense>
           </div>
         ) : (
           <>
@@ -186,14 +212,18 @@ function Shell() {
                   )}
                 </div>
               </div>
-              <Outlet />
+              <Suspense fallback={null}>
+                <Outlet />
+              </Suspense>
             </div>
           </>
         )}
       </SidebarInset>
-      <NewTaskDialog open={!!search.new} initialJob={search.for ?? ""} />
-      <JobSheet job={openJob} tasks={tasksQuery.data?.tasks ?? []} />
-      <TaskSheet taskId={section === "/tasks" ? taskId : undefined} />
+      <Suspense fallback={null}>
+        {showNewTask && <NewTaskDialog open={!!search.new} initialJob={search.for ?? ""} />}
+        {showJob && <JobSheet job={openJob} tasks={tasksQuery.data?.tasks ?? []} />}
+        {showTask && <TaskSheet taskId={section === "/tasks" ? taskId : undefined} />}
+      </Suspense>
       <Toaster />
     </SidebarProvider>
   );
